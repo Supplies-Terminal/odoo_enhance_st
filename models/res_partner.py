@@ -6,7 +6,6 @@ from odoo import _, api, fields, models, tools
 class Partner(models.Model):
     _inherit = "res.partner"
 
-    @api.multi
     def name_get(self):
         res = []
         for rec in self:
