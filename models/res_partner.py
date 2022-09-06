@@ -11,7 +11,7 @@ class Partner(models.Model):
         res = []
         for rec in self:
             if rec.ref:
-                res.append((rec.id, "%s <br/>%s" % (rec.name, rec.ref)))
+                res.append((rec.id, "%s (%s)" % (rec.name, rec.ref)))
             else:
                 res.append((rec.id, "%s" % rec.name))
         return res
