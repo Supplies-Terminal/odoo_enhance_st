@@ -7,7 +7,7 @@
     'sequence': 50,
     'summary': 'Enhanced user experiences based on the business operations.',
     'website': 'https://suppliesterminal.com',
-    'version': '1.0.0',
+    'version': '1.1.0',
     'description': "",
     'depends': [],
     'data': [
