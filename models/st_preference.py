@@ -9,3 +9,6 @@ class StPreference(models.Model):
     subscribe_order_notice = fields.Boolean()
     subscribe_other = fields.Boolean()
     subscribe_to = fields.Char()
+
+    def write(self, vals):
+        res = super(StPreference, self).write(vals)

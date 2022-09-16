@@ -8,3 +8,6 @@ class StPurchasecard(models.Model):
     member_id = fields.Many2one('res.partner', string='Member')
     uuid = fields.Char()
     data = fields.Text()
+
+    def write(self, vals):
+        res = super(StPurchasecard, self).write(vals)
