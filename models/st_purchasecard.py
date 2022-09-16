@@ -1,4 +1,4 @@
-from odoo import models, fields
+from odoo import api, models, fields
 
 class StPurchasecard(models.Model):
     _name = "st.purchasecard"

@@ -1,4 +1,4 @@
-from odoo import models, fields
+from odoo import api, models, fields
 
 class StPreference(models.Model):
     _name = "st.preference"
