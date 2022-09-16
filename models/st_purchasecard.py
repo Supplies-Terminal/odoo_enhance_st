@@ -9,5 +9,10 @@ class StPurchasecard(models.Model):
     uuid = fields.Char()
     data = fields.Text()
 
+    @api.model
     def write(self, vals):
         res = super(StPurchasecard, self).write(vals)
+
+    @api.model
+    def create(self, vals):
+        rec = super(StPurchasecard, self).create(vals)
