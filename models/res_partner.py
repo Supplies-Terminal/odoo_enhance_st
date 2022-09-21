@@ -18,4 +18,3 @@ class Partner(models.Model):
             else:
                 res.append((rec.id, "%s" % rec.name))
         return res
-    member_id = fields.Many2one('res.partner', string='Member')
