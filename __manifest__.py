@@ -12,6 +12,7 @@
     'depends': [],
     'data': [
         'security/ir.model.access.csv',
+        'views/res_partner_views.xml',
         'views/st_purchasecard_views.xml'
     ],
     'demo': [

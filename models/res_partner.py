@@ -6,6 +6,8 @@ from odoo import _, api, fields, models, tools
 class Partner(models.Model):
     _inherit = "res.partner"
 
+    is_app_supplier = fields.Boolean(default=False, string='Is Supplier for App?');
+    
     @api.model
     def name_get(self):
         res = []
