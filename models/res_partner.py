@@ -6,6 +6,8 @@ from odoo import _, api, fields, models, tools
 class Partner(models.Model):
     _inherit = "res.partner"
 
+    website_ids = fields.Many2Many('webiste', string='App Websites')
+
     @api.model
     def name_get(self):
         res = []
@@ -16,3 +18,4 @@ class Partner(models.Model):
             else:
                 res.append((rec.id, "%s" % rec.name))
         return res
+    member_id = fields.Many2one('res.partner', string='Member')
