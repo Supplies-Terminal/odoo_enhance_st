@@ -3,7 +3,7 @@
     <record id="view_partner_form_inherit_st" model="ir.ui.view">
         <field name="name">res.partner.form.st.inherit</field>
         <field name="model">res.partner</field>
-        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="inherit_id" ref="res.partner.form"/>
         <field name="arch" type="xml">
             <field name="ref" position="after">
                 <field name="website_ids" widget="many2many_tags"/>
