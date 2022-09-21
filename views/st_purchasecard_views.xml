@@ -33,6 +33,8 @@
         <field name="res_model">st.purchasecard</field>
         <field name="view_mode">tree,form</field>
     </record>
+    <menuitem id="website.menu_st_settings" name="ST" sequence="1"
+        parent="website.menu_website_global_configuration"/>
     <menuitem id="menu_st_purchasecard" name="purchasecards"
         action="st_purchasecard_action"
         parent="website.menu_st_settings" sequence="42"/>
