@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="st_purchasecard_tree_view" model="ir.ui.view">
+        <field name="name">st.purchasecard.tree</field>
+        <field name="model">st.purchasecard</field>
+        <field name="arch" type="xml">
+            <tree string="Purchasecards">
+                <field name="supplier_id" widget="many2one_tags"/>
+                <field name="member_id" widget="many2one_tags"/>
+                <field name="uuid"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="st_purchasecard_form_view" model="ir.ui.view">
+        <field name="name">st.purchasecard.form</field>
+        <field name="model">st.purchasecard</field>
+        <field name="arch" type="xml">
+            <form string="Purchasecard">
+                <sheet>
+                    <group>
+                        <field name="supplier_id" widget="many2one_tags"/>
+                        <field name="member_id" widget="many2one_tags"/>
+                        <field name="uuid"/>
+                        <field name="data"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+    <record id="st_purchasecard_action" model="ir.actions.act_window">
+        <field name="name">Purchasecards</field>
+        <field name="res_model">st.purchasecard</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+    <menuitem id="menu_st_purchasecard" name="purchasecards"
+        action="st_purchasecard_action"
+        parent="website.menu_st_settings" sequence="42"/>
+</odoo>
