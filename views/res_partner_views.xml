@@ -5,7 +5,7 @@
         <field name="model">res.partner</field>
         <field name="inherit_id" ref="res.partner.form"/>
         <field name="arch" type="xml">
-            <field name="ref" position="after">
+            <field name="category_id" position="after">
                 <field name="website_ids" widget="many2many_tags"/>
             </field>
         </field>
