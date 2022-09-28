@@ -18,7 +18,7 @@
             <form string="Purchasecard">
                 <sheet>
                     <group>
-                        <field name="website_id" widget="many2one"/>
+                        <field name="website_id" options="{'no_create': True}" groups="website.group_multi_website"/>
                         <field name="member_id" widget="many2one"/>
                         <field name="uuid"/>
                         <field name="data"/>
