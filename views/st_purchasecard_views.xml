@@ -6,7 +6,6 @@
         <field name="arch" type="xml">
             <tree string="Purchasecards">
                 <field name="uuid"/>
-                <field name="website_id" widget="many2one"/>
                 <field name="member_id" widget="many2one"/>
             </tree>
         </field>
