@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="website.menu_st_settings" name="ST" sequence="1"
+        parent="website.menu_website_global_configuration"/>
+</odoo>
