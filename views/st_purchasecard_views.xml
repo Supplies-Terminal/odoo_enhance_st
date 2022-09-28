@@ -5,9 +5,9 @@
         <field name="model">st.purchasecard</field>
         <field name="arch" type="xml">
             <tree string="Purchasecards">
-                <field name="supplier_id" widget="many2one_tags"/>
-                <field name="member_id" widget="many2one_tags"/>
                 <field name="uuid"/>
+                <field name="website_id" widget="many2one_tags"/>
+                <field name="member_id" widget="many2one_tags"/>
             </tree>
         </field>
     </record>
@@ -19,7 +19,7 @@
             <form string="Purchasecard">
                 <sheet>
                     <group>
-                        <field name="supplier_id" widget="many2one_tags"/>
+                        <field name="website_id" widget="many2one_tags"/>
                         <field name="member_id" widget="many2one_tags"/>
                         <field name="uuid"/>
                         <field name="data"/>
