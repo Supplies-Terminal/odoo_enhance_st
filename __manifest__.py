@@ -15,6 +15,7 @@
         'views/res_partner_views.xml',
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
+        'views/website_templates.xml',
     ],
     'demo': [
     ],

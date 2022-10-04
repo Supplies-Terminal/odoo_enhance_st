@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+<template id="show_purchard_info" inherit_id="website.purchard_info" customize_show="True" name="Show Purcharse Card Information">
+    <title>Purcharse Card</title>
+        <t t-foreach="teachers" t-as="teacher">
+            <p><t t-esc="teacher"/></p>
+        </t>
+</template>
+</odoo>
