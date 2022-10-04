@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-<template id="show_purchard_info" inherit_id="website.purchard_info" customize_show="True" name="Show Purcharse Card Information">
-    <title>Purcharse Card</title>
+<template id="show_purchard_info" inherit_id="website.purchase_info" customize_show="True" name="Show Purchase Card Information">
+    <title>Purchase Card</title>
 </template>
 </odoo>
