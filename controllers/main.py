@@ -37,4 +37,4 @@ class PurchaseCard(odoo.http.Controller):
         values = {
             'uuid': uuid,
         }
-        return request.render('purchasecard.show_purchasecard_info', values)
+        return request.render('odoo-enhance-st.show_purchasecard_info', values)
