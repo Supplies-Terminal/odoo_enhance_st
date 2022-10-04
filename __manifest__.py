@@ -2,7 +2,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 {
-    'name': 'ST UX Enhanced Toolkit',
+    'name': 'ST Enhanced Toolkit',
     'category': 'Website/Website',
     'sequence': 50,
     'summary': 'Enhanced user experiences based on the business operations.',
@@ -15,7 +15,7 @@
         'views/res_partner_views.xml',
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
-        'views/website_templates.xml',
+        'views/purchasecard_templates.xml',
     ],
     'demo': [
     ],

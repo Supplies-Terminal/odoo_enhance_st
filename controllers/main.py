@@ -28,18 +28,13 @@ from odoo.addons.portal.controllers.web import Home
 
 logger = logging.getLogger(__name__)
 
-class Website(Home):
+class PurchaseCard(odoo.http.Controller):
 
-    @http.route('/purchasecard/<uuid>', type='http', auth="public", website=True, sitemap=False)
-    def purchasecard(self, uuid, **kw):
-        try:
-            request.website.get_template('website.show_purchard_info').name
-        except Exception as e:
-            return request.env['ir.http']._handle_exception(e)
-        
+    @http.route('/purchasecard/<uuid>', type='http', auth="public")
+    def showInfo(self, uuid, **kw):
         # Module = request.env['st.purchasecard'].sudo()
         # purchaseCard = Module.search([('uuid', '=', uuid)])
         values = {
             'uuid': uuid,
         }
-        return request.render('website.show_purchard_info', values)
+        return request.render('purchasecard.show_purchasecard_info', values)
