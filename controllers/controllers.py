@@ -68,6 +68,7 @@ class Purchasecard(http.Controller):
                 productInfo = http.request.env['product.product'].with_context(lange=locale).browse(purchaseCardGrid[tableIndex]['items'][itemIndex]['product_id'])
                 if productInfo:
                     purchaseCardGrid[tableIndex]['items'][itemIndex]['name'] = productInfo['name']
+                    purchaseCardGrid[tableIndex]['items'][itemIndex]['unit'] = productInfo['uom_name']
             # 补全空行
             if total < lines:
                 for other in range(total, lines):
