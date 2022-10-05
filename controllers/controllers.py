@@ -84,6 +84,6 @@ class Purchasecard(http.Controller):
             'uuid': uuid,
             'locale': locale,
             'website': website.name,
-            'data': purchaseCardGrid
+            'data': pages
         })
         
