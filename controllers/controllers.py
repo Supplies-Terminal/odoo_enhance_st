@@ -59,7 +59,7 @@ class Purchasecard(http.Controller):
         pages = {}
         
         for tableIndex in range(0, len(purchaseCardGrid)-1):
-            pageIndex = tableIndex % 4
+            pageIndex = tableIndex // 4
             if pageIndex not in pages:
                 pages[pageIndex] = []
             
