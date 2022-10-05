@@ -6,8 +6,8 @@
       <t t-foreach="data" t-as="page">
         <div t-if="page_index>0" style="page-break-after:always;"></div>
         <div class="titles clearfix" style="display: flex; clear:both;">
-          <div style="flex: 1; text-align: left; font-size: 25px; font-weight: 700; margin-top: 0px; margin-bottom: 0px;"><t t-esc="website"/></div>
-          <div style="flex: 1; text-align: right; font-size: 14px; font-weight: 700; margin-top: 0px; margin-bottom: 0px;">
+          <div style="flex: 1; text-align: left; font-size: 25px; font-weight: 700; margin-top: 0px; margin-bottom: 0px;font-family: "Microsoft YaHei","PingFang SC","Arial";"><t t-esc="website"/></div>
+          <div style="flex: 1; text-align: right; font-size: 14px; font-weight: 700; margin-top: 0px; margin-bottom: 0px;font-family: "Microsoft YaHei","PingFang SC","Arial";">
             <img src="https://app.suppliesterminal.com/Public/Home/img/app.png" style="float: right; max-height: 40px; max-width:40px; margin-left: 10px;"/>
             Scan to get our app<br/><span style="font-size: 10px; font-weight: normal;">Powdered by SUPPLIES TERMINAL</span>
           </div>
@@ -18,14 +18,14 @@
               <table class="table table-bordered" style="with: 100%; border: 1px solid #ddd; margin-bottom: 10px;">
                 <tbody>
                   <tr class="th js_th">
-                    <th class="text-left" style="line-height: 1.42857143; vertical-align: top;width: 80%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">GROUP<t t-esc="page_index * 4 + table_index + 1"/></th>
-                    <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 12%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">QTY</th>
-                    <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 8%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">UNIT</th>
+                    <th class="text-left" style="line-height: 1.42857143; vertical-align: top;width: 80%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;font-family: "Microsoft YaHei","PingFang SC","Arial";">GROUP<t t-esc="page_index * 4 + table_index + 1"/></th>
+                    <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 12%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;font-family: "Microsoft YaHei","PingFang SC","Arial";">QTY</th>
+                    <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 8%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;font-family: "Microsoft YaHei","PingFang SC","Arial";">UNIT</th>
                   </tr>
                   <tr t-foreach="table.get('items')" t-as="row">
-                    <td class="text-left" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px"><t t-esc="row.get('name')"/></td>
+                    <td class="text-left" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px;font-family: "Microsoft YaHei","PingFang SC","Arial";"><t t-out="row.get('name')"/></td>
                     <td style="line-height: 1.42857143; vertical-align: top;padding: 1px 5px; font-size: 13px"></td>
-                    <td class="text-center" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px"><t t-esc="row.get('unit')"/></td>
+                    <td class="text-center" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px;font-family: "Microsoft YaHei","PingFang SC","Arial";"><t t-out="row.get('unit')"/></td>
                   </tr>
                 </tbody>
               </table>

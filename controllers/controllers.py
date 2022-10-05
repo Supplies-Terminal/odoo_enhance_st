@@ -73,8 +73,8 @@ class Purchasecard(http.Controller):
                 for other in range(total, lines):
                     purchaseCardGrid[tableIndex]['items'].append({
                         'product_id': 0,
-                        'name': '',
-                        'unit': ''
+                        'name': '&nbsp;',
+                        'unit': '&nbsp;'
                     })
             pages[pageIndex].append(purchaseCardGrid[tableIndex])
 
