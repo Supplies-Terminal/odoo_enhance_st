@@ -13,9 +13,6 @@
           </div>
         </div>
         <div style="width: 100%;">
-          <t t-esc="page"/>
-          <t t-esc="page_value"/>
-          <t t-esc="page_index"/>
           <div t-foreach="page_value" t-as="table" style="width: 50%; float: left;">
             <div style="margin: 0px 3px 0px 3px;">
               <table class="table table-bordered" style="border: 1px solid #ddd; margin-bottom: 10px;">
@@ -24,6 +21,11 @@
                     <th class="text-left" style="line-height: 1.42857143; vertical-align: top;width: 80%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">GROUP<t t-esc="page_index * 4 + table_index + 1"/></th>
                     <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 12%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">QTY</th>
                     <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 8%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">UNIT</th>
+                  </tr>
+                  <tr t-foreach="table.items" t-as="row">
+                    <td class="text-left" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px"><t t-esc="row.name"/></td>
+                    <td style="line-height: 1.42857143; vertical-align: top;padding: 1px 5px; font-size: 13px"></td>
+                    <td class="text-center" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px"><t t-esc="row.unit"/></td>
                   </tr>
                 </tbody>
               </table>
