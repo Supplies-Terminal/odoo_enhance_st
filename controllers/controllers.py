@@ -53,6 +53,7 @@ class Purchasecard(http.Controller):
         if not locale:
             locale = 'en_US'
             
+        _logger.info(locale)
         lines = 20
         # 获取指定语言的商品名称
         purchaseCardGrid = json.loads(purchasecard['data'])
