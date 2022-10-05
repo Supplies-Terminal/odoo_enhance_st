@@ -58,7 +58,7 @@ class Purchasecard(http.Controller):
         purchaseCardGrid = json.loads(purchasecard['data'])
         pages = {}
         
-        for tableIndex in range(0, len(purchaseCardGrid)-1):
+        for tableIndex in range(0, len(purchaseCardGrid)):
             pageIndex = tableIndex // 4
             if pageIndex not in pages:
                 pages[pageIndex] = []
