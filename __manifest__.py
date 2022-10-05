@@ -9,13 +9,16 @@
     'website': 'https://suppliesterminal.com',
     'version': '1.1.0',
     'description': "",
-    'depends': [],
+    'depends': [
+        'contacts',
+        'website',
+        ],
     'data': [
         'security/ir.model.access.csv',
         'views/res_partner_views.xml',
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
-        'views/purchasecard_templates.xml',
+        'views/templates.xml',
     ],
     'demo': [
     ],

@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<odoo>
-    <template id="show_purchasecard_info">
-        <title>Purchase Card</title>
-        <p><t t-esc="uuid"/></p>
-    </template>
-</odoo>
