@@ -22,9 +22,10 @@
                     <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 12%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">QTY</th>
                     <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 8%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">UNIT</th>
                   </tr>
-                  <t t-esc="table"/>
-                  <t t-esc="table_index"/>
                   <t t-esc="table_value"/>
+                  <tr t-foreach="table_value.items" t-as="row">
+                    <t t-esc="row_value"/>
+                  </tr>
                 </tbody>
               </table>
             </div>
