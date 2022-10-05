@@ -10,7 +10,7 @@ class Purchasecard(http.Controller):
     def list(self, uuid, locale, **kw):
         purchasecard = http.request.env['st.purchasecard'].search([('uuid', '=', uuid)], limit=1)
         if not purchasecard:
-            return http.request.render('purchasecard.print-error', {
+            return http.request.render('odoo_enhance_st.print-error', {
                 'message': 'Data not found',
             })
 
@@ -22,7 +22,7 @@ class Purchasecard(http.Controller):
         website = purchasecard.website_id
         
         if not website:
-            return http.request.render('purchasecard.print-error', {
+            return http.request.render('odoo_enhance_st.print-error', {
                 'message': 'Data error: website not exists',
             })
             
@@ -80,7 +80,7 @@ class Purchasecard(http.Controller):
 
         _logger.info(json.dumps(pages))
                
-        return http.request.render('purchasecard.print', {
+        return http.request.render('odoo_enhance_st.print', {
             'uuid': uuid,
             'locale': locale,
             'website': website.name,
