@@ -22,9 +22,10 @@
                     <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 12%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">QTY</th>
                     <th class="text-center" style="line-height: 1.42857143; vertical-align: top;width: 8%; overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 10px; font-weight: 700;">UNIT</th>
                   </tr>
-                  <t t-esc="table_value"/>
-                  <tr t-foreach="table_value.items" t-as="row">
-                    <t t-esc="row_value"/>
+                  <tr t-foreach="table.get('items')" t-as="row">
+                    <td class="text-left" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px"><t t-esc="row.get('name')"/></td>
+                    <td style="line-height: 1.42857143; vertical-align: top;padding: 1px 5px; font-size: 13px"></td>
+                    <td class="text-center" style="line-height: 1.42857143; vertical-align: top;overflow: hidden; white-space: nowrap; padding: 1px 5px; font-size: 13px"><t t-esc="row.get('unit')"/></td>
                   </tr>
                 </tbody>
               </table>
