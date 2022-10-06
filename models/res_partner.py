@@ -6,7 +6,7 @@ from odoo import _, api, fields, models, tools
 class Partner(models.Model):
     _inherit = "res.partner"
 
-    website_ids = fields.Many2many('webiste', string='App Websites')
+    website_ids = fields.Many2many('website', string='App Websites')
 
     @api.model
     def name_get(self):
