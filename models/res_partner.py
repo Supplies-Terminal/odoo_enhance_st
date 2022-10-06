@@ -14,9 +14,8 @@ class Partner(models.Model):
         for rec in self:
             if (rec.ref and res_partner_search_mode in ['customer', 'supplier']):
                 res.append((rec.id, "%s (%s)" % (rec.name, rec.ref)))
+                return res
             else:
                 res.append((rec.id, "%s" % rec.name))
-        if len(res)>1:
-            return res[0]
-        else:
-            return res
+                return res
+
