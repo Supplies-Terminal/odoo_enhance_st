@@ -2,9 +2,6 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import _, api, fields, models, tools
-import logging
-
-_logger = logging.getLogger(__name__)
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
@@ -17,11 +14,9 @@ class ProductProduct(models.Model):
             code = self._context.get('display_default_code', True) and d.get('default_code', False) or False
 
             # 获取多种语言的名称
-            _logger.info('获取多种语言的名称')
             currentName = name
             context_lang = self._context.get("lang")
             installed_langs = self.env["res.lang"].get_installed()
-            _logger.info(installed_langs)
             langs = [x[0] for x in installed_langs if x[0] != context_lang]
             for lang in langs:
                 prod = self.with_context(lang=lang).browse(d['id'])
