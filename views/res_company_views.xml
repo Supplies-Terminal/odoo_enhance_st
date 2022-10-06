@@ -3,12 +3,10 @@
     <record id="view_company_form_inherit_st" model="ir.ui.view">
         <field name="name">res.company.form.st.inherit</field>
         <field name="model">res.company</field>
-        <field name="inherit_id" ref="	res.company.form"/>
+        <field name="inherit_id" ref="base.view_company_form"/>
         <field name="arch" type="xml">
             <xpath expr="//group[@name='social_media']" position="after">
-                <group name="service">
-                    <field name="service_def"/>
-                </group>
+                <field name="service_def"/>
             </xpath>
         </field>
     </record>

@@ -3,7 +3,7 @@
 
 from odoo import _, api, fields, models, tools
 
-class Partner(models.Model):
+class ResCompany(models.Model):
     _inherit = "res.company"
 
     service_def = fields.Text(string='App Service Def');
