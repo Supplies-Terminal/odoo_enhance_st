@@ -19,5 +19,5 @@ class Partner(models.Model):
                 res.append((rec.id, "%s" % rec.name))
         if len(res)>1:
             return res[0]
-        else 
+        else:
             return res
