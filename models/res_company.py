@@ -6,5 +6,5 @@ from odoo import _, api, fields, models, tools
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    service_def = fields.Text(string='App Service Def');
+    # service_def = fields.Text(string='App Service Def');
 
