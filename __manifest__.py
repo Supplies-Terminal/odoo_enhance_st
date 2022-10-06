@@ -10,6 +10,7 @@
     'version': '1.1.0',
     'description': "",
     'depends': [
+        'base,
         'contacts',
         'website',
         ],
