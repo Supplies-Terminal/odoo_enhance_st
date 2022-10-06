@@ -20,7 +20,6 @@
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
         'views/templates.xml',
-        "views/ir_model_views.xml"
     ],
     'demo': [
     ],
