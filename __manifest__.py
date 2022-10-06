@@ -15,6 +15,7 @@
         ],
     'data': [
         'security/ir.model.access.csv',
+        'views/res_company_views.xml',
         'views/res_partner_views.xml',
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
