@@ -20,7 +20,7 @@
         'views/st_purchasecard_views.xml',
         'views/templates.xml',
         'data/mail_template.xml',
-        'views/res_user_approvel.xml',
+        'views/res_user_approval.xml',
         'views/template.xml'
         ],
     'demo': [

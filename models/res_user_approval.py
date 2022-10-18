@@ -3,10 +3,10 @@
 from odoo import api, fields, models, tools, _
 from odoo.exceptions import AccessDenied
 
-class ResUsersApprovel(models.Model):
+class ResUsersApproval(models.Model):
 
-    _name = 'res.users.approvel'
-    _description = "User Approvel"
+    _name = 'res.users.approval'
+    _description = "User Approval"
 
     user_id = fields.Many2one('res.users', string='User')
     approved_user = fields.Boolean("Approved")

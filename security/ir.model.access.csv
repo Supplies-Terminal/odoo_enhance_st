@@ -1,4 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 st_preference,st.preference,model_st_preference,,1,1,1,1
 st_purchasecard,st.purchasecard,model_st_purchasecard,,1,1,1,1
-res_users_approvel,res.users.approvel,model_res_users_approvel,,1,1,1,1
+res_users_approval,res.users.approval,model_res_users_approval,,1,1,1,1
