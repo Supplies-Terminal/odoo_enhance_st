@@ -6,7 +6,7 @@
         <field name="model">res.users.approval</field>
         <field name="arch" type="xml">
             <tree string="Users Approvals" editable="top" create="0" delete="0" multi_edit="0">
-                <field name="user" readonly="1"/>
+                <field name="user_id" readonly="1"/>
                 <field name="first_approval_status" invisible="1"/>
                 <field name="approved_user" readonly="1"/>
                 <field name="block_user" readonly="1"/>
