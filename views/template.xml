@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <template id="signup_approval" inherit_id="auth_signup.signup" name="Signup Approval Message">
+        <xpath expr="//p[@t-if='error']" position="after">
+            <p class="alert alert-success" t-if="approval_msg and not error" role="alert">
+                <t t-esc="approval_msg"/>
+            </p>
+        </xpath>
+    </template>
+</odoo>

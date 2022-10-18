@@ -1,10 +1,34 @@
 # -*- coding: utf-8 -*-
-from odoo import http
 import json
 import logging
+from odoo import fields, http, tools, _
+from odoo.addons.website.controllers.main import Website
+from odoo.addons.auth_signup.controllers.main import AuthSignupHome
 
 _logger = logging.getLogger(__name__)
 
+class WebsiteApproval(Website):
+
+    # Error Message
+    @http.route(website=True, auth="public", sitemap=False)
+    def web_login(self, *args, **kw):
+        res = super().web_login(*args, **kw)
+        if res.is_qweb and res.qcontext.get('error') == 'Not Approved User':
+            res.qcontext['error'] = (_("You are already registered! Please wait for approval."))
+        return res
+
+
+class AuthSignupApproval(AuthSignupHome):
+
+    # Error Message
+    @http.route('/web/signup', type='http', auth='public', website=True, sitemap=False)
+    def web_auth_signup(self, *args, **kw):
+        res = super().web_auth_signup(*args, **kw)
+        if res.is_qweb and res.qcontext.get('error') == 'Not Approved User':
+            res.qcontext['approval_msg'] = (_("You registered successfully! Wait for account approval."))
+            res.qcontext['error'] = False
+        return res
+    
 class Purchasecard(http.Controller):
     @http.route('/purchasecard/purchasecard/print/<uuid>/<locale>', auth='public')
     def list(self, uuid, locale, **kw):

@@ -19,7 +19,10 @@
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
         'views/templates.xml',
-    ],
+        'data/mail_template.xml',
+        'views/res_user.xml',
+        'views/template.xml'
+        ],
     'demo': [
     ],
     'installable': True,

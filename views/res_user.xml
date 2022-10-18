@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="view_users_approval_tree" model="ir.ui.view">
+        <field name="name">res.users.approval.tree</field>
+        <field name="model">res.users</field>
+        <field name="arch" type="xml">
+            <tree string="Users Approvals" editable="top" create="0" delete="0" multi_edit="0">
+                <field name="name" readonly="1"/>
+                <field name="login" readonly="1"/>
+                <field name="first_approval_status" invisible="1"/>
+                <field name="approved_user" readonly="1"/>
+                <field name="block_user" readonly="1"/>
+                <field name="company_id" groups="base.group_multi_company" readonly="1"/>
+                <button name="action_approve_user" type="object" string="Approve" class="btn-secondary" attrs="{'invisible':[('first_approval_status','!=',False)]}"/>
+                <button name="action_reject_user" type="object" string="Reject" class="btn-secondary" attrs="{'invisible':['|',('first_approval_status','!=',False),('block_user','!=',False)]}"/>
+                <button name="action_block_user" type="object" string="Block" class="btn-secondary" attrs="{'invisible':[('first_approval_status','=',False)]}"/>
+            </tree>
+        </field>
+    </record>
+
+    <record id="users_approvals" model="ir.actions.act_window">
+        <field name="name">Users Approvals</field>
+        <field name="res_model">res.users</field>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_users_approval_tree"/>
+    </record>
+
+    <menuitem id="menu_users_approvals" name="Users Approvals" parent="base.menu_users" sequence="5" action="users_approvals"/>
+</odoo>
