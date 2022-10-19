@@ -112,14 +112,20 @@ class ProductProduct(models.Model):
             args = []
         if name:
             _logger.info('******** product _name_search *********')
+            context_lang = self._context.get("lang")
+            installed_langs = self.env["res.lang"].get_installed()
+            langs = [x[0] for x in installed_langs if x[0] != context_lang]
+            _logger.info(langs)
         
             positive_operators = ['=', 'ilike', '=ilike', 'like', '=like']
             product_ids = []
             if operator in positive_operators:
+                _logger.info(" * ")
                 product_ids = list(self._search([('default_code', '=', name)] + args, limit=limit, access_rights_uid=name_get_uid))
                 if not product_ids:
                     product_ids = list(self._search([('barcode', '=', name)] + args, limit=limit, access_rights_uid=name_get_uid))
             if not product_ids and operator not in expression.NEGATIVE_TERM_OPERATORS:
+                _logger.info(" ** ")
                 # Do not merge the 2 next lines into one single search, SQL search performance would be abysmal
                 # on a database with thousands of matching products, due to the huge merge+unique needed for the
                 # OR operator (and given the fact that the 'name' lookup results come from the ir.translation table
@@ -130,7 +136,16 @@ class ProductProduct(models.Model):
                     limit2 = (limit - len(product_ids)) if limit else False
                     product2_ids = self._search(args + [('name', operator, name), ('id', 'not in', product_ids)], limit=limit2, access_rights_uid=name_get_uid)
                     product_ids.extend(product2_ids)
+
+                    # 扩展其它语言的内容，扩充到结果中
+                    _logger.info("扩展其它语言的内容，扩充到结果中")
+                    for lang in langs:
+                        res_lang = list(self.with_context(lang=lang)._search(args + [('name', operator, name), ('id', 'not in', product_ids)], limit=limit2, access_rights_uid=name_get_uid)
+                        new_res = list(filter(lambda x: x not in product_ids, res_lang))
+                        _logger.info(new_res)
+                        product_ids.extend(new_res)
             elif not product_ids and operator in expression.NEGATIVE_TERM_OPERATORS:
+                _logger.info(" *** ")
                 domain = expression.OR([
                     ['&', ('default_code', operator, name), ('name', operator, name)],
                     ['&', ('default_code', '=', False), ('name', operator, name)],
@@ -140,16 +155,13 @@ class ProductProduct(models.Model):
 
                 # 扩展其它语言的内容，扩充到结果中
                 _logger.info("扩展其它语言的内容，扩充到结果中")
-                context_lang = self._context.get("lang")
-                installed_langs = self.env["res.lang"].get_installed()
-                langs = [x[0] for x in installed_langs if x[0] != context_lang]
-                _logger.info(langs)
                 for lang in langs:
                     res_lang = list(self.with_context(lang=lang)._search(domain, limit=limit, access_rights_uid=name_get_uid))
                     new_res = list(filter(lambda x: x not in product_ids, res_lang))
                     _logger.info(new_res)
                     product_ids.extend(new_res)
             if not product_ids and operator in positive_operators:
+                _logger.info(" **** ")
                 ptrn = re.compile('(\[(.*?)\])')
                 res = ptrn.search(name)
                 if res:
@@ -157,10 +169,6 @@ class ProductProduct(models.Model):
 
                     # 扩展其它语言的内容，扩充到结果中
                     _logger.info("扩展其它语言的内容，扩充到结果中")
-                    context_lang = self._context.get("lang")
-                    installed_langs = self.env["res.lang"].get_installed()
-                    langs = [x[0] for x in installed_langs if x[0] != context_lang]
-                    _logger.info(langs)
                     for lang in langs:
                         res_lang = list(self.with_context(lang=lang)._search([('default_code', '=', res.group(2))] + args, limit=limit, access_rights_uid=name_get_uid))
                         new_res = list(filter(lambda x: x not in product_ids, res_lang))
@@ -168,6 +176,7 @@ class ProductProduct(models.Model):
                         product_ids.extend(new_res)
             # still no results, partner in context: search on supplier info as last hope to find something
             if not product_ids and self._context.get('partner_id'):
+                _logger.info(" ***** ")
                 suppliers_ids = self.env['product.supplierinfo']._search([
                     ('name', '=', self._context.get('partner_id')),
                     '|',
