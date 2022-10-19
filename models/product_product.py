@@ -155,17 +155,17 @@ class ProductProduct(models.Model):
                 if res:
                     product_ids = list(self._search([('default_code', '=', res.group(2))] + args, limit=limit, access_rights_uid=name_get_uid))
 
-                # 扩展其它语言的内容，扩充到结果中
-                _logger.info("扩展其它语言的内容，扩充到结果中")
-                context_lang = self._context.get("lang")
-                installed_langs = self.env["res.lang"].get_installed()
-                langs = [x[0] for x in installed_langs if x[0] != context_lang]
-                _logger.info(langs)
-                for lang in langs:
-                    res_lang = list(self.with_context(lang=lang)._search([('default_code', '=', res.group(2))] + args, limit=limit, access_rights_uid=name_get_uid))
-                    new_res = list(filter(lambda x: x not in product_ids, res_lang))
-                    _logger.info(new_res)
-                    product_ids.extend(new_res)
+                    # 扩展其它语言的内容，扩充到结果中
+                    _logger.info("扩展其它语言的内容，扩充到结果中")
+                    context_lang = self._context.get("lang")
+                    installed_langs = self.env["res.lang"].get_installed()
+                    langs = [x[0] for x in installed_langs if x[0] != context_lang]
+                    _logger.info(langs)
+                    for lang in langs:
+                        res_lang = list(self.with_context(lang=lang)._search([('default_code', '=', res.group(2))] + args, limit=limit, access_rights_uid=name_get_uid))
+                        new_res = list(filter(lambda x: x not in product_ids, res_lang))
+                        _logger.info(new_res)
+                        product_ids.extend(new_res)
             # still no results, partner in context: search on supplier info as last hope to find something
             if not product_ids and self._context.get('partner_id'):
                 suppliers_ids = self.env['product.supplierinfo']._search([
