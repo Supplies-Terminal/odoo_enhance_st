@@ -140,7 +140,7 @@ class ProductProduct(models.Model):
                     # 扩展其它语言的内容，扩充到结果中
                     _logger.info("扩展其它语言的内容，扩充到结果中")
                     for lang in langs:
-                        res_lang = list(self.with_context(lang=lang)._search(args + [('name', operator, name), ('id', 'not in', product_ids)], limit=limit2, access_rights_uid=name_get_uid)
+                        res_lang = list(self.with_context(lang=lang)._search(args + [('name', operator, name), ('id', 'not in', product_ids)], limit=limit2, access_rights_uid=name_get_uid))
                         new_res = list(filter(lambda x: x not in product_ids, res_lang))
                         _logger.info(new_res)
                         product_ids.extend(new_res)
