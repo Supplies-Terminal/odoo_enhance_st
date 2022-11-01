@@ -10,7 +10,6 @@ class StPurchasecard(models.Model):
     uuid = fields.Char(compute='_compute_uuid', store=True, readonly=True)
     data = fields.Text()
 
-    @api.depends('value')
     def _compute_uuid(self):
         for record in self:
             if not self.uuid:
