@@ -1,3 +1,4 @@
+import uuid
 from odoo import api, models, fields
 
 class StPurchasecard(models.Model):
@@ -6,5 +7,11 @@ class StPurchasecard(models.Model):
 
     website_id = fields.Many2one('website', ondelete='cascade', required=True)
     member_id = fields.Many2one('res.partner', string='Member', required=True)
-    uuid = fields.Char()
+    uuid = fields.Char(compute='_compute_uuid' store=True)
     data = fields.Text()
+
+    @api.depends('value')
+    def _compute_uuid(self):
+        for record in self:
+            if !self.uuid:
+                record.uuid = uuid.uuid4()

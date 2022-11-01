@@ -5,8 +5,9 @@
         <field name="model">st.purchasecard</field>
         <field name="arch" type="xml">
             <tree string="Purchasecards">
-                <field name="uuid"/>
+                <field name="website_id" widget="many2one"/>
                 <field name="member_id" widget="many2one"/>
+                <field name="uuid"/>
             </tree>
         </field>
     </record>
@@ -18,9 +19,9 @@
             <form string="Purchasecard">
                 <sheet>
                     <group>
-                        <field name="website_id" groups="website.group_multi_website"/>
+                        <field name="website_id" widget="many2one"/>
                         <field name="member_id" widget="many2one"/>
-                        <field name="uuid"/>
+                        <field name="uuid" readonly="1"/>
                         <field name="data"/>
                     </group>
                 </sheet>
