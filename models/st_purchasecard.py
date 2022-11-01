@@ -7,10 +7,8 @@ class StPurchasecard(models.Model):
 
     website_id = fields.Many2one('website', ondelete='cascade', required=True)
     member_id = fields.Many2one('res.partner', string='Member', required=True)
-    uuid = fields.Char(compute='_compute_uuid', store=True)
+    uuid = fields.Char(default=_generate_uuid)
     data = fields.Text()
 
-    def _compute_uuid(self):
-        for record in self:
-            if not record.uuid:
-                record.uuid = str(uuid.uuid4())
+    def _generate_uuid(self):
+        return str(uuid.uuid4())
