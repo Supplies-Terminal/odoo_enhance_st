@@ -13,5 +13,5 @@ class StPurchasecard(models.Model):
     @api.depends('value')
     def _compute_uuid(self):
         for record in self:
-            if !self.uuid:
+            if not self.uuid:
                 record.uuid = uuid.uuid4()
