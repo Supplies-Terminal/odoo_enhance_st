@@ -13,4 +13,4 @@ class StPurchasecard(models.Model):
     def _compute_uuid(self):
         for record in self:
             if not record.uuid:
-                record.uuid = uuid.uuid4()
+                record.uuid = str(uuid.uuid4())
