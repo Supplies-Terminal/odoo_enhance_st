@@ -35,7 +35,7 @@ class ResUsersApproval(models.Model):
             template = self.env.ref('odoo-enhance-st.mail_template_user_account_approval',
                                        raise_if_not_found=False)
             if template:
-                template.sudo().send_mail(user.id, force_send=True)
+                template.sudo().send_mail(user.user_id.id, force_send=True)
 
     # Reject the user
     def action_reject_user(self):
@@ -45,7 +45,7 @@ class ResUsersApproval(models.Model):
             template = self.env.ref('odoo-enhance-st.mail_template_user_account_reject',
                                        raise_if_not_found=False)
             if template:
-                template.sudo().send_mail(user.id, force_send=True)
+                template.sudo().send_mail(user.user_id.id, force_send=True)
 
     # Block the user
     def action_block_user(self):
