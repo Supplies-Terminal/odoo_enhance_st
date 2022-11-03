@@ -32,7 +32,7 @@ class ResUsersApproval(models.Model):
             user.approved_user = True
             user.first_approval_status = True
             user.block_user = False
-            template = self.env.ref('bi_signup_user_approval.mail_template_user_account_approval',
+            template = self.env.ref('odoo-enhance-st.mail_template_user_account_approval',
                                        raise_if_not_found=False)
             if template:
                 template.sudo().send_mail(user.id, force_send=True)
@@ -42,7 +42,7 @@ class ResUsersApproval(models.Model):
         for user in self:
             user.approved_user = False
             user.block_user = True
-            template = self.env.ref('bi_signup_user_approval.mail_template_user_account_reject',
+            template = self.env.ref('odoo-enhance-st.mail_template_user_account_reject',
                                        raise_if_not_found=False)
             if template:
                 template.sudo().send_mail(user.id, force_send=True)
