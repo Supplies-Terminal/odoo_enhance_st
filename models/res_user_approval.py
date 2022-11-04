@@ -2,6 +2,9 @@
 # Part of BrowseInfo. See LICENSE file for full copyright and licensing details.
 from odoo import api, fields, models, tools, _
 from odoo.exceptions import AccessDenied
+import logging
+
+_logger = logging.getLogger(__name__)
 
 class ResUsersApproval(models.Model):
 
@@ -35,17 +38,26 @@ class ResUsersApproval(models.Model):
             template = self.env.ref('odoo-enhance-st.mail_template_user_account_approval',
                                        raise_if_not_found=False)
             if template:
+                _logger.info("-----action_approve_user-----")
+                _logger.info(user.user_id)
                 template.sudo().send_mail(user.user_id.id, force_send=True)
+                _logger.info("-----action_approve_user (done)-----")
+            else:
+                _logger.info("-----action_approve_user (template not found)-----")
 
     # Reject the user
     def action_reject_user(self):
         for user in self:
             user.approved_user = False
             user.block_user = True
-            template = self.env.ref('odoo-enhance-st.mail_template_user_account_reject',
-                                       raise_if_not_found=False)
+            template = self.env.ref('odoo-enhance-st.mail_template_user_account_reject',raise_if_not_found=False)
             if template:
+                _logger.info("-----action_reject_user-----")
+                _logger.info(user.user_id)
                 template.sudo().send_mail(user.user_id.id, force_send=True)
+                _logger.info("-----action_reject_user (done)-----")
+            else:
+                _logger.info("-----action_reject_user (template not found)-----")
 
     # Block the user
     def action_block_user(self):
