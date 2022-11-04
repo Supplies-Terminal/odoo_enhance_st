@@ -35,7 +35,7 @@ class ResUsersApproval(models.Model):
             user.approved_user = True
             user.first_approval_status = True
             user.block_user = False
-            template = self.env.ref('odoo-enhance-st.mail_template_user_account_approval',
+            template = self.env.ref('odoo_enhance_st.mail_template_user_account_approval',
                                        raise_if_not_found=False)
             if template:
                 _logger.info("-----action_approve_user-----")
@@ -50,7 +50,7 @@ class ResUsersApproval(models.Model):
         for user in self:
             user.approved_user = False
             user.block_user = True
-            template = self.env.ref('odoo-enhance-st.mail_template_user_account_reject',raise_if_not_found=False)
+            template = self.env.ref('odoo_enhance_st.mail_template_user_account_reject',raise_if_not_found=False)
             if template:
                 _logger.info("-----action_reject_user-----")
                 _logger.info(user.user_id)
