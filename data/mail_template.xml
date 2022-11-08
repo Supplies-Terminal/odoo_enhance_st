@@ -22,7 +22,6 @@
                                                 <t t-out="object.name or ''">Marc Demo</t>
                                             </span>
                                         </td><td valign="middle" align="right">
-                                            <img t-attf-src="/logo.png?company={{ object.company_id.id }}" style="padding: 0px; margin: 0px; height: auto; width: 80px;" t-att-alt="object.company_id.name"/>
                                         </td></tr>
                                         <tr><td colspan="2" style="text-align:center;">
                                             <hr width="100%" style="background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 16px 0px;"/>
@@ -41,9 +40,9 @@
                                                 Your login is <strong><t t-out="object.email or ''">mark.brown23@example.com</t></strong><br/>
                                                 To gain access to your account, you can use the following link:
                                                 <div style="margin: 16px 0px 16px 0px;">
-                                                    <a t-attf-href="/web/login?auth_login={{object.email}}"
+                                                    <a t-attf-href="https://webapp2.suppliesterminal.com/"
                                                        style="background-color: #875A7B; padding: 8px 16px 8px 16px; text-decoration: none; color: #fff; border-radius: 5px; font-size:13px;">
-                                                        Go to My Account
+                                                        Login our app
                                                     </a>
                                                 </div>
                                                 Thanks,<br/>
@@ -87,7 +86,7 @@
                     <tr><td align="center" style="min-width: 590px;">
                         <table border="0" cellpadding="0" cellspacing="0" width="590" style="min-width: 590px; background-color: #F1F1F1; color: #454748; padding: 8px; border-collapse:separate;">
                             <tr><td style="text-align: center; font-size: 13px;">
-                                Powered by <a target="_blank" href="https://www.odoo.com?utm_source=db&amp;utm_medium=auth" style="color: #875A7B;">Odoo</a>
+                                Powered by <a target="_blank" href="https://suppliesterminal.com/" style="color: #875A7B;">Supplies Terminal</a>
                             </td></tr>
                         </table>
                     </td></tr>
@@ -117,7 +116,6 @@
                                                 <t t-out="object.name or ''">Marc Demo</t>
                                             </span>
                                         </td><td valign="middle" align="right">
-                                            <img t-attf-src="/logo.png?company={{ object.company_id.id }}" style="padding: 0px; margin: 0px; height: auto; width: 80px;" t-att-alt="object.company_id.name"/>
                                         </td></tr>
                                         <tr><td colspan="2" style="text-align:center;">
                                             <hr width="100%" style="background-color:rgb(204,204,204);border:medium none;clear:both;display:block;font-size:0px;min-height:1px;line-height:0; margin: 16px 0px 16px 0px;"/>
@@ -175,7 +173,7 @@
                     <tr><td align="center" style="min-width: 590px;">
                         <table border="0" cellpadding="0" cellspacing="0" width="590" style="min-width: 590px; background-color: #F1F1F1; color: #454748; padding: 8px; border-collapse:separate;">
                             <tr><td style="text-align: center; font-size: 13px;">
-                                Powered by <a target="_blank" href="https://www.odoo.com?utm_source=db&amp;utm_medium=auth" style="color: #875A7B;">Odoo</a>
+                                Powered by <a target="_blank" href="https://suppliesterminal.com/" style="color: #875A7B;">Supplies Terminal</a>
                             </td></tr>
                         </table>
                     </td></tr>
