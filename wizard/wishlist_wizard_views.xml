@@ -24,7 +24,7 @@
             <field name="arch" type="xml">
                 <form string="Init wishlist">
                     <div class="mb-3">
-                        Init wishlist on a website with all the products. "App websites" on tab "Sales & Purchases" is required for this function."
+                        Init wishlist on a website with all the products. App websites on tab Sales & Purchases is required for this function.
                     </div>
                     <field name="website_ids">
                         <tree string="websites" editable="bottom" create="false" delete="false">
