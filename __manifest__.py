@@ -12,7 +12,7 @@
     'depends': [
         'contacts',
         'website',
-        ],
+    ],
     'data': [
         'security/ir.model.access.csv',
         'views/res_partner_views.xml',
@@ -21,8 +21,9 @@
         'views/templates.xml',
         'data/mail_template.xml',
         'views/res_user_approval.xml',
-        'views/template.xml'
-        ],
+        'views/template.xml',
+        'wizard/wishlist_wizard_views.xml',
+    ],
     'demo': [
     ],
     'installable': True,
