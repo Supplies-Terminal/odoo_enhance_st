@@ -3,7 +3,7 @@
         <!-- wizard action on res.partner -->
         <record id="wishlist_wizard_action_create_and_open" model="ir.actions.server">
             <field name="name">Init App Wishlist</field>
-            <field name="model_id" ref="portal.model_portal_wizard"/>
+            <field name="model_id" ref="odoo_enhance_st.model_wishlist_wizard"/>
             <field name="binding_model_id" ref="base.model_res_partner"/>
             <field name="state">code</field>
             <field name="code">action = model.action_open_wizard()</field>
@@ -27,7 +27,7 @@
                         Init wishlist on a website with all the products. App websites on tab Sales & Purchases is required for this function.
                     </div>
                     <field name="website_ids">
-                        <tree string="websites" editable="bottom" create="false" delete="false">
+                        <tree string="websites" create="false" delete="false">
                             <field name="website_id" force_save="1"/>
                             <button string="Init Wishlist" name="action_init_wishlist" type="object" class="btn-secondary"/>
                         </tree>
