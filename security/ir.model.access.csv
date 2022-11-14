@@ -2,3 +2,5 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 st_preference,st.preference,model_st_preference,,1,1,1,1
 st_purchasecard,st.purchasecard,model_st_purchasecard,,1,1,1,1
 res_users_approval,res.users.approval,model_res_users_approval,,1,1,1,1
+"access_wishlist_wizard","access.wishlist.wizard","model_wishlist_wizard","base.group_partner_manager",1,1,1,0
+"access_wishlist_wizard_website","access.wishlist.wizard.website","model_wishlist_wizard_website","base.group_partner_manager",1,1,1,0

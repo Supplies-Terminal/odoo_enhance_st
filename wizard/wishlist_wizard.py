@@ -21,10 +21,10 @@ class WishlistWizard(models.TransientModel):
         partner_id = self.env.context.get('active_id', 0)
         return partner_id
 
-    partner_id = fields.Int(string='Partner', default=_default_partner_id)
-    website_ids = fields.One2many('wishlist.wizard.user', 'wizard_id', string='Websites', compute='_compute_website_ids', store=True, readonly=False)
+    partner_id = fields.Integer(string='Partner', default=_default_partner_id)
+    website_ids = fields.One2many('wishlist.wizard.website', 'wizard_id', string='Websites', compute='_compute_website_ids', store=True, readonly=False)
 
-    @api.depends('partner_ids')
+    @api.depends('partner_id')
     def _compute_website_ids(self):
         for wishlist_wizard in self:
             partner = self.env['res.partner'].sudo().browse(wishlist_wizard.partner_id)
@@ -32,8 +32,8 @@ class WishlistWizard(models.TransientModel):
             if partner:
                 wishlist_wizard.website_ids = [
                     Command.create({
+                        'partner_id': wishlist_wizard.partner_id,
                         'website_id': website.id,
-                        'website_name': website.name,
                     })
                     for website in partner.website_ids
                 ]
@@ -58,7 +58,7 @@ class WishlistWizard(models.TransientModel):
         """Allow to keep the wizard modal open after executing the action."""
         self.refresh()
         return {
-            'name': _('Portal Access Management'),
+            'name': _('Init wishlist in a website'),
             'type': 'ir.actions.act_window',
             'res_model': 'wishlist.wizard',
             'view_type': 'form',
@@ -68,45 +68,52 @@ class WishlistWizard(models.TransientModel):
         }
 
 
-class WishlistWizardUser(models.TransientModel):
+class WishlistWizardWebsite(models.TransientModel):
     """
         A model to configure users in the wishlist wizard.
     """
 
-    _name = 'wishlist.wizard.user'
-    _description = 'Portal User Config'
+    _name = 'wishlist.wizard.website'
+    _description = 'Portal Website Config'
 
     wizard_id = fields.Many2one('wishlist.wizard', string='Wizard', required=True, ondelete='cascade')
     partner_id = fields.Many2one('res.partner', string='Contact', required=True, readonly=True, ondelete='cascade')
-    email = fields.Char('Email')
-
-    user_id = fields.Many2one('res.users', string='User', compute='_compute_user_id', compute_sudo=True)
-    login_date = fields.Datetime(related='user_id.login_date', string='Latest Authentication')
-    is_wishlist = fields.Boolean('Is Portal', compute='_compute_group_details')
-    is_internal = fields.Boolean('Is Internal', compute='_compute_group_details')
-
-    @api.depends('partner_id')
-    def _compute_user_id(self):
-        for wishlist_wizard_user in self:
-            user = wishlist_wizard_user.partner_id.with_context(active_test=False).user_ids
-            wishlist_wizard_user.user_id = user[0] if user else False
-
-    @api.depends('user_id', 'user_id.groups_id')
-    def _compute_group_details(self):
-        for wishlist_wizard_user in self:
-            user = wishlist_wizard_user.user_id
-
-            if user and user.has_group('base.group_user'):
-                wishlist_wizard_user.is_internal = True
-                wishlist_wizard_user.is_wishlist = False
-            elif user and user.has_group('base.group_wishlist'):
-                wishlist_wizard_user.is_internal = False
-                wishlist_wizard_user.is_wishlist = True
-            else:
-                wishlist_wizard_user.is_internal = False
-                wishlist_wizard_user.is_wishlist = False
-
+    website_id = fields.Many2one('website', string='Website', required=True, readonly=True, ondelete='cascade')
+            
     def action_init_wishlist(self):
         self.ensure_one()
+        _logger.info("------------------------")
+        _logger.info(self.partner_id)
+        _logger.info(self.website_id)
+        
+        # # get all products by website id
+        # domains = []
+        # domains.append([('website_id', '=', self.website_id)])
+        # products = self.env['product.template'].sudo().search(domains)
 
+        # # get all products in wishlist by website id
+        # domains.append([('partner_id', '=', self.partner_id)])
+        # productsInWishlist = self.env['product.wishlist'].search(domains)
+        # productIdsInWishlist = []
+        # for product in productsInWishlist:
+        #     productIdsInWishlist.append(product.id)
+        
+        # for product in products:
+        #     if product.id not in productIdsInWishlist:
+        #         self.env['product.template'].sudo().
+
+        
+        # pricelist = self.website_id.get_current_pricelist()
+        
+        # Wishlist = self.env['product.wishlist']
+        # Wishlist._add_to_wishlist(
+        #     pricelist.id,
+        #     pricelist.currency_id.id,
+        #     self.website_id,
+        #     price,
+        #     product.id,
+        #     self.partner_id
+        # )
+        
+        
         return self.wizard_id._action_open_modal()
