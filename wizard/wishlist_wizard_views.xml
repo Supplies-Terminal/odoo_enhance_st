@@ -29,6 +29,7 @@
                     <field name="website_ids">
                         <tree string="websites" create="false" delete="false">
                             <field name="website_id" force_save="1"/>
+                            <field name="total"/>
                             <button string="Init Wishlist" name="action_init_wishlist" type="object" class="btn-secondary"/>
                         </tree>
                     </field>

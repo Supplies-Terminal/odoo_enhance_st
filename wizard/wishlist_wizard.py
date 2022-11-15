@@ -80,12 +80,23 @@ class WishlistWizardWebsite(models.TransientModel):
     wizard_id = fields.Many2one('wishlist.wizard', string='Wizard', required=True, ondelete='cascade')
     partner_id = fields.Many2one('res.partner', string='Contact', required=True, readonly=True, ondelete='cascade')
     website_id = fields.Many2one('website', string='Website', required=True, readonly=True, ondelete='cascade')
-
+    total = fields.Integer(string="Items", compute="_compute_total")
+    
+    @api.depends("partner_id", "website_id")
+    def _compute_total(self):
+        for record in self:
+            _logger.info("------------------------")
+            _logger.info(record.partner_id.id)
+            _logger.info(record.website_id.id)
+            productsInWishlist = self.env['product.wishlist'].search([('website_id', '=', record.website_id.id), ('partner_id', '=', record.partner_id.id)])
+            record.total = len(productsInWishlist)
+    
     def _get_pricelist_context(self):
+        _logger.info("------------6.1------------")
         pricelist_context = dict()
         pricelist = self.website_id.get_current_pricelist()
         pricelist_context['pricelist'] = pricelist.id
-
+        _logger.info("------------6.2------------")
         return pricelist_context, pricelist 
                
     def action_init_wishlist(self):
@@ -95,33 +106,33 @@ class WishlistWizardWebsite(models.TransientModel):
         _logger.info(self.website_id)
         
         # get all products by website id
-        domains = []
-        domains.append([('website_id', '=', self.website_id)])
-        products = self.env['product.template'].sudo().search(domains)
-
+        products = self.env['product.product'].sudo().search([('website_id', '=', self.website_id.id)])
         Wishlist = self.env['product.wishlist']
-        
         # get all products in wishlist by website id
-        domains.append([('partner_id', '=', self.partner_id)])
-        productsInWishlist = Wishlist.search(domains)
-        productIdsInWishlist = []
-        for product in productsInWishlist:
-            productIdsInWishlist.append(product.id)
+        productsInWishlist = Wishlist.search([('website_id', '=', self.website_id.id), ('partner_id', '=', self.partner_id.id)])
         
+        productIdsInWishlist = []
+        for item in productsInWishlist:
+            productIdsInWishlist.append(item.product_id.id)
+
+        _logger.info(productIdsInWishlist)
+            
         for product in products:
-            product_id = product.product_variant_id
+            product_id = product.id
             if product_id not in productIdsInWishlist:
+                _logger.info(product_id)
                 pricelist_context, pl = self._get_pricelist_context()
                 p = self.env['product.product'].with_context(pricelist_context, display_default_code=False).browse(product_id)
                 price = p._get_combination_info_variant()['price']
-                
+                _logger.info(price)
+
                 wish_id = Wishlist._add_to_wishlist(
                     pl.id,
                     pl.currency_id.id,
-                    self.website_id,
+                    self.website_id.id,
                     price,
                     product_id,
-                    self.partner_id
+                    self.partner_id.id
                 )
         
         return self.wizard_id._action_open_modal()
