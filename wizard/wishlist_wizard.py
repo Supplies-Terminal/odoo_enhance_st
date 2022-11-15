@@ -8,6 +8,7 @@ from odoo.tools import email_normalize
 from odoo.exceptions import UserError
 
 from odoo import api, fields, models, Command
+from odoo.addons.website_sale_wishlist.controllers.main import WebsiteSaleWishlist
 
 
 _logger = logging.getLogger(__name__)
@@ -79,41 +80,48 @@ class WishlistWizardWebsite(models.TransientModel):
     wizard_id = fields.Many2one('wishlist.wizard', string='Wizard', required=True, ondelete='cascade')
     partner_id = fields.Many2one('res.partner', string='Contact', required=True, readonly=True, ondelete='cascade')
     website_id = fields.Many2one('website', string='Website', required=True, readonly=True, ondelete='cascade')
-            
+
+    def _get_pricelist_context(self):
+        pricelist_context = dict()
+        pricelist = self.website_id.get_current_pricelist()
+        pricelist_context['pricelist'] = pricelist.id
+
+        return pricelist_context, pricelist 
+               
     def action_init_wishlist(self):
         self.ensure_one()
         _logger.info("------------------------")
         _logger.info(self.partner_id)
         _logger.info(self.website_id)
         
-        # # get all products by website id
-        # domains = []
-        # domains.append([('website_id', '=', self.website_id)])
-        # products = self.env['product.template'].sudo().search(domains)
+        # get all products by website id
+        domains = []
+        domains.append([('website_id', '=', self.website_id)])
+        products = self.env['product.template'].sudo().search(domains)
 
-        # # get all products in wishlist by website id
-        # domains.append([('partner_id', '=', self.partner_id)])
-        # productsInWishlist = self.env['product.wishlist'].search(domains)
-        # productIdsInWishlist = []
-        # for product in productsInWishlist:
-        #     productIdsInWishlist.append(product.id)
+        Wishlist = self.env['product.wishlist']
         
-        # for product in products:
-        #     if product.id not in productIdsInWishlist:
-        #         self.env['product.template'].sudo().
-
+        # get all products in wishlist by website id
+        domains.append([('partner_id', '=', self.partner_id)])
+        productsInWishlist = Wishlist.search(domains)
+        productIdsInWishlist = []
+        for product in productsInWishlist:
+            productIdsInWishlist.append(product.id)
         
-        # pricelist = self.website_id.get_current_pricelist()
-        
-        # Wishlist = self.env['product.wishlist']
-        # Wishlist._add_to_wishlist(
-        #     pricelist.id,
-        #     pricelist.currency_id.id,
-        #     self.website_id,
-        #     price,
-        #     product.id,
-        #     self.partner_id
-        # )
-        
+        for product in products:
+            product_id = product.product_variant_id
+            if product_id not in productIdsInWishlist:
+                pricelist_context, pl = self._get_pricelist_context()
+                p = self.env['product.product'].with_context(pricelist_context, display_default_code=False).browse(product_id)
+                price = p._get_combination_info_variant()['price']
+                
+                wish_id = Wishlist._add_to_wishlist(
+                    pl.id,
+                    pl.currency_id.id,
+                    self.website_id,
+                    price,
+                    product_id,
+                    self.partner_id
+                )
         
         return self.wizard_id._action_open_modal()
