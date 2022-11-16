@@ -8,6 +8,7 @@ class Partner(models.Model):
 
     website_ids = fields.Many2many('website', string='App Websites')
 
+    @api.model
     def name_get(self):
         res = []
         res_partner_search_mode = self.env.context.get('res_partner_search_mode')
