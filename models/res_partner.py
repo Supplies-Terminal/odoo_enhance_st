@@ -8,15 +8,12 @@ class Partner(models.Model):
 
     website_ids = fields.Many2many('website', string='App Websites')
 
-    @api.model
     def name_get(self):
         res = []
         # res_partner_search_mode = self.env.context.get('res_partner_search_mode')
         for rec in self:
+            name = "%s" % rec.name
             if (rec.ref):
-                res.append((rec.id, "%s (%s)" % (rec.name, rec.ref)))
-                return res
-            else:
-                res.append((rec.id, "%s" % rec.name))
-                return res
-
+                name += ' (%s)" % rec.ref
+            res.append((rec.id, name))
+            return res
