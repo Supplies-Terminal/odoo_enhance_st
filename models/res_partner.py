@@ -22,6 +22,7 @@ class Partner(models.Model):
         for rec in self:
             name = "%s" % rec.name
             if (rec.ref):
-                name += ' (%s)" % rec.ref
+                name = "%s (%s)" % (rec.name, rec.ref)
+               
             res.append((rec.id, name))
             return res
