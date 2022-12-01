@@ -23,6 +23,7 @@
         'views/res_user_approval.xml',
         'views/template.xml',
         'wizard/wishlist_wizard_views.xml',
+        'views/product_template_views.xml',
     ],
     'demo': [
     ],
