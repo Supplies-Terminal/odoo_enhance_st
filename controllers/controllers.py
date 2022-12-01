@@ -89,10 +89,11 @@ class Purchasecard(http.Controller):
             
             total = len(purchaseCardGrid[tableIndex]['items'])
             for itemIndex in range(0, total-1):
-                productInfo = http.request.env['product.product'].with_context(lange=locale).browse(purchaseCardGrid[tableIndex]['items'][itemIndex]['product_id'])
-                if productInfo:
-                    purchaseCardGrid[tableIndex]['items'][itemIndex]['name'] = productInfo['name']
-                    purchaseCardGrid[tableIndex]['items'][itemIndex]['unit'] = productInfo['uom_name']
+                if purchaseCardGrid[tableIndex]['items'][itemIndex]['product_id']:
+                    productInfo = http.request.env['product.product'].with_context(lange=locale).browse(int(purchaseCardGrid[tableIndex]['items'][itemIndex]['product_id']))
+                    if productInfo:
+                        purchaseCardGrid[tableIndex]['items'][itemIndex]['name'] = productInfo['name']
+                        purchaseCardGrid[tableIndex]['items'][itemIndex]['unit'] = productInfo['uom_name']
             # 补全空行
             if total < lines:
                 for other in range(total, lines):
@@ -111,4 +112,3 @@ class Purchasecard(http.Controller):
             'website': website.name,
             'data': pages
         })
-        

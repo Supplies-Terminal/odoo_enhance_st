@@ -5,9 +5,7 @@
         <field name="model">st.purchasecard</field>
         <field name="arch" type="xml">
             <tree string="Purchasecards">
-                <field name="website_id" widget="many2one"/>
-                <field name="member_id" widget="many2one"/>
-                <field name="uuid"/>
+                <field name="name"/>
             </tree>
         </field>
     </record>
