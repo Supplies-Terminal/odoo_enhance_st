@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="st_sale_order_form_view" model="ir.ui.view">
+        <field name="name">st.sale.order.form.view</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//sheet/notebook/page[@name='order_lines']/field[@name='order_line']/tree/field[@name='product_uom']" position="after">
+                <field name="secondary_uom_enabled" invisible="1" />
+                <field name="secondary_qty" force_save="1" attrs="{'readonly': [('secondary_uom_enabled', '=', False)],'required': [('secondary_uom_enabled', '=', True)] }" />
+                <field
+                    name="secondary_uom_id"
+                    force_save="1"
+                    attrs="{'readonly': [('secondary_uom_enabled', '=', False)],'required': [('secondary_uom_enabled', '=', True)] }"
+                />
+            </xpath>
+        </field>
+    </record>
+</odoo>
