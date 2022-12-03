@@ -12,6 +12,7 @@
     'depends': [
         'contacts',
         'website',
+        'sale',
     ],
     'data': [
         'security/ir.model.access.csv',
@@ -24,6 +25,7 @@
         'views/template.xml',
         'wizard/wishlist_wizard_views.xml',
         'views/product_template_views.xml',
+        'views/sale_order_views.xml',
     ],
     'demo': [
     ],
