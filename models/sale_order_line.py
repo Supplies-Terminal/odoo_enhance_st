@@ -11,8 +11,12 @@ class SaleOrderLine(models.Model):
         digits='Product Unit of Measure'
     )
     secondary_uom_id = fields.Many2one("uom.uom", 'Counting UOM')
+    secondary_uom_name = fields.Char(
+        "Counting Unit",
+        related='secondary_uom_id.name'
+    )
     secondary_uom_enabled = fields.Boolean(
-        "Related Counting Unit",
+        "Counting Unit Active",
         related="product_id.secondary_uom_enabled"
     )
 
