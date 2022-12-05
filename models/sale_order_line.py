@@ -11,32 +11,53 @@ class SaleOrderLine(models.Model):
         digits='Product Unit of Measure'
     )
     secondary_uom_id = fields.Many2one("uom.uom", 'Counting UOM')
+    
     secondary_uom_name = fields.Char(
         "Counting Unit",
-        related='secondary_uom_id.name'
+        related='product_id.secondary_uom_id.name'
     )
     secondary_uom_enabled = fields.Boolean(
         "Counting Unit Active",
         related="product_id.secondary_uom_enabled"
     )
+    secondary_uom_rate = fields.Boolean(
+        "Counting Unit Active",
+        related="product_id.secondary_uom_rate"
+    )
+    
+    secondary_uom_desc = fields.Char(string='Counting UOM', compute='_compute_secondary_uom_desc', store=False)
 
-    @api.onchange('secondary_qty', 'secondary_uom_id')
+    @api.depends('secondary_uom_enabled', 'product_uom', 'secondary_uom_id', 'secondary_uom_rate')
+    def _compute_secondary_uom_desc(self):
+        for rec in self:
+            if rec.secondary_uom_enabled:
+                rec.secondary_uom_desc = "%s(%s%s)" % (rec.secondary_uom_name, rec.secondary_uom_rate, rec.product_uom.name)
+            else:
+                rec.secondary_uom_desc = ""
+
+    @api.onchange('secondary_qty')
     def onchange_secondary_qty(self):
         if self and self.secondary_uom_enabled and self.product_uom:
-            if not self.product_uom_qty:
+            if self.product_uom_qty:
                 self.product_uom_qty = self.secondary_qty * self.product_id.secondary_uom_rate
+            else:
+                self.product_uom_qty = 0
 
     @api.onchange('product_id')
     def onchange_secondary_uom(self):
         if self:
             for rec in self:
-                if rec.product_id and rec.product_id.secondary_uom_enabled and rec.product_id.uom_id:
-                    rec.secondary_uom_id = rec.product_id.secondary_uom_id.id
-                    rec.product_uom_qty = rec.secondary_qty * rec.product_id.secondary_uom_rate
-                elif not rec.product_id.sh_is_secondary_unit:
-                    rec.secondary_uom_id = False
+                if rec.product_id:
+                    if rec.product_id.secondary_uom_enabled and rec.product_id.secondary_uom_id:
+                        rec.secondary_uom_id = rec.product_id.secondary_uom_id.id
+                        rec.product_uom_qty = rec.secondary_qty * rec.product_id.secondary_uom_rate
+                    elif:
+                        rec.secondary_qty = 0.0
+                        rec.product_uom_qty = 0.0
+                else:
                     rec.secondary_qty = 0.0
                     rec.product_uom_qty = 0.0
+                    
 
     def _prepare_invoice_line(self, **optional_values):
         res = super(SaleOrderLine, self)._prepare_invoice_line(
