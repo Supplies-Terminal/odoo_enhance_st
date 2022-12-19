@@ -13,18 +13,18 @@ class SaleOrderLine(models.Model):
     secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit')
     
     secondary_uom_name = fields.Char(
-        "Counting Unit", compute='_compute_secondary_uom_name', store=False
+        "Counting Unit", compute='_compute_secondary_uom_name', store=True
     )
     secondary_uom_enabled = fields.Boolean(
-        "Counting Unit Active", compute='_compute_secondary_uom_enabled', store=False
+        "Counting Unit Active", compute='_compute_secondary_uom_enabled', store=True
     )
     secondary_uom_rate = fields.Float(
-        "Counting Unit Rate", compute='_compute_secondary_uom_rate', store=False
+        "Counting Unit Rate", compute='_compute_secondary_uom_rate', store=True
     )
     
-    secondary_uom_desc = fields.Char(string='Counting UOM', compute='_compute_secondary_uom_desc', store=False)
+    secondary_uom_desc = fields.Char(string='Counting UOM', compute='_compute_secondary_uom_desc', store=True)
 
-    description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=False)
+    description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
 
     @api.depends('product_id')
     def _compute_secondary_uom_name(self):

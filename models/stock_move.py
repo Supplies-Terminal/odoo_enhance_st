@@ -2,24 +2,30 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields, api
-
+import logging
+_logger = logging.getLogger(__name__)
 
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    secondary_uom_enabled = fields.Boolean("Counting Unit Active", compute='_compute_secondary_uom_enabled', store=False)
-    secondary_qty = fields.Float("Counts", digits='Product Unit of Measure')
+    secondary_uom_enabled = fields.Boolean("Counting Unit Active")
+    secondary_qty = fields.Float("Counts")
     secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit')
     secondary_uom_name = fields.Char("Counting Unit")
     secondary_uom_rate = fields.Float("Counting Unit Rate")
-    secondary_done_qty = fields.Float("Counts", digits='Product Unit of Measure')
+    secondary_done_qty = fields.Float("Counts Done")
 
     @api.model
     def create(self, vals):
+        _logger.info('********stock.move.create*********')
+        
         res = super(StockMove, self).create(vals)
-
+        _logger.info(res.sale_line_id.secondary_uom_enabled)
         # 直接从sale order中复制过来
         if res.sale_line_id and res.sale_line_id.secondary_uom_enabled and res.sale_line_id.secondary_uom_id:
+            _logger.info(res.sale_line_id.secondary_uom_enabled)
+            _logger.info(res.sale_line_id.secondary_uom_id)
+            _logger.info('-------------------------------')
             res.update({
                 'secondary_uom_enabled': res.sale_line_id.secondary_uom_enabled,
                 'secondary_uom_id': res.sale_line_id.secondary_uom_id.id,
@@ -38,14 +44,15 @@ class StockMove(models.Model):
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
-    secondary_uom_enabled = fields.Boolean("Counting Unit Active", compute='_compute_secondary_uom_enabled', store=False)
-    secondary_qty = fields.Float("Counts", digits='Product Unit of Measure')
+    secondary_uom_enabled = fields.Boolean("Counting Unit Active")
+    secondary_qty = fields.Float("Counts")
     secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit')
     secondary_uom_name = fields.Char("Counting Unit")
     secondary_uom_rate = fields.Float("Counting Unit Rate")
-    secondary_done_qty = fields.Float("Counts", digits='Product Unit of Measure')
+    secondary_done_qty = fields.Float("Counts Done")
 
     def _get_aggregated_product_quantities(self, **kwargs):
+        _logger.info('********stock.move.line _get_aggregated_product_quantities *********')
         """ Returns a dictionary of products (key = id+name+description+uom) and corresponding values of interest.
 
         Allows aggregation of data across separate move lines for the same product. This is expected to be useful
@@ -71,9 +78,10 @@ class StockMoveLine(models.Model):
                                                    'qty_done': move_line.qty_done,
                                                    'product_uom': uom.name,
                                                    'product': move_line.product_id,
+                                                   'secondary_uom_enabled':move_line.product_id.secondary_uom_enabled,
                                                    'secondary_qty':move_line.secondary_qty,
-                                                   'secondary_uom_id':move_line.secondary_uom_id.id,
-                                                   'secondary_uom_name':move_line.secondary_uom_id.name,
+                                                   'secondary_uom_id':move_line.product_id.secondary_uom_id.id,
+                                                   'secondary_uom_name':move_line.product_id.secondary_uom_id.name,
                                                    }
             else:
                 aggregated_move_lines[line_key]['qty_done'] += move_line.qty_done
