@@ -6,25 +6,21 @@ from odoo import models, fields, api
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
-    secondary_qty = fields.Float(
-        "Counts",
-        digits='Product Unit of Measure'
-    )
-    secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit')
-    
-    secondary_uom_name = fields.Char(
-        "Counting Unit", compute='_compute_secondary_uom_name', store=True
-    )
-    secondary_uom_enabled = fields.Boolean(
-        "Counting Unit Active", compute='_compute_secondary_uom_enabled', store=True
-    )
-    secondary_uom_rate = fields.Float(
-        "Counting Unit Rate", compute='_compute_secondary_uom_rate', store=True
-    )
-    
+    secondary_qty = fields.Float("Counts", digits='Product Unit of Measure')
+    secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit', compute='_compute_secondary_uom_id', store=True)
+    secondary_uom_name = fields.Char("Counting Unit", compute='_compute_secondary_uom_name', store=True)
+    secondary_uom_enabled = fields.Boolean("Counting Unit Active", compute='_compute_secondary_uom_enabled', store=True)
+    secondary_uom_rate = fields.Float( "Counting Unit Rate", compute='_compute_secondary_uom_rate', store=True)
     secondary_uom_desc = fields.Char(string='Counting UOM', compute='_compute_secondary_uom_desc', store=True)
-
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
+
+    @api.depends('product_id')
+    def _compute_secondary_uom_id(self):
+        for rec in self:
+            if rec.product_id.secondary_uom_enabled:
+                rec.secondary_uom_id = rec.product_id.secondary_uom_id.id
+            else:
+                rec.secondary_uom_id = 0
 
     @api.depends('product_id')
     def _compute_secondary_uom_name(self):

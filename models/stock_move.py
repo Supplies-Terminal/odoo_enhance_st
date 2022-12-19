@@ -29,8 +29,8 @@ class StockMove(models.Model):
             res.update({
                 'secondary_uom_enabled': res.sale_line_id.secondary_uom_enabled,
                 'secondary_uom_id': res.sale_line_id.secondary_uom_id.id,
-                'secondary_uom_name': res.sale_line_id.secondary_uom_name.id,
-                'secondary_uom_rate': res.sale_line_id.secondary_uom_rate.id,
+                'secondary_uom_name': res.sale_line_id.secondary_uom_name,
+                'secondary_uom_rate': res.sale_line_id.secondary_uom_rate,
                 'secondary_qty': res.sale_line_id.secondary_qty
             })
         # elif res.purchase_line_id and res.purchase_line_id.secondary_uom_enabled and res.purchase_line_id.secondary_uom_id:
