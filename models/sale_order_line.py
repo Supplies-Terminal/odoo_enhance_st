@@ -7,10 +7,10 @@ class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
 
     secondary_qty = fields.Float(
-        "Counting Qty",
+        "Counts",
         digits='Product Unit of Measure'
     )
-    secondary_uom_id = fields.Many2one("uom.uom", 'Counting UOM')
+    secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit')
     
     secondary_uom_name = fields.Char(
         "Counting Unit", compute='_compute_secondary_uom_name', store=False
@@ -23,6 +23,8 @@ class SaleOrderLine(models.Model):
     )
     
     secondary_uom_desc = fields.Char(string='Counting UOM', compute='_compute_secondary_uom_desc', store=False)
+
+    description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=False)
 
     @api.depends('product_id')
     def _compute_secondary_uom_name(self):
@@ -50,9 +52,17 @@ class SaleOrderLine(models.Model):
     def _compute_secondary_uom_desc(self):
         for rec in self:
             if rec.secondary_uom_enabled:
-                rec.secondary_uom_desc = "%s(%s%s)" % (rec.secondary_uom_name, rec.secondary_uom_rate, rec.product_uom.name)
+                rec.secondary_uom_desc = "%s (%s %s)" % (rec.secondary_uom_name, rec.secondary_uom_rate, rec.product_uom.name)
             else:
                 rec.secondary_uom_desc = ""
+
+    @api.depends('secondary_uom_enabled', 'secondary_qty')
+    def _compute_description_with_counts(self):
+        for rec in self:
+            if rec.secondary_uom_enabled:
+                rec.description_with_counts = "%s (%s %s)" % (rec.name, rec.secondary_qty, rec.secondary_uom_name)
+            else:
+                rec.description_with_counts = rec.name
 
     @api.onchange('secondary_qty')
     def onchange_secondary_qty(self):
