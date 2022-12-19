@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="stock.view_move_form" />
         <field name="arch" type="xml">
             <xpath expr="//label[@for='product_uom_qty']" position="after">
-                <label for="secondary_qty" groups="sh_secondary_unit.group_secondary_unit_inventory" />
+                <label for="secondary_qty"/>
             </xpath>
             <xpath expr="//sheet//group[@name='main_grp_col2']//div[hasclass('o_row')]" position="after">
                 <div class="o_row" groups="sh_secondary_unit.group_secondary_unit_inventory">
@@ -36,6 +36,7 @@
         <field name="arch" type="xml">
             <xpath expr="//sheet//field[@name='lot_id']" position="before">
                 <div class="o_row">
+                    <field name="secondary_uom_enabled" invisible="1" />
                     <field name="secondary_qty" attrs="{'invisible':[('secondary_uom_enabled','=',False)]}"/>
                     <field name="secondary_uom_name" readonly="1" attrs="{'invisible':[('secondary_uom_enabled','=',False)]}"/>
                 </div>
@@ -48,6 +49,7 @@
         <field name="inherit_id" ref="stock.view_move_line_tree" />
         <field name="arch" type="xml">
             <xpath expr="//tree//field[@name='product_uom_id']" position="after">
+                <field name="secondary_uom_enabled" invisible="1" />
                 <field name="secondary_qty" attrs="{'invisible':[('secondary_uom_enabled','=',False)]}"/>
                 <field name="secondary_uom_name" readonly="1" attrs="{'invisible':[('secondary_uom_enabled','=',False)]}"/>
             </xpath>
