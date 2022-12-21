@@ -58,11 +58,11 @@ class AccountInvoiceLine(models.Model):
             rec.secondary_uom_enabled = rec.product_id.secondary_uom_enabled
 
                 
-    @api.depends('secondary_uom_enabled', 'product_uom', 'secondary_uom_id', 'secondary_uom_rate')
+    @api.depends('secondary_uom_enabled', 'product_uom_id', 'secondary_uom_id', 'secondary_uom_rate')
     def _compute_secondary_uom_desc(self):
         for rec in self:
             if rec.secondary_uom_enabled:
-                rec.secondary_uom_desc = "%s (%s %s)" % (rec.secondary_uom_name, rec.secondary_uom_rate, rec.product_uom.name)
+                rec.secondary_uom_desc = "%s (%s %s)" % (rec.secondary_uom_name, rec.secondary_uom_rate, rec.product_uom_id.name)
             else:
                 rec.secondary_uom_desc = ""
 
@@ -76,11 +76,11 @@ class AccountInvoiceLine(models.Model):
 
     @api.onchange('secondary_qty')
     def onchange_secondary_qty(self):
-        if self and self.secondary_uom_enabled and self.product_uom:
-            if self.product_uom_qty:
-                self.product_uom_qty = self.secondary_qty * self.product_id.secondary_uom_rate
+        if self and self.secondary_uom_enabled and self.product_uom_id:
+            if self.quantity:
+                self.quantity = self.secondary_qty * self.product_id.secondary_uom_rate
             else:
-                self.product_uom_qty = 0
+                self.quantity = 0
 
     @api.onchange('product_id')
     def onchange_secondary_uom(self):
@@ -92,8 +92,8 @@ class AccountInvoiceLine(models.Model):
                         rec.product_uom_qty = rec.secondary_qty * rec.product_id.secondary_uom_rate
                     else:
                         rec.secondary_qty = 0.0
-                        rec.product_uom_qty = 0.0
+                        rec.quantity = 0.0
                 else:
                     rec.secondary_qty = 0.0
-                    rec.product_uom_qty = 0.0
+                    rec.quantity = 0.0
                
