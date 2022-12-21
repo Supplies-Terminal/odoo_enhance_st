@@ -1,10 +1,24 @@
 # -*- coding: UTF-8 -*-
-# Part of Odoo. See LICENSE file for full copyright and licensing details.
+# Part of Softhealer Technologies.
 
 from odoo import models, fields, api
 
-class SaleOrderLine(models.Model):
-    _inherit = "sale.order.line"
+
+class AccountInvoice(models.Model):
+    _inherit = 'account.move'
+
+    def _prepare_invoice_line_from_po_line(self, line):
+        res = super(AccountInvoice,
+                    self)._prepare_invoice_line_from_po_line(line)
+        res.update({
+            'secondary_qty': line.secondary_qty,
+            'secondary_uom': line.secondary_uom.id,
+        })
+        return res
+
+
+class AccountInvoiceLine(models.Model):
+    _inherit = "account.move.line"
 
     secondary_qty = fields.Float("Counts", digits='Product Unit of Measure')
     secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit', compute='_compute_secondary_uom_id', store=True)
@@ -18,9 +32,9 @@ class SaleOrderLine(models.Model):
     def _compute_secondary_uom_id(self):
         for rec in self:
             if rec.product_id.secondary_uom_enabled and rec.product_id.secondary_uom_id:
-                rec.secondary_uom_id = rec.product_id.secondary_uom_id
-            # else:
-            #     rec.secondary_uom_id = 
+                rec.secondary_uom_id = rec.product_id.secondary_uom_id.id
+            else:
+                rec.secondary_uom_id = 
 
     @api.depends('product_id')
     def _compute_secondary_uom_name(self):
@@ -83,12 +97,3 @@ class SaleOrderLine(models.Model):
                     rec.secondary_qty = 0.0
                     rec.product_uom_qty = 0.0
                
-    def _prepare_invoice_line(self, **optional_values):
-        res = super(SaleOrderLine, self)._prepare_invoice_line(
-            **optional_values
-        )
-        res.update({
-            'secondary_qty': self.secondary_qty,
-            'secondary_uom_id': self.secondary_uom_id.id,
-            })
-        return res
