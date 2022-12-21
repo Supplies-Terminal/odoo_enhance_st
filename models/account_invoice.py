@@ -33,8 +33,8 @@ class AccountInvoiceLine(models.Model):
         for rec in self:
             if rec.product_id.secondary_uom_enabled and rec.product_id.secondary_uom_id:
                 rec.secondary_uom_id = rec.product_id.secondary_uom_id.id
-            else:
-                rec.secondary_uom_id = 
+            # else:
+            #     rec.secondary_uom_id = 
 
     @api.depends('product_id')
     def _compute_secondary_uom_name(self):
