@@ -81,6 +81,15 @@ class StockMoveLine(models.Model):
     secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit', related="move_id.secondary_uom_id")
     secondary_uom_name = fields.Char("Counting Unit", related="move_id.secondary_uom_name")
     secondary_uom_rate = fields.Float("Counting Unit Rate", related="move_id.secondary_uom_rate")
+    description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
+
+    @api.depends('secondary_uom_enabled', 'secondary_qty')
+    def _compute_description_with_counts(self):
+        for rec in self:
+            if rec.secondary_uom_enabled:
+                rec.description_with_counts = "%s (%s %s)" % (rec.name, rec.secondary_qty, rec.secondary_uom_name)
+            else:
+                rec.description_with_counts = rec.name
 
     def _get_aggregated_product_quantities(self, **kwargs):
         _logger.info('********stock.move.line _get_aggregated_product_quantities *********')
