@@ -83,13 +83,13 @@ class StockMoveLine(models.Model):
     secondary_uom_rate = fields.Float("Counting Unit Rate", related="move_id.secondary_uom_rate")
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
 
-    @api.depends('secondary_uom_enabled', 'secondary_qty')
+    @api.depends('product_id', 'secondary_uom_enabled', 'secondary_qty')
     def _compute_description_with_counts(self):
         for rec in self:
             if rec.secondary_uom_enabled:
-                rec.description_with_counts = "%s (%s %s)" % (rec.name, rec.secondary_qty, rec.secondary_uom_name)
+                rec.description_with_counts = "%s (%s %s)" % (rec.product_id.display_name, rec.secondary_qty, rec.secondary_uom_name)
             else:
-                rec.description_with_counts = rec.name
+                rec.description_with_counts = rec.product_id.display_name
 
     def _get_aggregated_product_quantities(self, **kwargs):
         _logger.info('********stock.move.line _get_aggregated_product_quantities *********')
