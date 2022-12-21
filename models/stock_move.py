@@ -103,11 +103,11 @@ class StockMoveLine(models.Model):
             uom = move_line.product_uom_id
             line_key = str(move_line.product_id.id) + "_" + name + (description or "") + "uom " + str(uom.id)
 
-            _logger.info(res.move_line.secondary_uom_enabled)
-            _logger.info(res.move_line.secondary_uom_id)
-            _logger.info(res.move_line.secondary_uom_name)
-            _logger.info(res.move_line.secondary_uom_rate)
-            _logger.info(res.move_line.secondary_qty)
+            _logger.info(move_line.secondary_uom_enabled)
+            _logger.info(move_line.secondary_uom_id)
+            _logger.info(move_line.secondary_uom_name)
+            _logger.info(move_line.secondary_uom_rate)
+            _logger.info(move_line.secondary_qty)
             _logger.info('-------------------------------')
             if line_key not in aggregated_move_lines:
                 aggregated_move_lines[line_key] = {'name': name,

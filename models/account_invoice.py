@@ -78,7 +78,7 @@ class AccountInvoiceLine(models.Model):
     def onchange_secondary_qty(self):
         if self and self.secondary_uom_enabled and self.product_uom_id:
             if self.quantity:
-                self.quantity = self.secondary_qty * self.product_id.secondary_uom_rate
+                self.quantity = self.secondary_qty * self.secondary_uom_rate
             else:
                 self.quantity = 0
 
@@ -89,7 +89,7 @@ class AccountInvoiceLine(models.Model):
                 if rec.product_id:
                     if rec.product_id.secondary_uom_enabled and rec.product_id.secondary_uom_id:
                         rec.secondary_uom_id = rec.product_id.secondary_uom_id.id
-                        rec.product_uom_qty = rec.secondary_qty * rec.product_id.secondary_uom_rate
+                        rec.quantity = rec.secondary_qty * rec.product_id.secondary_uom_rate
                     else:
                         rec.secondary_qty = 0.0
                         rec.quantity = 0.0
