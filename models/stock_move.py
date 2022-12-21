@@ -20,19 +20,42 @@ class StockMove(models.Model):
         _logger.info('********stock.move.create*********')
         
         res = super(StockMove, self).create(vals)
-        _logger.info(res.sale_line_id.secondary_uom_enabled)
+        _logger.info(res)
+        _logger.info(res.sale_line_id)
+        _logger.info(vals)
+        _logger.info(res.move_dest_ids)
         # 直接从sale order中复制过来
         if res.sale_line_id and res.sale_line_id.secondary_uom_enabled and res.sale_line_id.secondary_uom_id:
+            _logger.info('--------------sale_line_id-----------------')
             _logger.info(res.sale_line_id.secondary_uom_enabled)
             _logger.info(res.sale_line_id.secondary_uom_id)
-            _logger.info('-------------------------------')
-            res.update({
+            _logger.info(res.sale_line_id.secondary_uom_name)
+            _logger.info(res.sale_line_id.secondary_uom_rate)
+            _logger.info(res.sale_line_id.secondary_qty)
+            res.write({
                 'secondary_uom_enabled': res.sale_line_id.secondary_uom_enabled,
                 'secondary_uom_id': res.sale_line_id.secondary_uom_id.id,
                 'secondary_uom_name': res.sale_line_id.secondary_uom_name,
                 'secondary_uom_rate': res.sale_line_id.secondary_uom_rate,
                 'secondary_qty': res.sale_line_id.secondary_qty
             })
+        elif res.move_dest_ids:
+            for move_dest in res.move_dest_ids:
+                if move_dest.secondary_uom_enabled and move_dest.secondary_uom_id:
+                    _logger.info(('--------------move_dest-----------------'))
+                    _logger.info(move_dest.secondary_uom_enabled)
+                    _logger.info(move_dest.secondary_uom_id)
+                    _logger.info(move_dest.secondary_uom_name)
+                    _logger.info(move_dest.secondary_uom_rate)
+                    _logger.info(move_dest.secondary_qty)
+                    res.write({
+                        'secondary_uom_enabled': move_dest.secondary_uom_enabled,
+                        'secondary_uom_id': move_dest.secondary_uom_id.id,
+                        'secondary_uom_name': move_dest.secondary_uom_name,
+                        'secondary_uom_rate': move_dest.secondary_uom_rate,
+                        'secondary_qty': move_dest.secondary_qty
+                    })
+  
         # elif res.purchase_line_id and res.purchase_line_id.secondary_uom_enabled and res.purchase_line_id.secondary_uom_id:
         #     res.update({
         #         'secondary_uom_id': res.purchase_line_id.secondary_uom_id.id,
@@ -40,16 +63,24 @@ class StockMove(models.Model):
         #     })
         return res
 
-
+    def _set_quantities_to_reservation(self):
+        res = super(StockMove, self)._set_quantities_to_reservation()
+        for move in self:
+            if move.state not in ('partially_available', 'assigned'):
+                continue
+            for move_line in move.move_line_ids:
+                move_line.secondary_done_qty = move_line.secondary_qty
+                
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
-    secondary_uom_enabled = fields.Boolean("Counting Unit Active")
-    secondary_qty = fields.Float("Counts")
-    secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit')
-    secondary_uom_name = fields.Char("Counting Unit")
-    secondary_uom_rate = fields.Float("Counting Unit Rate")
     secondary_done_qty = fields.Float("Counts Done")
+
+    secondary_qty = fields.Float("Counts", related="move_id.secondary_qty")
+    secondary_uom_enabled = fields.Boolean("Counting Unit Active", related="move_id.secondary_uom_enabled")
+    secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit', related="move_id.secondary_uom_id")
+    secondary_uom_name = fields.Char("Counting Unit", related="move_id.secondary_uom_name")
+    secondary_uom_rate = fields.Float("Counting Unit Rate", related="move_id.secondary_uom_rate")
 
     def _get_aggregated_product_quantities(self, **kwargs):
         _logger.info('********stock.move.line _get_aggregated_product_quantities *********')
@@ -72,38 +103,36 @@ class StockMoveLine(models.Model):
             uom = move_line.product_uom_id
             line_key = str(move_line.product_id.id) + "_" + name + (description or "") + "uom " + str(uom.id)
 
+            _logger.info(res.move_line.secondary_uom_enabled)
+            _logger.info(res.move_line.secondary_uom_id)
+            _logger.info(res.move_line.secondary_uom_name)
+            _logger.info(res.move_line.secondary_uom_rate)
+            _logger.info(res.move_line.secondary_qty)
+            _logger.info('-------------------------------')
             if line_key not in aggregated_move_lines:
                 aggregated_move_lines[line_key] = {'name': name,
                                                    'description': description,
                                                    'qty_done': move_line.qty_done,
                                                    'product_uom': uom.name,
                                                    'product': move_line.product_id,
-                                                   'secondary_uom_enabled':move_line.product_id.secondary_uom_enabled,
                                                    'secondary_qty':move_line.secondary_qty,
-                                                   'secondary_uom_id':move_line.product_id.secondary_uom_id.id,
-                                                   'secondary_uom_name':move_line.product_id.secondary_uom_id.name,
+                                                   'secondary_uom':move_line.secondary_uom_name
                                                    }
             else:
                 aggregated_move_lines[line_key]['qty_done'] += move_line.qty_done
         return aggregated_move_lines
 
 
-# class StockImmediateTransfer(models.TransientModel):
-#     _inherit = 'stock.immediate.transfer'
+class StockImmediateTransfer(models.TransientModel):
+    _inherit = 'stock.immediate.transfer'
 
-#     def process(self):
-#         res = super(StockImmediateTransfer, self).process()
-#         for picking_ids in self.pick_ids:
-#             for moves in picking_ids.move_ids_without_package:
-#                 if moves.secondary_uom_id:
-#                     moves.secondary_done_qty = moves.product_uom._compute_quantity(
-#                         moves.product_uom_qty,
-#                         moves.secondary_uom_id
-#                     )
-#                 for move_lines in moves.move_line_ids:
-#                     if move_lines.secondary_uom_id:
-#                         move_lines.secondary_qty = move_lines.product_uom_id._compute_quantity(
-#                             move_lines.qty_done,
-#                             moves.secondary_uom_id
-#                         )
-#         return res
+    def process(self):
+        res = super(StockImmediateTransfer, self).process()
+        for picking_ids in self.pick_ids:
+            for moves in picking_ids.move_ids_without_package:
+                if moves.secondary_uom_id:
+                    moves.secondary_done_qty = moves.secondary_qty
+                for move_lines in moves.move_line_ids:
+                    if move_lines.secondary_uom_id:
+                        move_lines.secondary_qty = move_lines.secondary_done_qty
+        return res
