@@ -8,9 +8,9 @@ _logger = logging.getLogger(__name__)
 class StockMove(models.Model):
     _inherit = "stock.move"
 
-    secondary_uom_enabled = fields.Boolean("Counting Unit Active")
+    secondary_uom_enabled = fields.Boolean("Enable Counting Unit")
     secondary_qty = fields.Float("Counts")
-    secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit')
+    secondary_uom_id = fields.Many2one("uom.uom", 'Counting UOM')
     secondary_uom_name = fields.Char("Counting Unit")
     secondary_uom_rate = fields.Float("Counting Unit Rate")
     secondary_done_qty = fields.Float("Counts Done")
@@ -77,8 +77,8 @@ class StockMoveLine(models.Model):
     secondary_done_qty = fields.Float("Counts Done")
 
     secondary_qty = fields.Float("Counts", related="move_id.secondary_qty")
-    secondary_uom_enabled = fields.Boolean("Counting Unit Active", related="move_id.secondary_uom_enabled")
-    secondary_uom_id = fields.Many2one("uom.uom", 'Counting Unit', related="move_id.secondary_uom_id")
+    secondary_uom_enabled = fields.Boolean("Enable Counting Unit", related="move_id.secondary_uom_enabled")
+    secondary_uom_id = fields.Many2one("uom.uom", 'Counting UOM', related="move_id.secondary_uom_id")
     secondary_uom_name = fields.Char("Counting Unit", related="move_id.secondary_uom_name")
     secondary_uom_rate = fields.Float("Counting Unit Rate", related="move_id.secondary_uom_rate")
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)

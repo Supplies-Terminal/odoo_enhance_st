@@ -8,13 +8,13 @@ class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
     secondary_uom_enabled = fields.Boolean("Enable Counting Unit?")
-    secondary_uom_id = fields.Many2one('uom.uom', 'Counting Unit')
+    secondary_uom_id = fields.Many2one('uom.uom', 'Counting UOM')
     secondary_uom_rate = fields.Float('Counting Unit Rate', default=1)
     secondary_uom_name = fields.Char(
         "Counting Unit",
         related='secondary_uom_id.name'
     )
-    secondary_uom_desc = fields.Char(string='Counting Unit', compute='_compute_secondary_uom_desc', store=False)
+    secondary_uom_desc = fields.Char(string='Counting Unit Desc', compute='_compute_secondary_uom_desc', store=False)
 
     @api.depends('secondary_uom_enabled', 'uom_id', 'secondary_uom_id', 'secondary_uom_rate')
     def _compute_secondary_uom_desc(self):

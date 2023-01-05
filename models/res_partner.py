@@ -9,7 +9,7 @@ class Partner(models.Model):
     
     website_ids = fields.Many2many('website', string='App Websites')
 
-    full_name = fields.Char(compute='_compute_full_name', store=False)
+    full_name = fields.Char(compute='_compute_full_name', store=True)
 
     @api.depends('name', 'ref')
     def _compute_full_name(self):
