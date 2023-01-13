@@ -36,7 +36,7 @@ class Partner(models.Model):
         args = args or []
         recs = self.search([('full_name', operator, name)] + args, limit=limit)
         if not recs.ids:
-            return super(Partner, self).name_search(name=name, args=args,
+            return super(Partner, self)._name_search(name=name, args=args,
                                                        operator=operator,
                                                        limit=limit)
         return recs.name_get()
