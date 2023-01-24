@@ -9,11 +9,11 @@ class StockMove(models.Model):
     _inherit = "stock.move"
 
     secondary_uom_enabled = fields.Boolean("Enable Counting Unit")
-    secondary_qty = fields.Float("Counts")
-    secondary_uom_id = fields.Many2one("uom.uom", 'Counting UOM')
-    secondary_uom_name = fields.Char("Counting Unit")
-    secondary_uom_rate = fields.Float("Counting Unit Rate")
-    secondary_done_qty = fields.Float("Counts Done")
+    secondary_qty = fields.Float("Secondary QTY")
+    secondary_uom_id = fields.Many2one("uom.uom", 'Secondary UoM')
+    secondary_uom_name = fields.Char("Secondary Unit")
+    secondary_uom_rate = fields.Float("Secondary UoM Rate")
+    secondary_done_qty = fields.Float("Secondary QTY Done")
 
     @api.model
     def create(self, vals):
@@ -74,13 +74,13 @@ class StockMove(models.Model):
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
-    secondary_done_qty = fields.Float("Counts Done")
+    secondary_done_qty = fields.Float("Secondary QTY Done")
 
-    secondary_qty = fields.Float("Counts", related="move_id.secondary_qty")
-    secondary_uom_enabled = fields.Boolean("Enable Counting Unit", related="move_id.secondary_uom_enabled")
-    secondary_uom_id = fields.Many2one("uom.uom", 'Counting UOM', related="move_id.secondary_uom_id")
-    secondary_uom_name = fields.Char("Counting Unit", related="move_id.secondary_uom_name")
-    secondary_uom_rate = fields.Float("Counting Unit Rate", related="move_id.secondary_uom_rate")
+    secondary_qty = fields.Float("Secondary QTY", related="move_id.secondary_qty")
+    secondary_uom_enabled = fields.Boolean("Secondary UoM Enabled?", related="move_id.secondary_uom_enabled")
+    secondary_uom_id = fields.Many2one("uom.uom", 'Secondary UoM', related="move_id.secondary_uom_id")
+    secondary_uom_name = fields.Char("Secondary Unit", related="move_id.secondary_uom_name")
+    secondary_uom_rate = fields.Float("Secondary Unit Rate", related="move_id.secondary_uom_rate")
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
 
     @api.depends('product_id', 'secondary_uom_enabled', 'secondary_qty')
