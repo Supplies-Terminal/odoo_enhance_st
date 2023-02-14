@@ -21,15 +21,15 @@ class Partner(models.Model):
             rec.full_name = name
 
     def name_get(self):
-        res = []
+        recs = []
         # res_partner_search_mode = self.env.context.get('res_partner_search_mode')
         for rec in self:
             name = "%s" % rec.name
             if (rec.ref):
                 name = "%s (%s)" % (rec.name, rec.ref)
                
-            res.append((rec.id, name))
-            return res
+            recs.append((rec.id, name))
+        return recs
 
     @api.model
     def name_search(self, name, args=None, operator='ilike', limit=100):
