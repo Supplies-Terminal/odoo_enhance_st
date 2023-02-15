@@ -20,7 +20,7 @@ class ProductTemplate(models.Model):
     def _compute_secondary_uom_desc(self):
         for rec in self:
             if rec.secondary_uom_enabled:
-                rec.secondary_uom_desc = "1%s = %s%s" % (rec.secondary_uom_id.name, rec.secondary_uom_rate, rec.uom_id.name)
+                rec.secondary_uom_desc = "1%s = %s%s" % (rec.uom_id.name, rec.secondary_uom_rate, rec.secondary_uom_id.name)
             else:
                 rec.secondary_uom_desc = ""
 
