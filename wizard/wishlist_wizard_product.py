@@ -36,8 +36,8 @@ class WishlistWizardProduct(models.TransientModel):
         That's why we need a server action, to create the records and then open the form
         view on them.
         """
-        wishlist_wizard = self.create({})
-        return wishlist_wizard._action_open_modal()
+        wishlist_wizard_product = self.create({})
+        return wishlist_wizard_product._action_open_modal()
 
     def _action_open_modal(self):
         """Allow to keep the wizard modal open after executing the action."""
@@ -72,7 +72,7 @@ class WishlistWizardProductWebsite(models.TransientModel):
             _logger.info(record.product_id)
             recordsInWishlist = self.env['product.wishlist'].search([('website_id', '=', record.product_id.website.id), ('product_id', '=', record.product_id.id)])
             record.total = len(recordsInWishlist)
-               
+
     def _get_pricelist_context(self):
         _logger.info("------------6.1------------")
         pricelist_context = dict()
@@ -81,7 +81,7 @@ class WishlistWizardProductWebsite(models.TransientModel):
         _logger.info("------------6.2------------")
         return pricelist_context, pricelist 
 
-     def action_add_to_wishlist(self):
+    def action_add_to_wishlist(self):
         self.ensure_one()
         _logger.info("------------------------")
         _logger.info(self.product_id)
