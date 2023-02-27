@@ -43,7 +43,7 @@ class WishlistWizardProduct(models.TransientModel):
         """Allow to keep the wizard modal open after executing the action."""
         self.refresh()
         return {
-            'name': _('Add the product to the website\'s clients'),
+            'name': _('Add the product to relavant website\'s clients'),
             'type': 'ir.actions.act_window',
             'res_model': 'wishlist.wizard.product',
             'view_type': 'form',

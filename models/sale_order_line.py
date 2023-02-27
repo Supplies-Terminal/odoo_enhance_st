@@ -14,6 +14,17 @@ class SaleOrderLine(models.Model):
     secondary_uom_desc = fields.Char(string='Secondary Unit Desc', compute='_compute_secondary_uom_desc', store=True)
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
 
+    latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=True)
+
+    @api.depends('product_id')
+    def _compute_latest_cost(self):
+        for rec in self:
+            rec.latest_cost = 0.01
+            # if rec.product_id.secondary_uom_enabled and rec.product_id.secondary_uom_id:
+            #     rec.secondary_uom_id = rec.product_id.secondary_uom_id
+            # else:
+            #     rec.secondary_uom_id = 
+
     @api.depends('product_id')
     def _compute_secondary_uom_id(self):
         for rec in self:
