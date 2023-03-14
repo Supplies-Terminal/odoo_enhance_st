@@ -6,4 +6,4 @@ from odoo import models, fields, api
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    date_place = fields.Datetime(string='Place Date', required=True, readonly=True, index=True, states={'draft': [('readonly', False)], 'sent': [('readonly', False)]}, copy=False, default=fields.Datetime.now, help="The date customers submit the quotation")
+    date_place = fields.Datetime(string='Place Date', required=False, readonly=True, index=True, copy=False, default=fields.Datetime.now, help="The date customers submit the quotation")
