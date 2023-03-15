@@ -2,6 +2,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields, api
+import logging
+_logger = logging.getLogger(__name__)
 
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
@@ -19,11 +21,12 @@ class SaleOrderLine(models.Model):
     @api.depends('product_id')
     def _compute_latest_cost(self):
         for rec in self:
-            rec.latest_cost = 0.01
-            # if rec.product_id.secondary_uom_enabled and rec.product_id.secondary_uom_id:
-            #     rec.secondary_uom_id = rec.product_id.secondary_uom_id
-            # else:
-            #     rec.secondary_uom_id = 
+            rec.latest_cost = '-'
+            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id), ('order_id.state', 'in', ['purchase', 'done'])],limit=1, order='id desc')
+
+            if pol:
+                rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
 
     @api.depends('product_id')
     def _compute_secondary_uom_id(self):
