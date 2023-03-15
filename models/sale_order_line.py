@@ -21,8 +21,7 @@ class SaleOrderLine(models.Model):
         for rec in self:
             rec.latest_cost = '-'
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id), ('order_id.state', 'in', ['purchase', 'done'])],limit=1, order='id desc')
-
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done'])], limit=1, order='id desc')
             if pol:
                 rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
 
