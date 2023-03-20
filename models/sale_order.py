@@ -16,22 +16,24 @@ class SaleOrder(models.Model):
             results = []
             for line in rec.order_line:
                 if line.product_qty>0:
-                    fres = filter(lambda x: x.uom_id==line.product_uom.id, results)
+                    fres = list(filter(lambda x: x['uom_id']==line.product_uom.id, results))
                     if fres:
-                        fres[0].qty = fres[0].qty + line.product_qty
+                        fres[0]['qty'] = fres[0]['qty'] + line.product_qty
                     else:
                         results.append({
-                            uom_id: line.product_uom.id,
-                            uom_name: line.product_uom.name,
-                            qty: line.product_qty
+                            'uom_id': line.product_uom.id,
+                            'uom_name': line.product_uom.name,
+                            'qty': line.product_qty
                             })
-
 
             resultString = []
             for line in results:
-                if line.qty > 1:
-                    resultString.append(line.qty + " " + line.uom_name + "s")
-                else if line.qty > 0:
-                    resultString.append(line.qty + " " + line.uom_name)
+                if line['qty'] > 1:
+                    resultString.append(str(line['qty']) + " " + line['uom_name'] + "s")
+                elif line['qty'] > 0:
+                    resultString.append(str(line['qty']) + " " + line['uom_name'])
             
-            rec.quantity_counts = (' '.join(resultString))
+            if resultString:
+                rec.quantity_counts = 'Quantity Counts: ' + ('; '.join(resultString))
+            else:
+                rec.quantity_counts = ''
