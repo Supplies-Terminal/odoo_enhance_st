@@ -18,7 +18,7 @@
     </record>
 
     <!-- wizard view -->
-    <record id="wizard_product_view" model="ir.ui.view">
+    <record id="wizard_product_website_view" model="ir.ui.view">
         <field name="name">Add To Wishlists</field>
         <field name="model">wishlist.wizard.product.website</field>
         <field name="arch" type="xml">

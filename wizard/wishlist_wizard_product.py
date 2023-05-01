@@ -45,7 +45,7 @@ class WishlistWizardProduct(models.TransientModel):
         return {
             'name': _('Add the product to relavant website\'s clients'),
             'type': 'ir.actions.act_window',
-            'res_model': 'wishlist.wizard.product.website',
+            'res_model': 'wishlist.wizard.product',
             'view_type': 'form',
             'view_mode': 'form',
             'res_id': self.id,
