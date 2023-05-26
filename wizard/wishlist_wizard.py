@@ -135,6 +135,8 @@ class WishlistWizardWebsite(models.TransientModel):
                     self.partner_id.id
                 )
         
+        return self.wizard_id._action_open_modal()
+
     def action_clean_wishlist(self):
         self.ensure_one()
         _logger.info("---------clean_wishlist---------------")
