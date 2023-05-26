@@ -135,4 +135,21 @@ class WishlistWizardWebsite(models.TransientModel):
                     self.partner_id.id
                 )
         
+    def action_clean_wishlist(self):
+        self.ensure_one()
+        _logger.info("---------clean_wishlist---------------")
+        _logger.info(self.partner_id)
+        _logger.info(self.website_id)
+        
+        # get all products by website id
+        products = self.env['product.product'].sudo().search([('website_id', '=', self.website_id.id)])
+        Wishlist = self.env['product.wishlist'].sudo()
+        # get all products in wishlist by website id
+        productsInWishlist = Wishlist.search([('website_id', '=', self.website_id.id), ('partner_id', '=', self.partner_id.id)])
+        
+        productIdsInWishlist = []
+        for item in productsInWishlist:
+            wish_id = Wishlist.search([('id', '=', item.id)], limit=1)
+            wish_id.unlink()
+        
         return self.wizard_id._action_open_modal()
