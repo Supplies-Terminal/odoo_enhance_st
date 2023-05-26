@@ -23,7 +23,13 @@ class WishlistWizardProduct(models.TransientModel):
         return product_id
 
     product_id = fields.Integer(string='Product', default=_default_product_id)
+    total = fields.Integer(string="Clients", compute="_compute_total")
 
+    @api.depends("product_id")
+    def _compute_total(self):
+        for record in self:
+            recordsInWishlist = self.env['product.wishlist'].search([('website_id', '=', record.product_id.website.id), ('product_id', '=', record.product_id.id)])
+            record.total = len(recordsInWishlist)
 
     @api.model
     def action_open_wizard(self):
