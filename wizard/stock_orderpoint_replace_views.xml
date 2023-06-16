@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_stock_orderpoint_replace" model="ir.ui.view">
+        <field name="name">Stock Orderpoint Replace</field>
+        <field name="model">stock.orderpoint.replace</field>
+        <field name="arch" type="xml">
+            <form string="replace">
+                <field name="orderpoint_ids.product.name" readonly="1"/>
+                <field name="replace_id" />
+                <field name="website_ids">
+                    <tree string="orders" create="false" delete="false">
+                        <field name="order_id" force_save="1"/>
+                        <field name="qty" readonly="1"/>
+                        <button string="Replace" name="action_orderpoint_repace_empty" type="object" class="btn-secondary"/>
+                        <button string="Clear" name="action_orderpoint_repace_empty" type="object" class="btn-secondary"/>
+                    </tree>
+                </field>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_orderpoint_replace" model="ir.actions.act_window">
+        <field name="name">Replace</field>
+        <field name="res_model">stock.orderpoint.replace</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

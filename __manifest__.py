@@ -7,7 +7,7 @@
     'sequence': 50,
     'summary': 'Enhanced user experiences based on the business operations.',
     'website': 'https://suppliesterminal.com',
-    'version': '1.1.0',
+    'version': '1.2.0',
     'description': "",
     'depends': [
         'contacts',
@@ -23,9 +23,11 @@
         'data/mail_template.xml',
         'views/res_user_approval.xml',
         'views/template.xml',
+        'views/product_template_views.xml',
+        'views/stock_orderpoint_views.xml',
         'wizard/wishlist_wizard_views.xml',
         'wizard/wishlist_wizard_product_views.xml',
-        'views/product_template_views.xml',
+        'wizard/stock_orderpoint_replace_views.xml',
     ],
     'demo': [
     ],
