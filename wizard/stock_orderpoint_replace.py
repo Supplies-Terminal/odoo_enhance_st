@@ -17,11 +17,11 @@ class StockOrderpointReplace(models.TransientModel):
 
     product_id = fields.Integer(string='Product', default=_default_product_id)
     replace_id = fileds.One2many('product.product')
-    orders = fields.One2many('stock.orderpoint.replace.order', 'order_id', string='Orders', compute='_compute_order_ids', store=True, readonly=False)
+    orders = fields.One2many('stock.orderpoint.replace.order', 'order_id', string='Orders', compute='_compute_orders', store=True, readonly=False)
 
     @api.depends('product_id')
-    def _compute_order_ids(self):
-        _logger.info("------------_compute_order_ids------------")
+    def _compute_orders(self):
+        _logger.info("------------_compute_orders------------")
         _logger.info(self.product_id)
         orders = self.env['sale.order'].search([('order_line.product_id', '=', self.product_id)])
         _logger.info(orders)
