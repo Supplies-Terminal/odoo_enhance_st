@@ -15,7 +15,7 @@ class StockOrderpointReplace(models.TransientModel):
         return product_id
 
     product_id = fields.Integer(string='Product', default=_default_product_id)
-    replace_id = fileds.One2many('product.product')
+    replace_id = fields.One2many('product.product')
     orders = fields.One2many('stock.orderpoint.replace.order', 'order_id', string='Orders', compute='_compute_orders', store=True, readonly=False)
 
     @api.depends('product_id')
