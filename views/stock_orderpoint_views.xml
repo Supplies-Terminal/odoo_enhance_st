@@ -5,8 +5,8 @@
         <field name="model">stock.warehouse.orderpoint</field>
         <field name="arch" type="xml">
             <xpath expr="//tree" position="inside">
-                <button name="%(action_orderpoint_replace)d" string="Replace" type="action" class="text-warning" icon="fa-bell-slash"
-                    attrs="{'invisible': [('trigger', '!=', 'manual')]}" context="{'default_product_id': product_id}"/>
+                <button name="action_replace" string="Replace" type="object" class="o_replenish_buttons" icon="fa-truck"
+                    attrs="{'invisible': [('qty_to_order', '&lt;=', 0.0)]}"/>
             </xpath>
         </field>
     </record>

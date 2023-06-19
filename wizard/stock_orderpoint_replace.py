@@ -10,12 +10,8 @@ class StockOrderpointReplace(models.TransientModel):
     _name = 'stock.orderpoint.replace'
     _description = 'Replace Product for Orderpoint'
 
-    def _default_product_id(self):
-        product_id = self.env.context.get('default_product_id', 0)
-        return product_id
-
-    product_id = fields.Integer(string='Product', default=_default_product_id)
-    replace_id = fields.Many2one('product.product', string='Product', required=True, readonly=True, ondelete='cascade')
+    product_id = fields.Many2one('product.product', string='Current Product', required=True, readonly=True, ondelete='cascade')
+    replace_id = fields.Many2one('product.product', string='New Product', required=True, readonly=True, ondelete='cascade')
     orders = fields.One2many('stock.orderpoint.replace.order', 'order_id', string='Orders', compute='_compute_orders', store=True, readonly=False)
 
     @api.depends('product_id')

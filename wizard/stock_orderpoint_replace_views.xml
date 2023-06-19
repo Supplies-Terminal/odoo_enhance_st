@@ -19,7 +19,7 @@
         </field>
     </record>
 
-    <record id="action_orderpoint_replace" model="ir.actions.act_window">
+    <record id="action_stock_orderpoint_replace" model="ir.actions.act_window">
         <field name="name">Replace</field>
         <field name="res_model">stock.orderpoint.replace</field>
         <field name="view_mode">form</field>
