@@ -26,7 +26,6 @@
         'views/product_template_views.xml',
         'wizard/wishlist_wizard_views.xml',
         'wizard/wishlist_wizard_product_views.xml',
-        'wizard/stock_orderpoint_replace_views.xml',
     ],
     'demo': [
     ],
