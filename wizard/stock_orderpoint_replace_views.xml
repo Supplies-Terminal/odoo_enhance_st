@@ -4,10 +4,10 @@
         <field name="name">Stock Orderpoint Replace</field>
         <field name="model">stock.orderpoint.replace</field>
         <field name="arch" type="xml">
-            <form string="replace">
+            <form string="Replace">
                 <field name="orderpoint_ids.product.name" readonly="1"/>
                 <field name="replace_id" />
-                <field name="website_ids">
+                <field name="orders">
                     <tree string="orders" create="false" delete="false">
                         <field name="order_id" force_save="1"/>
                         <field name="qty" readonly="1"/>
