@@ -4,7 +4,7 @@
         <field name="name">stock.warehouse.orderpoint.tree.editable.replace</field>
         <field name="model">stock.warehouse.orderpoint</field>
         <field name="arch" type="xml">
-            <xpath expr="//tree" position="inside">
+            <xpath expr="//tree/button[@name='action_replenish']" position="before">
                 <button name="action_replace" string="Replace" type="object" class="o_replenish_buttons" icon="fa-truck"
                     attrs="{'invisible': [('qty_to_order', '&lt;=', 0.0)]}"/>
             </xpath>
