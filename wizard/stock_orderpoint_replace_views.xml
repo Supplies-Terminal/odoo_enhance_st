@@ -11,8 +11,8 @@
                     <tree string="orders" create="false" delete="false">
                         <field name="order_id" force_save="1"/>
                         <field name="qty" readonly="1"/>
-                        <button string="Replace" name="action_orderpoint_repace_empty" type="object" class="btn-secondary"/>
-                        <button string="Clear" name="action_orderpoint_repace_empty" type="object" class="btn-secondary"/>
+                        <button string="Replace" name="action_replace" type="object" class="btn-secondary"/>
+                        <button string="Clear" name="action_empty" type="object" class="btn-secondary"/>
                     </tree>
                 </field>
             </form>
