@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="stock.view_warehouse_orderpoint_tree_editable" />
         <field name="arch" type="xml">
             <xpath expr="//tree//button[@name='action_replenish']" position="before">
-                <button name="action_replace" string="Replace" type="object" class="o_replenish_buttons" icon="fa-truck"
+                <button name="action_replace" string="Replace" type="object" class="o_menu_systray" icon="fa-exchange"
                     attrs="{'invisible': [('qty_to_order', '&lt;=', 0.0)]}"/>
             </xpath>
         </field>

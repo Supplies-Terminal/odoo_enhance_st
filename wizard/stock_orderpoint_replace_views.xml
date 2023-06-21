@@ -5,16 +5,21 @@
         <field name="model">stock.orderpoint.replace</field>
         <field name="arch" type="xml">
             <form string="Replace">
-                <field name="product_id" readonly="1"/>
-                <field name="replace_id" widget="many2many_tags"/>
+                <strong> Replace With: </strong>
+                <field name="replace_id" widget="many2one"/>
                 <field name="orders">
                     <tree string="orders" create="false" delete="false">
-                        <field name="order_id" force_save="1"/>
-                        <field name="qty" readonly="1"/>
-                        <button string="Replace" name="action_replace" type="object" class="btn-secondary"/>
-                        <button string="Clear" name="action_empty" type="object" class="btn-secondary"/>
+                        <field name="ord_id" readonly="1"/>
+                        <field name="partner_id" readonly="1"/>
+                        <field name="qty"/>
+                        <field name="replace_id" attrs="{'invisible': [('qty', '=', 0)]}" widget="many2one"/>
+                        <button string="Replace" attrs="{'invisible': ['|', ('replace_id', '=', False), ('qty', '=', 0)]}" name="action_replace" type="object" class="btn-secondary"/>
+                        <button string="Clear" attrs="{'invisible': [('qty', '=', 0)]}"  name="action_empty" type="object" class="btn-secondary" target="new"/>
                     </tree>
                 </field>
+                <footer>
+                    <button string="Close" class="btn-default" special="cancel" data-hotkey="z"/>
+                </footer>
             </form>
         </field>
     </record>

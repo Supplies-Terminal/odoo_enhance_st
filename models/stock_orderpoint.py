@@ -22,8 +22,8 @@ class StockWarehouseOrderpoint(models.Model):
     
     def action_replace(self):
         self.ensure_one()
-        action = self.env['ir.actions.actions']._for_xml_id('odoo_enhance_st.view_warehouse_orderpoint_tree_editable_replace')
-        action['name'] = _('Replace product for %s', self.product_id.display_name)
+        action = self.env['ir.actions.actions']._for_xml_id('odoo_enhance_st.action_stock_orderpoint_replace')
+        action['name'] = _('Replace %s', self.product_id.display_name)
         res = self.env['stock.orderpoint.replace'].create({
             'product_id': self.product_id,
         })
