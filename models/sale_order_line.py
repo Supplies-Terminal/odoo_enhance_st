@@ -2,6 +2,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields, api
+import logging
+_logger = logging.getLogger(__name__)
 
 class SaleOrderLine(models.Model):
     _inherit = "sale.order.line"
@@ -14,16 +16,39 @@ class SaleOrderLine(models.Model):
     secondary_uom_desc = fields.Char(string='Secondary Unit Desc', compute='_compute_secondary_uom_desc', store=True)
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
 
-    latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=True)
+    latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=False)
+    latest_price = fields.Char(string='Latest Price', compute='_compute_latest_price', store=True)
 
     @api.depends('product_id')
     def _compute_latest_cost(self):
         for rec in self:
             rec.latest_cost = '-'
+            create_date = self.order_id.place_date.date()
+            _logger.info("------------_compute_latest_cost------------")
+            _logger.info(create_date)
+            
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done'])], limit=1, order='id desc')
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', create_date + timedelta(days=1))], limit=1, order='create_date desc')
             if pol:
                 rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
+
+    @api.depends('product_id')
+    def _compute_latest_price(self):
+        for rec in self:
+            rec.latest_price = '-'
+            # 获取本人之前最后购买该商品的记录
+            create_date = self.order_id.place_date.date()
+            _logger.info("------------_compute_latest_price------------")
+            _logger.info(self.order_id.id)
+            _logger.info(self.order_id.partner_id)
+            _logger.info(create_date)
+
+            if self.order_id.partner_id:
+                last_order = self.env['sale.order'].sudo().search(['&', ('partner_id', '=', self.order_id.partner_id.id), 'id', '=', self.order_id.id), ('state', '=', 'sale'), ('create_date', '<=', create_date + timedelta(days=1)), ('order_line.product_id.id', '=', self.product_id.id)], order='place_date desc', limit=1)
+                if last_order:
+                    order_lines = last_order.order_line.filtered(lambda line: line.product_id.id == self.product_id.id)
+                    if order_lines:
+                        rec.latest_price = "${}/{}".format(order_lines[0].price_unit, order_lines[0].product_uom.name)  
 
     @api.depends('product_id')
     def _compute_secondary_uom_id(self):

@@ -86,8 +86,6 @@ class StockOrderpointReplaceOrder(models.TransientModel):
             'name': self.replace_id.display_name,
             'product_uom_qty': self.qty,
             'product_uom': self.replace_id.uom_id.id
-            'price_unit': self.replace_id.list_price,
-            'tax_id': self.replace_id.taxes_id.id
         }
         _logger.info(new_product_values)
         # 在One2many字段中追加记录
