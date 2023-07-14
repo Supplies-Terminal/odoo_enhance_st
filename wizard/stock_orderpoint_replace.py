@@ -12,7 +12,7 @@ class StockOrderpointReplace(models.TransientModel):
 
     product_id = fields.Many2one('product.product', string='Product', required=True, readonly=True)
     replace_id = fields.Many2one('product.product', string='Replace With')
-    orders = fields.One2many('stock.orderpoint.replace.order', 'order_id', string='Orders', compute='_compute_orders', store=True, readonly=False)
+    orders = fields.One2many('stock.orderpoint.replace.order', 'ord_id', string='Orders', compute='_compute_orders', store=True, readonly=False)
 
     @api.depends('product_id')
     def _compute_orders(self):
@@ -28,7 +28,6 @@ class StockOrderpointReplace(models.TransientModel):
             if self.replace_id:
                 for order in orderList:
                     order_line_values = {
-                        'order_id': order.id,
                         'ord_id': order.id,
                         'partner_id': order.partner_id.id,
                         'product_id': self.product_id.id,
@@ -39,7 +38,6 @@ class StockOrderpointReplace(models.TransientModel):
             else:
                 for order in orderList:
                     order_line_values = {
-                        'order_id': order.id,
                         'ord_id': order.id,
                         'partner_id': order.partner_id.id,
                         'product_id': self.product_id.id,
@@ -47,13 +45,6 @@ class StockOrderpointReplace(models.TransientModel):
                     }
                     _logger.info(order_line_values)
                     self.orders = [(0, 0, order_line_values)]
-        _logger.info("------------yyy------------")
-        _logger.info(self.orders)
-        _logger.info(self.orders[0].order_id.id)
-        _logger.info(self.orders[0].ord_id.id)
-        _logger.info(self.orders[0].partner_id.id)
-        _logger.info(self.orders[0].product_id.id)
-        _logger.info(self.orders[0].qty)
             
     @api.onchange('replace_id')
     def _onchange_replace_id(self):
@@ -64,7 +55,6 @@ class StockOrderpointReplaceOrder(models.TransientModel):
     _name = 'stock.orderpoint.replace.order'
     _description = 'Order purchased a product'
 
-    order_id = fields.Many2one('sale.order', string='Order', required=True, readonly=True)
     ord_id = fields.Many2one('sale.order', string='Order', required=True, readonly=True)
     partner_id = fields.Many2one('res.partner', string='Customer', required=True, readonly=True)
     product_id = fields.Many2one('product.product', string='Product', required=True, readonly=True)
@@ -73,7 +63,6 @@ class StockOrderpointReplaceOrder(models.TransientModel):
     
     def action_replace(self):
         _logger.info("------------action_replace------------")
-        _logger.info(self.order_id)
         _logger.info("------------1-----------")
         _logger.info(self.replace_id)
         order = self.env['sale.order'].sudo().browse(self.ord_id.id)
@@ -109,7 +98,6 @@ class StockOrderpointReplaceOrder(models.TransientModel):
         
     def action_empty(self):
         _logger.info("------------action_empty------------")
-        _logger.info(self.order_id)
         order = self.env['sale.order'].sudo().browse(self.ord_id.id)
         _logger.info(order.order_line)
         order_lines = order.order_line.filtered(lambda line: line.product_id.id == self.product_id.id)
