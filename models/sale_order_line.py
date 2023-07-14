@@ -49,8 +49,14 @@ class SaleOrderLine(models.Model):
             OrderModel = self.env['sale.order']
             order_id = 0
             if rec.order_id._origin:
+                order_id = rec.order_id._origin.id
+            else:
                 order_id = rec.order_id.id
             _logger.info(order_id)
+            # avoid unsaved order with id value (ex. NewId_0x7f950d7ddb20)
+            if isinstance(order_id, int)==False:
+                order_id = 0
+            
             if self.order_id.partner_id:
                 last_order = self.env['sale.order'].sudo().search(['&', ('id', '!=', order_id), ('partner_id', '=', rec.order_id.partner_id.id), ('state', '=', 'sale'), ('date_order', '<=', date_order + timedelta(days=1)), ('order_line.product_id.id', '=', rec.product_id.id)], order='date_order desc', limit=1)
                 _logger.info(last_order)
