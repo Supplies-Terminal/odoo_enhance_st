@@ -28,7 +28,8 @@
         'wizard/wishlist_wizard_views.xml',
         'wizard/wishlist_wizard_product_views.xml',
         'wizard/stock_orderpoint_replace_views.xml',
-    ],
+        'report/sale_report_packing_slip.xml',
+        'report/sale_report_packing_slip_templates.xml',
     'demo': [
     ],
     'installable': True,
