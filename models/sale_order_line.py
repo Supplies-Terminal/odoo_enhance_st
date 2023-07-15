@@ -20,19 +20,39 @@ class SaleOrderLine(models.Model):
 
     latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=False)
     latest_price = fields.Char(string='Latest Price', compute='_compute_latest_price', store=False)
+    latest_vendor = fields.Char(string='Latest Vendor', compute='_compute_latest_vendor', store=False)
 
     @api.depends('product_id')
     def _compute_latest_cost(self):
         for rec in self:
+            rec.latest_cost = ''
+            _logger.info("------------_compute_latest_cost------------")
+            # 获取当前日期
+            current_date = datetime.now().date()
+
+            # 计算前一天的日期
+            previous_date = current_date - timedelta(days=1)
+
+            _logger.info("当前日期:", current_date)
+            _logger.info("前一天的日期:", previous_date)
+
+            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', previous_date)], limit=1, order='create_date desc')
+            if pol:
+                rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
+
+    @api.depends('product_id')
+    def _compute_latest_vendor(self):
+        for rec in self:
             rec.latest_cost = '-'
             date_order = self.order_id.date_order.date()
-            _logger.info("------------_compute_latest_cost------------")
+            _logger.info("------------_compute_latest_vendor------------")
             _logger.info(date_order)
             
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '>=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
             if pol:
-                rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
+                rec.latest_vendor = po.order_id.partner_id.name 
 
     @api.depends('product_id')
     def _compute_latest_price(self):
