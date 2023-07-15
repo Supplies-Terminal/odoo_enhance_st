@@ -21,7 +21,7 @@ class SaleOrderLine(models.Model):
     latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=False)
     latest_price = fields.Char(string='Latest Price', compute='_compute_latest_price', store=False)
     latest_vendor = fields.Char(string='Latest Vendor', compute='_compute_latest_vendor', store=False)
-    latest_vendor_id = fields.Many2one("res.partner", 'Latest Vendor', compute='_compute_latest_vendor_id', store=False)
+    latest_vendor_id = fields.Integer(string='Latest Vendor', compute='_compute_latest_vendor_id', store=False)
 
     @api.depends('product_id')
     def _compute_latest_cost(self):
@@ -58,7 +58,7 @@ class SaleOrderLine(models.Model):
     @api.depends('product_id')
     def _compute_latest_vendor_id(self):
         for rec in self:
-            rec.latest_vendor_id = null
+            rec.latest_vendor_id = 0
             _logger.info("------------_compute_latest_vendor_id------------")
             # 获取当前日期
             current_date = datetime.now().date()
@@ -66,13 +66,18 @@ class SaleOrderLine(models.Model):
             # 计算前一天的日期
             previous_date = current_date - timedelta(days=1)
 
-            _logger.info("当前日期:", current_date)
-            _logger.info("前一天的日期:", previous_date)
+            _logger.info(current_date)
+            _logger.info(previous_date)
                         
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
             pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '>=', previous_date)], limit=1, order='create_date desc')
             if pol:
-                rec.latest_vendor_id = pol.order_id.partner_id.id 
+                _logger.info("------------_1------------")
+                _logger.info(pol.order_id)
+                _logger.info(pol.order_id.partner_id)
+                _logger.info("------------_2------------")
+                _logger.info(pol.order_id.partner_id.id)
+                rec.latest_vendor_id = pol.order_id.partner_id.id
 
     @api.depends('product_id')
     def _compute_latest_price(self):
