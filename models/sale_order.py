@@ -6,7 +6,7 @@ from odoo import models, fields, api
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
-    date_place = fields.Datetime(string='Place Date', required=False, readonly=True, index=True, copy=False, default=fields.Datetime.now, help="The date customers submit the quotation")
+    # date_place = fields.Datetime(string='Place Date', required=False, readonly=True, index=True, copy=False, default=fields.Datetime.now, help="The date customers submit the quotation")
 
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
 
