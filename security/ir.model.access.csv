@@ -6,5 +6,3 @@ res_users_approval,res.users.approval,model_res_users_approval,,1,1,1,1
 "access_wishlist_wizard_website","access.wishlist.wizard.website","model_wishlist_wizard_website","base.group_partner_manager",1,1,1,0
 "access_wishlist_wizard_product","access.wishlist.wizard.product","model_wishlist_wizard_product","base.group_partner_manager",1,1,1,0
 "access_wishlist_wizard_product_website","access.wishlist.wizard.product.website","model_wishlist_wizard_product_website","base.group_partner_manager",1,1,1,0
-"access_stock_orderpoint_replace","access.stock.orderpoint.replace","model_stock_orderpoint_replace","base.group_partner_manager",1,1,1,0
-"access_stock_orderpoint_replace_order","access.stock.orderpoint.replace.order","model_stock_orderpoint_replace_order","base.group_partner_manager",1,1,1,0
