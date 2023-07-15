@@ -130,4 +130,3 @@ class StockOrderpointReplaceOrder(models.TransientModel):
         action['res_id'] = res.id
         _logger.info(action['res_id'])
         return action
-
