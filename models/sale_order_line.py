@@ -25,8 +25,21 @@ class SaleOrderLine(models.Model):
     @api.depends('product_id')
     def _compute_latest_cost(self):
         for rec in self:
-            rec.latest_cost = ''
+            rec.latest_cost = '-'
+            date_order = self.order_id.date_order.date()
             _logger.info("------------_compute_latest_cost------------")
+            _logger.info(date_order)
+            
+            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
+            if pol:
+                rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
+
+    @api.depends('product_id')
+    def _compute_latest_vendor(self):
+        for rec in self:
+            rec.latest_vendor = ''
+            _logger.info("------------_compute_latest_vendor------------")
             # 获取当前日期
             current_date = datetime.now().date()
 
@@ -35,22 +48,9 @@ class SaleOrderLine(models.Model):
 
             _logger.info("当前日期:", current_date)
             _logger.info("前一天的日期:", previous_date)
-
+                        
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', previous_date)], limit=1, order='create_date desc')
-            if pol:
-                rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
-
-    @api.depends('product_id')
-    def _compute_latest_vendor(self):
-        for rec in self:
-            rec.latest_cost = '-'
-            date_order = self.order_id.date_order.date()
-            _logger.info("------------_compute_latest_vendor------------")
-            _logger.info(date_order)
-            
-            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '>=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '>=', previous_date)], limit=1, order='create_date desc')
             if pol:
                 rec.latest_vendor = po.order_id.partner_id.name 
 
