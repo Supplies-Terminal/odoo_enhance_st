@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="view_stock_orderpoint_replace" model="ir.ui.view">
+        <field name="name">Stock Orderpoint Replace</field>
+        <field name="model">stock.orderpoint.replace</field>
+        <field name="arch" type="xml">
+            <form string="Replace">
+                <strong> Replace With: </strong>
+                <field name="replace_id" widget="many2one"/>
+                <field name="orders">
+                    <tree string="orders" create="false" delete="false">
+                        <field name="ord_id" readonly="1"/>
+                        <field name="partner_id" readonly="1"/>
+                        <field name="qty"/>
+                        <field name="replace_id" attrs="{'invisible': [('qty', '=', 0)]}" widget="many2one"/>
+                        <button string="Replace" attrs="{'invisible': ['|', ('replace_id', '=', False), ('qty', '=', 0)]}" name="action_replace" type="object" class="btn-secondary"/>
+                        <button string="Clear" attrs="{'invisible': [('qty', '=', 0)]}"  name="action_empty" type="object" class="btn-secondary" target="new"/>
+                    </tree>
+                </field>
+                <footer>
+                    <button string="Close" class="btn-default" special="cancel" data-hotkey="z"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_stock_orderpoint_replace" model="ir.actions.act_window">
+        <field name="name">Replace</field>
+        <field name="res_model">stock.orderpoint.replace</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

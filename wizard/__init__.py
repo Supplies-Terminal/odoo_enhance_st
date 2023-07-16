@@ -3,3 +3,4 @@
 
 from . import wishlist_wizard
 from . import wishlist_wizard_product
+# from . import stock_orderpoint_replace
