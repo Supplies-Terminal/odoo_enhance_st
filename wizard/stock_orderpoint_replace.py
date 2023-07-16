@@ -64,7 +64,7 @@ class StockOrderpointReplaceOrder(models.TransientModel):
     _name = 'stock.orderpoint.replace.order'
     _description = 'Order purchased a product'
 
-    order_id = fields.Many2one('sale.order', string='Order', required=True, readonly=True)
+    order_id = fields.Many2one('stock.orderpoint.replace.order', string='Replace', required=True, readonly=True)
     ord_id = fields.Many2one('sale.order', string='Order', required=True, readonly=True)
     partner_id = fields.Many2one('res.partner', string='Customer', required=True, readonly=True)
     product_id = fields.Many2one('product.product', string='Product', required=True, readonly=True)
