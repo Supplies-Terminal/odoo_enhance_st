@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
-        # 'wizard/wishlist_wizard_product_views.xml',
-        # 'wizard/stock_orderpoint_replace_views.xml'
 {
     'name': 'ST Enhanced Toolkit',
     'category': 'Website/Website',
@@ -20,13 +18,15 @@
         'views/res_partner_views.xml',
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
+        'views/stock_orderpoint_views.xml',
         'views/templates.xml',
         'data/mail_template.xml',
         'views/res_user_approval.xml',
         'views/template.xml',
         'views/product_template_views.xml',
         'wizard/wishlist_wizard_views.xml',
-        'views/stock_orderpoint_views.xml',
+        'wizard/wishlist_wizard_product_views.xml',
+        'wizard/stock_orderpoint_replace_views.xml'
     'demo': [
     ],
     'installable': True,
