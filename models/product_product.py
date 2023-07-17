@@ -31,7 +31,7 @@ class ProductProduct(models.Model):
             for lang in langs:
                 prod = self.with_context(lang=lang).browse(d['id'])
                 if not prod['name']==currentName:
-                    name = '%s. %s' % (name, prod['name'])
+                    name = '%s \n%s' % (name, prod['name'])
 
             # 附加商品编号  
             if code:
