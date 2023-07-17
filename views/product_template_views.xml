@@ -10,6 +10,7 @@
                 <field name="secondary_uom_id" attrs="{'invisible': [('secondary_uom_enabled', '=', False)],'required': [('secondary_uom_enabled', '=', True)]}"/>
                 <field name="secondary_uom_rate" attrs="{'invisible': [('secondary_uom_enabled', '=', False)],'required': [('secondary_uom_enabled', '=', True)]}"/>
                 <field name="secondary_uom_desc" attrs="{'invisible': [('secondary_uom_enabled', '=', False)]}" readonly="1" />
+                <field name="pack_supported" />
             </xpath>
         </field>
     </record>
@@ -20,6 +21,7 @@
         <field name="arch" type="xml">
             <tree>
                 <field name="secondary_uom_desc"/>
+                <field name="pack_supported"/>
             </tree>
         </field>
     </record>

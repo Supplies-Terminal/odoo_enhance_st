@@ -16,6 +16,8 @@ class ProductTemplate(models.Model):
     )
     secondary_uom_desc = fields.Char(string='Secondary UoM Desc', compute='_compute_secondary_uom_desc', store=False)
 
+    pack_supported = fields.Boolean("Support packaging", default=False)
+
     @api.depends('secondary_uom_enabled', 'uom_id', 'secondary_uom_id', 'secondary_uom_rate')
     def _compute_secondary_uom_desc(self):
         for rec in self:
