@@ -1,0 +1,82 @@
+<t t-name="sale.report_saleorder_document_copy_1">
+    <t t-call="web.external_layout">
+        <t t-set="doc" t-value="doc.with_context(lang=doc.partner_id.lang)"/>
+        <div class="page">
+  <div class="oe_structure"/>
+            <h4 class="mt16 mb16">
+                #<span t-field="doc.name"/>
+                （<span t-field="doc.partner_id.display_name"/>）
+            </h4>
+
+            <div class="row mt32 mb32" id="informations">
+                <div t-if="doc.date_order and doc.state not in ['draft','sent']" class="col-auto col-4 mw-100 mb-2">
+                    <strong>Order Date:</strong>
+                    <p class="m-0" t-field="doc.date_order"/>
+                </div>
+                <div class="col-auto col-4 mw-100 mb-2">
+                    <span><strong>Prepared By:</strong><br/><br/>____________________________________</span>
+                </div>
+                <div class="col-auto col-4 mw-100 mb-2">
+                    <span><strong>Checked By:</strong><br/><br/>_____________________________________</span>
+                </div>
+            </div>
+    <div class="row">
+      <div class="col text-right o_underline h5">
+        <span t-field="doc.quantity_counts"/>
+      </div>
+    </div>
+  
+    <div class="row">
+      </div>
+  
+    <div class="row">
+      </div>
+  
+  
+
+            <!-- Is there a discount on at least one line? -->
+            <t t-set="display_discount" t-value="any(l.discount for l in doc.order_line)"/>
+
+            <table class="table table-sm o_main_table">
+                <!-- In case we want to repeat the header, remove "display: table-row-group" -->
+                <thead style="display: table-row-group">
+                    <tr>
+                        <th name="th_description" class="text-left">Description</th>
+                        <th name="th_vendor" class="text-left">Source</th>
+                        <th name="th_quantity" class="text-right">Quantity</th>
+                    </tr>
+                </thead>
+                <tbody class="sale_tbody">
+
+                    <t t-set="current_subtotal" t-value="0"/>
+
+<t t-set="sorted_lines" t-value="doc.order_line.sorted(key=lambda x: ('zzz' + x.secondary_uom_name if (x.secondary_uom_name.lower().find('case') !=-1 or x.secondary_uom_name.lower().find('箱') !=-1) else ('aaa' + x.secondary_uom_name)) if x.secondary_uom_enabled is True else ('zzz' + x.product_uom.name if (x.product_uom.name.lower().find('case') !=-1 or x.product_uom.name.lower().find('箱') !=-1) else ('aaa' + x.product_uom.name)))" />
+<t t-foreach="sorted_lines" t-as="line">
+
+                        <t t-set="current_subtotal" t-value="current_subtotal + line.price_subtotal" groups="account.group_show_line_subtotals_tax_excluded"/>
+                        <t t-set="current_subtotal" t-value="current_subtotal + line.price_total" groups="account.group_show_line_subtotals_tax_included"/>
+
+                        <tr t-att-class="'bg-200 font-weight-bold o_line_section' if line.display_type == 'line_section' else 'font-italic o_line_note' if line.display_type == 'line_note' else ''">
+                            <t t-if="not line.display_type">
+                                <td name="td_name" style="min-width: 70%"><span t-field="line.name"/></td>
+                                <td name="td_name"><span t-field="line.latest_vendor"/></td>
+                                <td name="td_quantity" class="text-right">
+                                  <t t-if="line.secondary_uom_enabled is True">
+                                    (<span t-field="line.product_uom_qty"/><span t-field="line.product_uom"/>) <span t-field="line.secondary_qty"/><span t-field="line.secondary_uom_id"/>
+                                  </t>
+                                  <t t-if="line.secondary_uom_enabled is False">
+                                    <span t-field="line.product_uom_qty"/><span t-field="line.product_uom"/>
+                                  </t>
+                                </td>
+                            </t>
+                        </tr>
+                    </t>
+                </tbody>
+            </table>
+
+            <div class="oe_structure"/>
+
+            <p t-field="doc.note"/>
+        </div>
+    </t>
+</t>
