@@ -12,47 +12,48 @@ class StockOrderpointReplace(models.TransientModel):
 
     product_id = fields.Many2one('product.product', string='Product', required=True, readonly=True)
     replace_id = fields.Many2one('product.product', string='Replace With')
-    orders = fields.One2many('stock.orderpoint.replace.order', 'order_id', string='Orders', store=True, readonly=False)
+    orders = fields.One2many('stock.orderpoint.replace.order', 'order_id', string='Orders', compute='_compute_orders', store=True, readonly=False)
 
-    @api.model
-    def create(self, values):
-        _logger.info('********stock.orderpoint.replace: create*********')
-        rec = super(StockOrderpointReplace, self).create(values)
+    @api.depends('product_id')
+    def _compute_orders(self):
         _logger.info("------------_compute_orders------------")
-        _logger.info(rec.product_id)
-        orderList = self.env['sale.order'].sudo().search(['&', ('order_line.product_id.id', '=', rec.product_id.id), ('state', '=', 'sale')])
+        _logger.info(self.product_id)
+        orderList = self.env['sale.order'].sudo().search(['&', ('order_line.product_id.id', '=', self.product_id.id), ('state', '=', 'sale')])
         _logger.info(orderList)
         _logger.info("------------xxxx------------")
-        _logger.info(rec.id)
         _logger.info(orderList[0].id)
 
-        rec.orders = []
+        self.orders = []
         if orderList:
-            if rec.replace_id:
+            if self.replace_id:
                 for order in orderList:
                     order_line_values = {
-                        'order_id': rec.id,
+                        'order_id': order.id,
                         'ord_id': order.id,
                         'partner_id': order.partner_id.id,
-                        'product_id': rec.product_id.id,
-                        'qty': sum(order.order_line.filtered(lambda line: line.product_id.id == rec.product_id.id).mapped('product_uom_qty')),
+                        'product_id': self.product_id.id,
+                        'qty': sum(order.order_line.filtered(lambda line: line.product_id.id == self.product_id.id).mapped('product_uom_qty')),
                     }
                     _logger.info(order_line_values)
-                    rec.orders = [(0, 0, order_line_values)]
+                    self.orders = [(0, 0, order_line_values)]
             else:
                 for order in orderList:
                     order_line_values = {
-                        'order_id': rec.id,
+                        'order_id': order.id,
                         'ord_id': order.id,
                         'partner_id': order.partner_id.id,
-                        'product_id': rec.product_id.id,
-                        'qty': sum(order.order_line.filtered(lambda line: line.product_id.id == rec.product_id.id).mapped('product_uom_qty')),
+                        'product_id': self.product_id.id,
+                        'qty': sum(order.order_line.filtered(lambda line: line.product_id.id == self.product_id.id).mapped('product_uom_qty')),
                     }
                     _logger.info(order_line_values)
-                    rec.orders = [(0, 0, order_line_values)]
+                    self.orders = [(0, 0, order_line_values)]
         _logger.info("------------yyy------------")
-        _logger.info(rec.orders)
-        return rec
+        _logger.info(self.orders)
+        _logger.info(self.orders[0].order_id.id)
+        _logger.info(self.orders[0].ord_id.id)
+        _logger.info(self.orders[0].partner_id.id)
+        _logger.info(self.orders[0].product_id.id)
+        _logger.info(self.orders[0].qty)
             
     @api.onchange('replace_id')
     def _onchange_replace_id(self):
