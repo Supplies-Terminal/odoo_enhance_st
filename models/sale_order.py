@@ -1,7 +1,10 @@
 # -*- coding: UTF-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields, api
+from odoo import _, models, fields, api
+from odoo.exceptions import UserError, ValidationError
+import logging
+_logger = logging.getLogger(__name__)
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
@@ -10,10 +13,9 @@ class SaleOrder(models.Model):
 
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
 
+        
     def action_confirm(self):
         _logger.info('******** action_confirm *********')
-        _logger.info(self.name)
-        _logger.info(self.state)
         
         # 检查前置条件
         invoices = self.env['account.move'].search([
@@ -23,7 +25,7 @@ class SaleOrder(models.Model):
         ], order='name desc')
 
         _logger.info(invoices)
-        if not invoices or len(invoices) <2:
+        if not invoices or len(invoices) < 2:
             raise UserError('No SO_SEQUENCE found in invoices (at least 2)')
 
         # 订单确认之后置换为invoice number
@@ -35,7 +37,7 @@ class SaleOrder(models.Model):
         invoice.button_draft()
         invoice.write({
             'name': 'draft',
-            'date': self.
+            'date': self.date_order
         })
         _logger.info(invoice.name)
         invoice._set_next_sequence()
@@ -47,6 +49,7 @@ class SaleOrder(models.Model):
 
         return result
 
+    
     @api.depends('order_line')
     def _compute_quantity_counts(self):
         for rec in self:
@@ -83,3 +86,47 @@ class SaleOrder(models.Model):
                 rec.quantity_counts = 'Quantity Counts: ' + ('; '.join(resultString))
             else:
                 rec.quantity_counts = ''
+    
+    def _create_invoices(self, grouped=False, final=False, date=None):
+        _logger.info('******** _create_invoices *********')
+        _logger.info(self.name)
+        
+        invoices = super(SaleOrder, self)._create_invoices(grouped, final, date)
+        _logger.info(invoices)
+        if len(invoices) == 1:
+            invoice = invoices[0]
+            # 先释放原来的invoice号码
+            oldInvoices = self.env['account.move'].search([
+                ('company_id', '=', self.company_id.id),
+                ('invoice_user_id', '=', 2),
+                ('name', '=', self.name),
+            ])
+            _logger.info(oldInvoices)
+
+            if oldInvoices:
+                for oldInv in oldInvoices:
+                    oldInv.write({
+                        'name': '/'
+                    });
+
+            # 检查是否已经创建过一次invoice
+            currentInvoices = self.env['account.move'].search([
+                ('company_id', '=', self.company_id.id),
+                ('name', '=', self.name),
+            ])
+            
+            if currentInvoices:
+                invoice.write({
+                    'name': self.name + '-' + (len(currentInvoices) + 1)
+                })
+            else:
+                invoice.write({
+                    'name': self.name
+                })
+        else:
+            for index, inv in enumerate(invoices):
+                inv.write({
+                    'name': self.name + '-' + (index+1)
+                });
+                
+        return invoices
