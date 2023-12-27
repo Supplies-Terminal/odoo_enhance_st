@@ -10,6 +10,43 @@ class SaleOrder(models.Model):
 
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
 
+    def action_confirm(self):
+        _logger.info('******** action_confirm *********')
+        _logger.info(self.name)
+        _logger.info(self.state)
+        
+        # 检查前置条件
+        invoices = self.env['account.move'].search([
+            ('company_id', '=', self.company_id.id),
+            ('invoice_user_id', '=', 2),
+            ('payment_reference', '=', 'SO_SEQUENCE'),
+        ], order='name desc')
+
+        _logger.info(invoices)
+        if not invoices or len(invoices) <2:
+            raise UserError('No SO_SEQUENCE found in invoices (at least 2)')
+
+        # 订单确认之后置换为invoice number
+        result = super(SaleOrder, self).action_confirm()
+
+        invoice = invoices[1]
+        _logger.info(invoice.name)
+        # invoiceName = invoice._get_last_sequence(lock=False)
+        invoice.button_draft()
+        invoice.write({
+            'name': 'draft',
+            'date': self.
+        })
+        _logger.info(invoice.name)
+        invoice._set_next_sequence()
+        _logger.info(invoice.name)
+        # 根据销售订单的序列生成编号
+        self.write({
+            'name': invoice.name
+        });
+
+        return result
+
     @api.depends('order_line')
     def _compute_quantity_counts(self):
         for rec in self:
