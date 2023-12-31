@@ -14,40 +14,40 @@ class SaleOrder(models.Model):
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
 
         
-    # def action_confirm(self):
-    #     _logger.info('******** action_confirm *********')
+    def action_confirm(self):
+        _logger.info('******** action_confirm *********')
         
-    #     # 检查前置条件
-    #     invoices = self.env['account.move'].search([
-    #         ('company_id', '=', self.company_id.id),
-    #         ('invoice_user_id', '=', 2),
-    #         ('payment_reference', '=', 'SO_SEQUENCE'),
-    #     ], order='name desc')
+        # 检查前置条件
+        invoices = self.env['account.move'].search([
+            ('company_id', '=', self.company_id.id),
+            ('invoice_user_id', '=', 2),
+            ('payment_reference', '=', 'SO_SEQUENCE'),
+        ], order='name desc')
 
-    #     _logger.info(invoices)
-    #     if not invoices or len(invoices) < 2:
-    #         raise UserError('No SO_SEQUENCE found in invoices (at least 2)')
+        _logger.info(invoices)
+        if not invoices or len(invoices) < 2:
+            raise UserError('No SO_SEQUENCE found in invoices (at least 2)')
 
-    #     # 订单确认之后置换为invoice number
-    #     result = super(SaleOrder, self).action_confirm()
+        # 订单确认之后置换为invoice number
+        result = super(SaleOrder, self).action_confirm()
 
-    #     invoice = invoices[1]
-    #     _logger.info(invoice.name)
-    #     # invoiceName = invoice._get_last_sequence(lock=False)
-    #     invoice.button_draft()
-    #     invoice.write({
-    #         'name': 'draft',
-    #         'date': self.date_order
-    #     })
-    #     _logger.info(invoice.name)
-    #     invoice._set_next_sequence()
-    #     _logger.info(invoice.name)
-    #     # 根据销售订单的序列生成编号
-    #     self.write({
-    #         'name': invoice.name
-    #     });
+        invoice = invoices[1]
+        _logger.info(invoice.name)
+        # invoiceName = invoice._get_last_sequence(lock=False)
+        invoice.button_draft()
+        invoice.write({
+            'name': 'draft',
+            'date': self.date_order
+        })
+        _logger.info(invoice.name)
+        invoice._set_next_sequence()
+        _logger.info(invoice.name)
+        # 根据销售订单的序列生成编号
+        self.write({
+            'name': invoice.name
+        });
 
-    #     return result
+        return result
 
     
     @api.depends('order_line')
@@ -87,46 +87,46 @@ class SaleOrder(models.Model):
             else:
                 rec.quantity_counts = ''
     
-    # def _create_invoices(self, grouped=False, final=False, date=None):
-    #     _logger.info('******** _create_invoices *********')
-    #     _logger.info(self.name)
+    def _create_invoices(self, grouped=False, final=False, date=None):
+        _logger.info('******** _create_invoices *********')
+        _logger.info(self.name)
         
-    #     invoices = super(SaleOrder, self)._create_invoices(grouped, final, date)
-    #     _logger.info(invoices)
-    #     if len(invoices) == 1:
-    #         invoice = invoices[0]
-    #         # 先释放原来的invoice号码
-    #         oldInvoices = self.env['account.move'].search([
-    #             ('company_id', '=', self.company_id.id),
-    #             ('invoice_user_id', '=', 2),
-    #             ('name', '=', self.name),
-    #         ])
-    #         _logger.info(oldInvoices)
+        invoices = super(SaleOrder, self)._create_invoices(grouped, final, date)
+        _logger.info(invoices)
+        if len(invoices) == 1:
+            invoice = invoices[0]
+            # 先释放原来的invoice号码
+            oldInvoices = self.env['account.move'].search([
+                ('company_id', '=', self.company_id.id),
+                ('invoice_user_id', '=', 2),
+                ('name', '=', self.name),
+            ])
+            _logger.info(oldInvoices)
 
-    #         if oldInvoices:
-    #             for oldInv in oldInvoices:
-    #                 oldInv.write({
-    #                     'name': '/'
-    #                 });
+            if oldInvoices:
+                for oldInv in oldInvoices:
+                    oldInv.write({
+                        'name': '/'
+                    });
 
-    #         # 检查是否已经创建过一次invoice
-    #         currentInvoices = self.env['account.move'].search([
-    #             ('company_id', '=', self.company_id.id),
-    #             ('name', '=', self.name),
-    #         ])
+            # 检查是否已经创建过一次invoice
+            currentInvoices = self.env['account.move'].search([
+                ('company_id', '=', self.company_id.id),
+                ('name', '=', self.name),
+            ])
             
-    #         if currentInvoices:
-    #             invoice.write({
-    #                 'name': self.name + '-' + (len(currentInvoices) + 1)
-    #             })
-    #         else:
-    #             invoice.write({
-    #                 'name': self.name
-    #             })
-    #     else:
-    #         for index, inv in enumerate(invoices):
-    #             inv.write({
-    #                 'name': self.name + '-' + (index+1)
-    #             });
+            if currentInvoices:
+                invoice.write({
+                    'name': self.name + '-' + (len(currentInvoices) + 1)
+                })
+            else:
+                invoice.write({
+                    'name': self.name
+                })
+        else:
+            for index, inv in enumerate(invoices):
+                inv.write({
+                    'name': self.name + '-' + (index+1)
+                });
                 
-    #     return invoices
+        return invoices
