@@ -194,3 +194,17 @@ class SaleOrderLine(models.Model):
             'secondary_uom_id': self.secondary_uom_id.id,
             })
         return res
+
+    def write(self, values):
+        result = super(SaleOrder, self).write(values)
+        
+        # 检查是否修改了订单日期
+        if 'date_order' in values:
+            new_date_order = fields.Datetime.from_string(values['date_order'])
+            
+            # 更新所有关联的库存工作单的预定日期
+            for picking in self.picking_ids:
+                picking.write({'scheduled_date': new_date_order})
+
+        return result
+ 
