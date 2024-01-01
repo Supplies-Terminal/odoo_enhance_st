@@ -16,6 +16,18 @@ class AccountInvoice(models.Model):
         })
         return res
 
+    def action_post(self):
+        # 调用父类的 action_post 方法
+        super(CustomAccountMove, self).action_post()
+
+        # 对于每个发票，将其日期设置为对应销售订单的订单日期
+        for record in self:
+            # 检查是否存在源销售订单
+            if record.invoice_origin:
+                sale_order = self.env['sale.order'].search([('name', '=', record.invoice_origin)], limit=1)
+                if sale_order:
+                    # 将发票日期设置为销售订单的日期
+                    record.write({'invoice_date': sale_order.date_order})
 
 class AccountInvoiceLine(models.Model):
     _inherit = "account.move.line"

@@ -27,7 +27,9 @@ class SaleOrderLine(models.Model):
     def _compute_latest_cost(self):
         for rec in self:
             rec.latest_cost = '-'
-            date_order = self.order_id.date_order.date()
+            date_order = datetime.now().date()
+            if self.order_id.date_order:
+                self.order_id.date_order.date()
             _logger.info("------------_compute_latest_cost------------")
             _logger.info(date_order)
             
@@ -84,7 +86,10 @@ class SaleOrderLine(models.Model):
         for rec in self:
             rec.latest_price = '-'
             # 获取本人之前最后购买该商品的记录
-            date_order = self.order_id.date_order.date()
+            date_order = datetime.now().date()
+            if self.order_id.date_order:
+                self.order_id.date_order.date()
+            
             _logger.info("------------_compute_latest_price------------")
             _logger.info(self.order_id)
             _logger.info(self.order_id._origin)
