@@ -144,3 +144,20 @@ class SaleOrder(models.Model):
                 });
                 
         return invoices
+
+    def write(self, values):
+        result = super(SaleOrder, self).write(values)
+        
+        # 检查是否修改了订单日期
+        if 'date_order' in values:
+            _logger.info("------------修改了date_order，同时调整sheduled_date------------")
+            new_date_order = fields.Datetime.from_string(values['date_order'])
+            
+            # 更新所有关联的库存工作单的预定日期
+            for picking in self.picking_ids:
+                picking.write({
+                    'scheduled_date': new_date_order,
+                    'date_deadline': new_date_order
+                })
+
+        return result
