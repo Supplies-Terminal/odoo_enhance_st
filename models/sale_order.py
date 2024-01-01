@@ -13,7 +13,19 @@ class SaleOrder(models.Model):
 
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
 
-        
+    CUSTOM_FIELD_STATES = {
+        state: [('readonly', False)]
+        for state in {'sale', 'done', 'cancel'}
+    }
+    
+    date_order = fields.Datetime(
+        string="Order Date",
+        states=CUSTOM_FIELD_STATES,
+        copy=False, 
+        required=True,
+        help="Creation date of draft/sent orders,\nConfirmation date of "
+             "confirmed orders.")
+    
     def action_confirm(self):
         _logger.info('******** action_confirm *********')
         
@@ -117,7 +129,8 @@ class SaleOrder(models.Model):
             
             if currentInvoices:
                 invoice.write({
-                    'name': self.name + '-' + (len(currentInvoices) + 1)
+                    'name': self.name + '-' + (len(currentInvoices) + 1),
+                    'invoice_date': self.date_order
                 })
             else:
                 invoice.write({
@@ -126,7 +139,8 @@ class SaleOrder(models.Model):
         else:
             for index, inv in enumerate(invoices):
                 inv.write({
-                    'name': self.name + '-' + (index+1)
+                    'name': self.name + '-' + (index+1),
+                    'invoice_date': self.date_order
                 });
                 
         return invoices
