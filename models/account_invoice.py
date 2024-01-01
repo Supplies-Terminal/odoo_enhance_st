@@ -2,7 +2,7 @@
 # Part of Softhealer Technologies.
 
 from odoo import models, fields, api
-
+from pytz import timezone
 
 class AccountInvoice(models.Model):
     _inherit = 'account.move'
@@ -18,16 +18,31 @@ class AccountInvoice(models.Model):
 
     def action_post(self):
         # 调用父类的 action_post 方法
-        super(CustomAccountMove, self).action_post()
+        super(AccountInvoice, self).action_post()
 
         # 对于每个发票，将其日期设置为对应销售订单的订单日期
         for record in self:
             # 检查是否存在源销售订单
             if record.invoice_origin:
                 sale_order = self.env['sale.order'].search([('name', '=', record.invoice_origin)], limit=1)
-                if sale_order:
+                if sale_order and sale_order.date_order:
                     # 将发票日期设置为销售订单的日期
-                    record.write({'invoice_date': sale_order.date_order})
+                    # 考虑时区转换
+                    user_tz = self.env.user.tz or self.env.context.get('tz')
+                    if user_tz:
+                        local = timezone(user_tz)
+                        local_dt = local.localize(fields.Datetime.from_string(sale_order.date_order), is_dst=None)
+                        utc_dt = local_dt.astimezone(timezone('UTC'))
+                        record.write({
+                            'invoice_date': utc_dt,
+                            'invoice_date_due': utc_dt,
+                        })
+                    else:
+                        # 如果无法确定时区，则直接使用订单日期
+                        record.write({
+                            'invoice_date': sale_order.date_order.date(),
+                            'invoice_date_due': sale_order.date_order.date(),
+                        })
 
 class AccountInvoiceLine(models.Model):
     _inherit = "account.move.line"
