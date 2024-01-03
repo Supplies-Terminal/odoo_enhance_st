@@ -33,3 +33,17 @@ class PurchaseOrder(models.Model):
                 confirmation_date_purchase_order_count = self.search_count(domain)
                 _logger.info(confirmation_date_purchase_order_count)
                 order.today_po_count = confirmation_date_purchase_order_count
+
+    @api.multi
+    def send_internal_button_action(self):
+        _logger.info('-send_internal_button_action -')
+        # 在这里编写您的逻辑
+        # 比如创建一个销售订单
+        # ...
+        # so_vals = {
+        #         'company_id': B公司,
+        #         'partner_id': A公司的客户ID,
+        #         # 其他必要的销售订单值...
+        #     }
+        #     self.env['sale.order'].sudo().create(so_vals)
+        return True
