@@ -28,21 +28,21 @@ class AccountInvoice(models.Model):
                 if sale_order and sale_order.date_order:
                     # 将发票日期设置为销售订单的日期
                     # 考虑时区转换
-                    user_tz = self.env.user.tz or self.env.context.get('tz')
-                    if user_tz:
-                        local = timezone(user_tz)
-                        local_dt = local.localize(fields.Datetime.from_string(sale_order.date_order), is_dst=None)
-                        utc_dt = local_dt.astimezone(timezone('UTC'))
-                        record.write({
-                            'invoice_date': utc_dt,
-                            'invoice_date_due': utc_dt,
-                        })
-                    else:
-                        # 如果无法确定时区，则直接使用订单日期
-                        record.write({
-                            'invoice_date': sale_order.date_order.date(),
-                            'invoice_date_due': sale_order.date_order.date(),
-                        })
+                    # user_tz = self.env.user.tz or self.env.context.get('tz')
+                    # if user_tz:
+                    #     local = timezone(user_tz)
+                    #     local_dt = local.localize(fields.Datetime.from_string(sale_order.date_order), is_dst=None)
+                    #     utc_dt = local_dt.astimezone(timezone('UTC'))
+                    #     record.write({
+                    #         'invoice_date': utc_dt,
+                    #         'invoice_date_due': utc_dt,
+                    #     })
+                    # else:
+                    #     # 如果无法确定时区，则直接使用订单日期
+                    record.write({
+                        'invoice_date': sale_order.date_order.date(),
+                        'invoice_date_due': sale_order.date_order.date(),
+                    })
 
 class AccountInvoiceLine(models.Model):
     _inherit = "account.move.line"
