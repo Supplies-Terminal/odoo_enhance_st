@@ -34,3 +34,14 @@ class ProductTemplate(models.Model):
     #             action['domain'] = [('product_id', 'in', products.ids)]
     #             action['context'] = {'search_default_internal_loc': 1}
     #             return action
+
+    combined_name = fields.Char(string='Full Name', compute='_compute_combined_name', store=True)
+
+    @api.depends('name')
+    def _compute_combined_name(self):
+        name = ''
+        installed_langs = self.env["res.lang"].get_installed()
+        for lang in installed_langs:
+            prod = self.with_context(lang=lang).browse(d['id'])
+            name = '%s\n%s' % (name, prod['name'])
+        self.combined_name = name
