@@ -42,6 +42,6 @@ class ProductTemplate(models.Model):
         name = ''
         installed_langs = self.env["res.lang"].get_installed()
         for lang in installed_langs:
-            prod = self.with_context(lang=lang).browse(d['id'])
+            prod = self.with_context(lang=lang).browse(self.id)
             name = '%s\n%s' % (name, prod['name'])
         self.combined_name = name
