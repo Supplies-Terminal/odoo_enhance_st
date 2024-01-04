@@ -30,6 +30,11 @@
         'views/stock_orderpoint_views.xml',
         'wizard/stock_orderpoint_replace_views.xml'
     ],
+    'assets': {
+        'web.assets_backend': [
+            'sale/static/src/js/product_configurator_widget.js',
+        ],
+    ],
     'demo': [
     ],
     'installable': True,
