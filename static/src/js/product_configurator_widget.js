@@ -1,6 +1,4 @@
 odoo.define("odoo_enhance_st.product_configurator", function (require) {
-    "use strict";
-
     var ProductConfiguratorWidget = require("sale.product_configurator");
 
     ProductConfiguratorWidget.include({
