@@ -39,9 +39,10 @@ class ProductTemplate(models.Model):
 
     @api.depends('name')
     def _compute_combined_name(self):
-        name = ''
         installed_langs = self.env["res.lang"].get_installed()
-        for lang in installed_langs:
-            prod = self.with_context(lang=lang).browse(self.id)
-            name = '%s\n%s' % (name, prod['name'])
-        self.combined_name = name
+        for rec in self:
+            name = ''
+            for lang in installed_langs:
+                prod = self.with_context(lang=lang).browse(rec.id)
+                name = '%s\n%s' % (name, prod.name)
+            rec.combined_name = name
