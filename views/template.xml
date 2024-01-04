@@ -7,9 +7,4 @@
             </p>
         </xpath>
     </template>
-    <template id="assets_backend" name="product_configurator assets" inherit_id="web.assets_backend">
-        <xpath expr="." position="inside">
-            <script type="text/javascript" src="/odoo_enhance_st/static/src/js/product_configurator_widget.js"></script>
-        </xpath>
-    </template>
 </odoo>
