@@ -34,7 +34,7 @@
         'web.assets_backend': [
             'sale/static/src/js/product_configurator_widget.js',
         ],
-    ],
+    },
     'demo': [
     ],
     'installable': True,
