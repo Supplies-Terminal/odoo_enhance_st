@@ -12,6 +12,7 @@
         'contacts',
         'website',
         'sale',
+        'web',
     ],
     'data': [
         'security/ir.model.access.csv',
@@ -32,7 +33,7 @@
     ],
     'assets': {
         'web.assets_backend': [
-            'sale/static/src/js/product_configurator_widget.js',
+            'odoo_enhance_st/static/src/js/product_configurator_widget.js',
         ],
     },
     'demo': [
