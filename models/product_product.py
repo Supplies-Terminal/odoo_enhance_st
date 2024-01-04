@@ -23,7 +23,7 @@ class ProductProduct(models.Model):
             quantities = []
             for company in self.env['res.company'].search([]):
                 if company.warehouse_id.lot_stock_id:
-                    qty = self.env['stock.quant']._get_available_quantity(product, company.warehouse_id.lot_stock_id)
+                    qty = self.env['stock.quant'].sudo()._get_available_quantity(product, company.warehouse_id.lot_stock_id)
                     if qty:
                         quantities.append(f"{company.name.split()[0]}: {round(qty)}")
             product.stock_quantities = ', '.join(quantities)
@@ -33,31 +33,19 @@ class ProductProduct(models.Model):
         # TDE: this could be cleaned a bit I think
 
         def _name_get(d):
-            _logger.info('------_name_get-------')
-            _logger.info(d)
-            name = d.get('name', '')
             code = self._context.get('display_default_code', True) and d.get('default_code', False) or False
 
             # 获取多种语言的名称
-            currentName = name
-            context_lang = self._context.get("lang")
-            installed_langs = self.env["res.lang"].get_installed()
-            langs = [x[0] for x in installed_langs if x[0] != context_lang]
-            for lang in langs:
-                prod = self.with_context(lang=lang).browse(d['id'])
-                if not prod['name']==currentName:
-                    name = '%s %s' % (name, prod['name'])
+            prod = self.browse(d['id'])
+            name = prod['combined_name']
 
             # 附加商品编号  
             if code:
                 name = '[%s] %s' % (code, name)
 
-            prod = self.browse(d['id'])
-            if prod:
-                qtys = prod.stock_quantities
-                _logger.info('------xxxxx-------')
-                _logger.info(qtys)
-                name = '%s (%s)' % (name, qtys)
+            # 这里增加界面选择区别（来自界面搜索的，增加附带库存信息）
+            qtys = prod.stock_quantities
+            
             return (d['id'], name)
 
         partner_id = self._context.get('partner_id')
