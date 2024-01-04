@@ -18,12 +18,13 @@ class ProductProduct(models.Model):
     stock_quantities = fields.Char(compute='_compute_stock_quantities', store=False)
 
     def _compute_stock_quantities(self):
-        _logger.info('------_compute_stock_quantities-------')
+        _logger.info('------******************-------')
         for product in self:
             quantities = []
-            for company in self.env['res.company'].search([]):
-                if company.warehouse_id.lot_stock_id:
-                    qty = self.env['stock.quant'].sudo()._get_available_quantity(product, company.warehouse_id.lot_stock_id)
+            for company in self.env['res.company'].sudo().search([]):
+                warehouse = self.env['stock.warehouse'].sudo().search([('company_id', '=', company.id)], limit=1)
+                if warehouse and warehouse.lot_stock_id:
+                    qty = self.env['stock.quant'].sudo()._get_available_quantity(product, warehouse.lot_stock_id)
                     if qty:
                         quantities.append(f"{company.name.split()[0]}: {round(qty)}")
             product.stock_quantities = ', '.join(quantities)
@@ -37,14 +38,23 @@ class ProductProduct(models.Model):
 
             # 获取多种语言的名称
             prod = self.browse(d['id'])
-            name = prod['combined_name']
+            names = []
+            installed_langs = self.env["res.lang"].get_installed()
+            for lang, _ in installed_langs:
+                product_lang = prod.with_context(lang=lang)
+                names.append(product_lang.name)
+            name = '\n'.join(names)  # 使用 ' / ' 作为分隔符
+            #name = prod['combined_name']
 
             # 附加商品编号  
             if code:
                 name = '[%s] %s' % (code, name)
 
             # 这里增加界面选择区别（来自界面搜索的，增加附带库存信息）
-            qtys = prod.stock_quantities
+            if self._context.get('with_quantity'):
+                qtys = prod.stock_quantities
+                if qtys:
+                    name = '%s (%s)' % (name, qtys)
             
             return (d['id'], name)
 
