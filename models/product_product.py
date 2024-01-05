@@ -43,7 +43,7 @@ class ProductProduct(models.Model):
             for lang, _ in installed_langs:
                 product_lang = prod.with_context(lang=lang)
                 names.append(product_lang.name)
-            name = '\n'.join(names)  # 使用 ' / ' 作为分隔符
+            name = ' / '.join(names)  # 使用 ' / ' 作为分隔符
             #name = prod['combined_name']
 
             # 附加商品编号  
@@ -54,7 +54,7 @@ class ProductProduct(models.Model):
             if self._context.get('with_quantity'):
                 qtys = prod.stock_quantities
                 if qtys:
-                    name = '%s (%s)' % (name, qtys)
+                    name = '%s >> (%s)' % (name, qtys)
             
             return (d['id'], name)
 
