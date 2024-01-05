@@ -54,7 +54,7 @@ class ProductProduct(models.Model):
             if self._context.get('with_quantity'):
                 qtys = prod.stock_quantities
                 if qtys:
-                    name = '%s >> (%s)' % (name, qtys)
+                    name = '%s >> %s' % (name, qtys)
             
             return (d['id'], name)
 
