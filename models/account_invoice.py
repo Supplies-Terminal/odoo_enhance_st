@@ -39,9 +39,11 @@ class AccountInvoice(models.Model):
                     #     })
                     # else:
                     #     # 如果无法确定时区，则直接使用订单日期
+                    
+                    # UTC时间转换为多伦多时间
                     record.write({
-                        'invoice_date': sale_order.date_order.date(),
-                        'invoice_date_due': sale_order.date_order.date(),
+                        'invoice_date': sale_order.date_order.astimezone(timezone('america/toronto')).date(),
+                        'invoice_date_due': sale_order.date_order.astimezone(timezone('america/toronto')).date(),
                     })
 
 class AccountInvoiceLine(models.Model):
