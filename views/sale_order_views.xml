@@ -12,4 +12,18 @@
             </xpath>
         </field>
     </record>
+
+    <record id="view_sale_order_form_custom" model="ir.ui.view">
+        <field name="name">sale.order.form.custom</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//header" position="inside">
+                <button name="intercompany_pricing_button_action" string="Inter-Company Pricing"
+                            type="object"
+                            class="oe_highlight"
+                            attrs="{'invisible': [('state', '!=', 'sale')]}"/>
+           </xpath>
+        </field>
+    </record>
 </odoo>
