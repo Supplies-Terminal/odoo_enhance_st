@@ -56,7 +56,7 @@ class StockWarehouseOrderpoint(models.Model):
                 previous_date = current_date - timedelta(days=1)
                 PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
                 #取消昨天的条件 ('create_date', '>=', previous_date)
-                pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done'])], limit=1, order='create_date desc')
+                pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('company_id', '=', rec.company_id.id), ('order_id.state', 'in', ['purchase', 'done'])], limit=1, order='create_date desc')
                 if pol:
                     prevSuppliers = rec.product_id.variant_seller_ids.filtered(lambda s: s.name.id == pol.order_id.partner_id.id and s.company_id.id == rec.company_id.id)
                     if prevSuppliers:
