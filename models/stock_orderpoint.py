@@ -39,26 +39,29 @@ class StockWarehouseOrderpoint(models.Model):
 
     @api.model
     def create(self, vals):
-        # _logger.info('*******---*stock.warehouse.orderpoint*---********')
+        _logger.info('*******---*stock.warehouse.orderpoint*---********')
         rec = super(StockWarehouseOrderpoint, self).create(vals)
-        # _logger.info(rec)
-        # _logger.info(rec.product_id.variant_seller_ids)
-        # _logger.info("------------_auto_set_vendor------------")
-        # current_date = datetime.now().date()
-        # previous_date = current_date - timedelta(days=1)
-        # _logger.info("-----1------")
-        # PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-        # pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '>=', previous_date)], limit=1, order='create_date desc')
-        # _logger.info("-----2------")
-        # if pol:
-        #     _logger.info("-----3------")
-        #     _logger.info(pol)
-        #     suppliers = rec.product_id.variant_seller_ids.filtered(lambda s: s.name.id == pol.order_id.partner_id.id)
-        #     _logger.info("-----4------")
-        #     _logger.info(suppliers)
-        #     if suppliers:
-        #         rec.write({
-        #             'supplier_id': suppliers[0].id
-        #         })
+
+        
+        suppliers = rec.product_id.variant_seller_ids.filtered(lambda s: s.company_id.id == rec.company_id.id)
+        if suppliers:
+            # 如果只有一个供应商，那就直接填写上去
+            if len(suppliers) ==1:
+                rec.write({
+                    'supplier_id': suppliers[0].id
+                })
+            else:
+            # 如果有多个供应商，就选择最近采购的
+                current_date = datetime.now().date()
+                previous_date = current_date - timedelta(days=1)
+                PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
+                #取消昨天的条件 ('create_date', '>=', previous_date)
+                pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done'])], limit=1, order='create_date desc')
+                if pol:
+                    prevSuppliers = rec.product_id.variant_seller_ids.filtered(lambda s: s.name.id == pol.order_id.partner_id.id and s.company_id.id == rec.company_id.id)
+                    if prevSuppliers:
+                        rec.write({
+                            'supplier_id': prevSuppliers[0].id
+                        })
            
         return rec
