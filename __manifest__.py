@@ -25,6 +25,7 @@
         'views/template.xml',
         'views/product_template_views.xml',
         'views/purchase_order_views.xml',
+        'views/sale_order_views.xml',
         'wizard/wishlist_wizard_views.xml',
         'wizard/wishlist_wizard_product_views.xml',
         'views/product_template_views.xml',

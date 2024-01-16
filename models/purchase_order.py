@@ -47,13 +47,14 @@ class PurchaseOrder(models.Model):
         internal_company = self.env['res.company'].search([('partner_id', '=', self.partner_id.id)], limit=1)
         if not internal_company:
             raise UserError('Vendor is not an internal company.')
-        
+
         # 创建销售订单
         sale_order_vals = {
-            'partner_id': self.partner_id.id,
+            'partner_id': self.company_id.partner_id.id,
             'company_id': internal_company.id,
             # 以下是其他可能需要设置的字段
-            'origin': self.name,  # 可能需要将原始采购订单设置为来源
+            'origin': self.name,  # 需要将原始采购订单设置为来源
+            'source_po_id': self.id # 并记录原始采购订单ID，以满足inter-company pricing
         }
         
         # 添加订单行

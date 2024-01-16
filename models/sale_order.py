@@ -13,6 +13,8 @@ class SaleOrder(models.Model):
 
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
 
+    source_po_id = fields.Many2one('purchase.order', string='Inter-company PO', required=False)
+    
     CUSTOM_FIELD_STATES = {
         state: [('readonly', False)]
         for state in {'sale', 'done', 'cancel'}
@@ -162,7 +164,34 @@ class SaleOrder(models.Model):
 
         return result
 
+    def pricing_with_latest_cost_button_action(self):
+        _logger.info('- pricing_with_latest_cost_button_action -')
 
+        self.ensure_one()  # 确保这个方法只在单一记录集上调用
+        
+        for line in self.order_line:
+            line.write({'price_unit': line.latest_cost_value})
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'reload',
+        }
+        
+    
+    def pricing_with_latest_price_button_action(self):
+        _logger.info('- pricing_with_latest_price_button_action -')
+
+        self.ensure_one()  # 确保这个方法只在单一记录集上调用
+        
+        for line in self.order_line:
+            line.write({'price_unit': line.latest_price_value})
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'reload',
+        }
+        
+    
     def intercompany_pricing_button_action(self):
         _logger.info('- intercompany_pricing_button_action -')
 
@@ -171,36 +200,30 @@ class SaleOrder(models.Model):
         if self.state != 'sale':
             raise UserError('Order must be confirmed to perform this action.')
 
-        # 确定销售订单应该属于哪个公司
-        internal_company = self.env['res.company'].search([('partner_id', '=', self.partner_id.id)], limit=1)
-        if not internal_company:
-            raise UserError('Customer is not an internal company.')
-        
-        # # 创建销售订单
-        # sale_order_vals = {
-        #     'partner_id': self.partner_id.id,
-        #     'company_id': internal_company.id,
-        #     # 以下是其他可能需要设置的字段
-        #     'origin': self.name,  # 可能需要将原始采购订单设置为来源
-        # }
-        
-        # # 添加订单行
-        # order_lines = []
-        # for line in self.order_line:
-        #     order_lines.append((0, 0, {
-        #         'product_id': line.product_id.id,
-        #         'product_uom_qty': line.product_qty,
-        #         'price_unit': line.price_unit,
-        #         # 您可能还需要设置其他必要的字段
-        #     }))
-        
-        # sale_order_vals['order_line'] = order_lines
-        # sale_order = self.env['sale.order'].create(sale_order_vals)
-        
-        # 根据需要进行其他操作，比如确认销售订单
-        # sale_order.action_confirm()
+        # 根据origin读取来源公司的订单（可能会重复，SO to PO的时候要扩充字段来记录来源公司）
+        if not self.source_po_id:
+            raise UserError('Denied: This Order is not from internal company.')
 
-        message = _('Sale order created successfully! Order #%s', sale_order.name)
+        po = self.env['purchase.order'].sudo().browse(self.source_po_id.id)
+        if not po:
+            raise UserError('Source PO from Internal company is not exists.')
+
+        if po.state != 'purchase':
+            raise UserError('Source PO is not in confirm state.')
+
+        _logger.info(po)
+
+        # 自动使用SO的商品价格更新PO的商品价格
+        for line in po.order_line:
+            # 根据商品获取价格
+            soLine = self.order_line.filtered(lambda ol: ol.product_id.id == line.product_id.id)
+            if soLine:
+                # 假设每个产品在销售订单中只有一个对应行，我们取第一个
+                soline_price = soLine[0].price_unit
+                # 更新采购订单行的价格
+                line.write({'price_unit': soline_price})
+
+        message = _('Done, the PO %s is updated.', po.name)
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
