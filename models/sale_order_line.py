@@ -17,7 +17,7 @@ class SaleOrderLine(models.Model):
     secondary_uom_rate = fields.Float( "Secondary Unit Rate", compute='_compute_secondary_uom_rate', store=True)
     secondary_uom_desc = fields.Char(string='Secondary Unit Desc', compute='_compute_secondary_uom_desc', store=True)
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
-    pack_supported = fields.Boolean(string='Pack Supported', compute='_compute_pack_supported', store=True)
+    pack_supported = fields.Boolean(string='Pack Supported', compute='_compute_pack_supported', store=False)
     order_date = fields.Datetime(string='Order Date', compute='_compute_order_date', store=False)
 
     latest_cost_value = fields.Char(string='Latest Cost Value', compute='_compute_latest_cost_value', store=False)
@@ -37,7 +37,7 @@ class SaleOrderLine(models.Model):
     def _compute_pack_supported(self):
         for rec in self:
             rec.pack_supported = False
-            if rec.product_id.pack_enabled:
+            if rec.product_id.pack_supported:
                 rec.pack_supported = True
                 
     @api.depends('product_id')
@@ -125,6 +125,11 @@ class SaleOrderLine(models.Model):
                 order_id = 0
             
             if self.order_id.partner_id:
+                # 获取当前日期
+                current_date = datetime.now().date()
+
+                # 计算前一天的日期
+                previous_date = current_date #- timedelta(days=1)
                 SaleOrderLineSudo = self.env['sale.order.line'].sudo();
                 sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_date', '<=', previous_date)], limit=1, order='order_date desc')
 
@@ -152,6 +157,11 @@ class SaleOrderLine(models.Model):
                 order_id = 0
             
             if self.order_id.partner_id:
+                # 获取当前日期
+                current_date = datetime.now().date()
+
+                # 计算前一天的日期
+                previous_date = current_date #- timedelta(days=1)
                 SaleOrderLineSudo = self.env['sale.order.line'].sudo();
                 sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_date', '<=', previous_date)], limit=1, order='order_date desc')
 
