@@ -48,6 +48,10 @@ class PurchaseOrder(models.Model):
         if not internal_company:
             raise UserError('Vendor is not an internal company.')
 
+        so = self.env['sale.order'].search([('company_id', '=', internal_company.id), ('source_po_id', '=', self.id)], limit=1)
+        if so:
+            raise UserError('This PO is already sent to the vendor.')
+
         # 创建销售订单
         sale_order_vals = {
             'partner_id': self.company_id.partner_id.id,
