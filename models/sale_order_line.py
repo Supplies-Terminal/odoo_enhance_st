@@ -32,11 +32,9 @@ class SaleOrderLine(models.Model):
             date_order = datetime.now().date()
             if self.order_id.date_order:
                 self.order_id.date_order.date()
-            _logger.info("------------_compute_latest_cost------------")
-            _logger.info(date_order)
             
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
             if pol:
                 rec.latest_cost_value = pol.price_unit
 
@@ -47,11 +45,9 @@ class SaleOrderLine(models.Model):
             date_order = datetime.now().date()
             if self.order_id.date_order:
                 self.order_id.date_order.date()
-            _logger.info("------------_compute_latest_cost------------")
-            _logger.info(date_order)
             
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
             if pol:
                 rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
 
@@ -64,13 +60,10 @@ class SaleOrderLine(models.Model):
             current_date = datetime.now().date()
 
             # 计算前一天的日期
-            previous_date = current_date - timedelta(days=1)
+            previous_date = current_date #- timedelta(days=1)
 
-            _logger.info("当前日期:", current_date)
-            _logger.info("前一天的日期:", previous_date)
-                        
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '>=', previous_date)], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', previous_date)], limit=1, order='create_date desc')
             if pol:
                 rec.latest_vendor = pol.order_id.partner_id.name 
 
@@ -83,19 +76,11 @@ class SaleOrderLine(models.Model):
             current_date = datetime.now().date()
 
             # 计算前一天的日期
-            previous_date = current_date - timedelta(days=1)
+            previous_date = current_date #- timedelta(days=1)
 
-            _logger.info(current_date)
-            _logger.info(previous_date)
-                        
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '>=', previous_date)], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', previous_date)], limit=1, order='create_date desc')
             if pol:
-                _logger.info("------------_1------------")
-                _logger.info(pol.order_id)
-                _logger.info(pol.order_id.partner_id)
-                _logger.info("------------_2------------")
-                _logger.info(pol.order_id.partner_id.id)
                 rec.latest_vendor_id = pol.order_id.partner_id.id
 
     @api.depends('product_id')
@@ -119,19 +104,17 @@ class SaleOrderLine(models.Model):
                 order_id = rec.order_id._origin.id
             else:
                 order_id = rec.order_id.id
-            _logger.info(order_id)
+                
             # avoid unsaved order with id value (ex. NewId_0x7f950d7ddb20)
             if isinstance(order_id, int)==False:
                 order_id = 0
             
             if self.order_id.partner_id:
-                last_order = self.env['sale.order'].sudo().search(['&', ('id', '!=', order_id), ('partner_id', '=', rec.order_id.partner_id.id), ('state', '=', 'sale'), ('date_order', '<=', date_order + timedelta(days=1)), ('order_line.product_id.id', '=', rec.product_id.id)], order='date_order desc', limit=1)
-                _logger.info(last_order)
-                if last_order:
-                    order_lines = last_order.order_line.filtered(lambda line: line.product_id.id == rec.product_id.id)
-                    _logger.info(order_lines)
-                    for line in order_lines:
-                        rec.latest_price_value = line.price_unit
+                SaleOrderLineSudo = self.env['sale.order.line'].sudo();
+                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_date', '<=', previous_date)], limit=1, order='order_date desc')
+
+                if sol:
+                    rec.latest_price_value = sol.price_unit
 
     @api.depends('product_id')
     def _compute_latest_price(self):
@@ -142,12 +125,6 @@ class SaleOrderLine(models.Model):
             if self.order_id.date_order:
                 self.order_id.date_order.date()
             
-            _logger.info("------------_compute_latest_price------------")
-            _logger.info(self.order_id)
-            _logger.info(self.order_id._origin)
-            _logger.info(self.order_id.partner_id)
-            _logger.info(date_order)
-
             OrderModel = self.env['sale.order']
             order_id = 0
             if rec.order_id._origin:
@@ -160,13 +137,11 @@ class SaleOrderLine(models.Model):
                 order_id = 0
             
             if self.order_id.partner_id:
-                last_order = self.env['sale.order'].sudo().search(['&', ('id', '!=', order_id), ('partner_id', '=', rec.order_id.partner_id.id), ('state', '=', 'sale'), ('date_order', '<=', date_order + timedelta(days=1)), ('order_line.product_id.id', '=', rec.product_id.id)], order='date_order desc', limit=1)
-                _logger.info(last_order)
-                if last_order:
-                    order_lines = last_order.order_line.filtered(lambda line: line.product_id.id == rec.product_id.id)
-                    _logger.info(order_lines)
-                    for line in order_lines:
-                        rec.latest_price = "${}/{}".format(line.price_unit, line.product_uom.name)  
+                SaleOrderLineSudo = self.env['sale.order.line'].sudo();
+                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_date', '<=', previous_date)], limit=1, order='order_date desc')
+
+                if sol:
+                    rec.latest_price = "${}/{}".format(sol.price_unit, sol.product_uom.name)  
 
     @api.depends('product_id')
     def _compute_secondary_uom_id(self):
