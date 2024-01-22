@@ -17,6 +17,7 @@ class SaleOrderLine(models.Model):
     secondary_uom_rate = fields.Float( "Secondary Unit Rate", compute='_compute_secondary_uom_rate', store=True)
     secondary_uom_desc = fields.Char(string='Secondary Unit Desc', compute='_compute_secondary_uom_desc', store=True)
     description_with_counts = fields.Char(string='Item Description', compute='_compute_description_with_counts', store=True)
+    pack_supported = fields.Boolean(string='Pack Supported', compute='_compute_pack_supported', store=True)
 
     latest_cost_value = fields.Char(string='Latest Cost Value', compute='_compute_latest_cost_value', store=False)
     latest_price_value = fields.Char(string='Latest Price Value', compute='_compute_latest_price_value', store=False)
@@ -25,6 +26,13 @@ class SaleOrderLine(models.Model):
     latest_vendor = fields.Char(string='Latest Vendor Name', compute='_compute_latest_vendor', store=False)
     latest_vendor_id = fields.Integer(string='Latest Vendor', compute='_compute_latest_vendor_id', store=False)
 
+    @api.depends('product_id')
+    def _compute_pack_supported(self):
+        for rec in self:
+            rec.pack_supported = False
+            if rec.product_id.pack_enabled:
+                rec.pack_supported = True
+                
     @api.depends('product_id')
     def _compute_latest_cost_value(self):
         for rec in self:
