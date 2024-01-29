@@ -31,8 +31,6 @@ class ProductProduct(models.Model):
 
     @api.model
     def name_get(self):
-        # TDE: this could be cleaned a bit I think
-
         def _name_get(d):
             code = self._context.get('display_default_code', True) and d.get('default_code', False) or False
 
@@ -56,6 +54,14 @@ class ProductProduct(models.Model):
                 if qtys:
                     name = '%s >> %s' % (name, qtys)
             
+            # highlight 买过该商品
+            customer_id = self.env.context.get('customer_id')
+            if customer_id:
+                SaleOrderLineSudo = self.env['sale.order.line'].sudo();
+                sol = SaleOrderLineSudo.search([('product_id', '=', d['id']), ('order_id.company_id', '=', self.env.company.id), ('order_id.partner_id', '=', customer_id), ('order_id.state', 'in', ['sale', 'done'])], limit=1, order='order_date desc')
+                if sol:
+                    name = '%s *' % (name)
+
             return (d['id'], name)
 
         partner_id = self._context.get('partner_id')
