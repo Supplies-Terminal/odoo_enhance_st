@@ -10,6 +10,11 @@ _logger = logging.getLogger(__name__)
 class StockWarehouseOrderpoint(models.Model):
     _inherit = "stock.warehouse.orderpoint"
     
+    def action_cross_company_transfer(self):
+        _logger.info("------------_auto_set_vendor------------")
+        for record in self:
+            _logger.info(record.id)
+
     def action_replace(self):
         self.ensure_one()
         action = self.env['ir.actions.actions']._for_xml_id('odoo_enhance_st.action_stock_orderpoint_replace')
