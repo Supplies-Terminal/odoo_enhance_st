@@ -86,8 +86,8 @@ class StockWarehouseOrderpoint(models.Model):
                 _logger.info(customer_location.name)
                 _logger.info("-------")
 
-                # 执行调入：减少采购公司库存
-                stock_move_out = self.env['stock.move'].with_context(default_company_id = that_company.id).sudo().create({
+                # 执行调出：减少采购公司库存
+                move_out_values = {
                     'name': product.name,
                     'product_id': product.id,
                     'product_uom_qty': qty_to_order,
@@ -95,17 +95,21 @@ class StockWarehouseOrderpoint(models.Model):
                     'location_id': that_location.id,  # 调出公司的库存位置
                     'location_dest_id': customer_location.id,  # 调出公司的客户位置
                     'company_id': that_company.id,
-                })
+                    'origin': '跨公司调拨'
+                }
+                _logger.info(move_out_values)
+                stock_move_out = self.env['stock.move'].with_context(default_company_id = that_company.id).sudo().create(move_out_values)
 
                 if stock_move_out:
                     _logger.info(stock_move_out)
                     _logger.info(stock_move_out.name)
                     stock_move_out._action_confirm()
                     stock_move_out._action_assign()
+                    stock_move_out.move_line_ids.qty_done = qty_to_order
                     stock_move_out._action_done()
 
                 # 执行调入：增加本公司库存
-                stock_move_in = self.env['stock.move'].with_context(default_company_id = this_company.id).sudo().create({
+                move_in_values = {
                     'name': product.name,
                     'product_id': product.id,
                     'product_uom_qty': qty_to_order,
@@ -113,7 +117,10 @@ class StockWarehouseOrderpoint(models.Model):
                     'location_id': vendor_location.id,  # 调入公司的供应商位置
                     'location_dest_id': this_location.id,  # 调入公司的库存位置
                     'company_id': this_company.id,
-                })
+                    'origin': '跨公司调拨'
+                }
+                _logger.info(move_in_values)
+                stock_move_in = self.env['stock.move'].with_context(default_company_id = this_company.id).sudo().create(move_in_values)
 
                 if stock_move_in:
                     _logger.info(stock_move_in)
@@ -139,7 +146,7 @@ class StockWarehouseOrderpoint(models.Model):
                 'move_type': 'in_invoice',  # 表示这是一张供应商账单
                 'partner_id': out_partner_id,
                 'invoice_line_ids': [],
-                'ref': 'Cross Company Transfer'
+                'ref': '跨公司调拨'
             }
 
             # 创建发票（客户发票）
@@ -151,7 +158,7 @@ class StockWarehouseOrderpoint(models.Model):
                 'move_type': 'out_invoice',  # 表示这是一张客户发票
                 'partner_id': in_partner_id,
                 'invoice_line_ids': [],
-                'ref': 'Cross Company Transfer'
+                'ref': '跨公司调拨'
             }
 
             for line in lines:
