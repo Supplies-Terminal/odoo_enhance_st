@@ -9,11 +9,16 @@
                 <button name="action_replace" string="Replace" type="object" class="o_menu_systray" icon="fa-exchange"
                     attrs="{'invisible': [('qty_to_order', '&lt;=', 0.0)]}"/>
             </xpath>
-            <xpath expr="//header" position="inside">
-                <button name="action_cross_company_transfer" string="Cross-company Transfer"
-                            type="object"
-                            class="oe_highlight"/>
-            </xpath>
+        </field>
+    </record>
+    <!-- 创建一个链接到方法的动作 -->
+    <record id="action_cross_company_transfer" model="ir.actions.server">
+        <field name="name">Cross Company Transfer</field>
+        <field name="model_id" ref="model_stock_warehouse_orderpoint"/>
+        <field name="binding_model_id" ref="model_stock_warehouse_orderpoint"/>
+        <field name="state">code</field>
+        <field name="code">
+            action = records.action_cross_company_transfer()
         </field>
     </record>
 </odoo>
