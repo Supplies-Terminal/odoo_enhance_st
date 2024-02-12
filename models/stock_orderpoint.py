@@ -127,6 +127,7 @@ class StockWarehouseOrderpoint(models.Model):
                     _logger.info(stock_move_in.name)
                     stock_move_in._action_confirm()
                     stock_move_in._action_assign()
+                    stock_move_in.move_line_ids.qty_done = qty_to_order
                     stock_move_in._action_done()
                 
         _logger.info(transfer_dict)
