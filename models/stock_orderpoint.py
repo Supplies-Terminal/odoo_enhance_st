@@ -25,10 +25,15 @@ class StockWarehouseOrderpoint(models.Model):
             that_company = None
             available_stock = 0
 
+            # 获取供应商的公司可用库存（这里不能直接用record.product_id.with_company(that_company.id).qty_available来获取，因为多公司共用商品，数据是一样的）
             if record.vendor_id:
                 that_company = self.env['res.company'].search([('partner_id', '=', record.vendor_id.id)], limit=1)
                 if that_company:
-                    available_stock = record.product_id.with_company(that_company.id).qty_available
+                    warehouse = self.env['stock.warehouse'].sudo().search([('company_id', '=', that_company.id)], limit=1)
+                    if warehouse and warehouse.lot_stock_id:
+                        qty = self.env['stock.quant'].sudo()._get_available_quantity(record.product_id, warehouse.lot_stock_id)
+                        if qty:
+                            available_stock = qty
         
             qty_to_order = min(available_stock, record.qty_to_order)
     
