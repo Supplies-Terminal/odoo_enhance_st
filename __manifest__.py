@@ -30,7 +30,8 @@
         'wizard/wishlist_wizard_product_views.xml',
         'views/product_template_views.xml',
         'views/stock_orderpoint_views.xml',
-        'wizard/stock_orderpoint_replace_views.xml'
+        'wizard/stock_orderpoint_replace_views.xml',
+        'views/mrp_bom_views.xml'
     ],
     'assets': {
         'web.assets_backend': [
