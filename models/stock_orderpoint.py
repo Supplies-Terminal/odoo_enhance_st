@@ -16,7 +16,8 @@ class StockWarehouseOrderpoint(models.Model):
     
         # 使用字典来创建跨公司调拨清单
         transfer_dict = {}
-    
+        this_company = None
+        
         for record in self:
             _logger.info(record.id)
             _logger.info(record.vendor_id)
@@ -43,7 +44,7 @@ class StockWarehouseOrderpoint(models.Model):
                 raise UserError(f"No warehouse found. Skipping...")
                 return
             this_location = this_warehouse.lot_stock_id
-            this_company =  this_warehouse.company_id
+            this_company = this_warehouse.company_id
 
 
             # 获取特定公司的供应商位置
@@ -216,6 +217,19 @@ class StockWarehouseOrderpoint(models.Model):
         #         'sticky': False,  # 消息不会一直停留在屏幕上
         #     }
         # }
+        if this_company:
+            # 查找本公司所有状态为'ready'和'waiting'的拣货单
+            pickings = self.env['stock.picking'].search([
+                ('state', 'in', ['waiting', 'confirmed']),
+                ('company_id', '=', this_company.id),
+            ])
+            
+            # 对找到的每个拣货单执行'check availability'操作
+            for picking in pickings:
+                picking.action_assign()  # 'action_assign'是执行'check availability'的方法
+            
+            # 可以在此处记录操作结果，例如：
+            _logger.info(f"Checked availability for {len(pickings)} pickings in company {this_company.name}.")
 
     def get_latest_price(self, product_id, customer_id, company_id):
         price = 0

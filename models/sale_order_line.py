@@ -71,6 +71,7 @@ class SaleOrderLine(models.Model):
         for rec in self:
             rec.latest_vendor = ''
             _logger.info("------------_compute_latest_vendor------------")
+
             # 获取当前日期
             current_date = datetime.now().date()
 
@@ -131,7 +132,7 @@ class SaleOrderLine(models.Model):
                 # 计算前一天的日期
                 previous_date = current_date #- timedelta(days=1)
                 SaleOrderLineSudo = self.env['sale.order.line'].sudo();
-                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_date', '<=', previous_date)], limit=1, order='order_date desc')
+                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_id.date_order', '<=', previous_date)], limit=1, order='create_date desc')
 
                 if sol:
                     rec.latest_price_value = sol.price_unit
@@ -163,7 +164,7 @@ class SaleOrderLine(models.Model):
                 # 计算前一天的日期
                 previous_date = current_date #- timedelta(days=1)
                 SaleOrderLineSudo = self.env['sale.order.line'].sudo();
-                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_date', '<=', previous_date)], limit=1, order='order_date desc')
+                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_id.date_order', '<=', previous_date)], limit=1, order='create_date desc')
 
                 if sol:
                     rec.latest_price = "${}/{}".format(sol.price_unit, sol.product_uom.name)  
