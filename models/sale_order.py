@@ -61,8 +61,12 @@ class SaleOrder(models.Model):
             'name': invoice.name
         });
 
-        return result
+        # 同步修改inventory的工作单的source
+        pickings = self.env['stock.picking'].search([('sale_id', '=', self.id)])
+        for picking in pickings:
+            picking.write({'origin': invoice.name})
 
+        return result
     
     @api.depends('order_line')
     def _compute_quantity_counts(self):
