@@ -22,12 +22,17 @@
         <field name="name">Add To Wishlists</field>
         <field name="model">wishlist.wizard.product.website</field>
         <field name="arch" type="xml">
-            <form string="Add to wishlists">
-                <field name="product_id" />
-                <field name="total" />
+            <form string="Add to wishlist">
+                <field name="website_ids">
+                    <tree string="websites" create="false" delete="false">
+                        <field name="website_id" force_save="1"/>
+                        <field name="total"/>
+                        <button string="Add to Wishlist" name="action_add_to_wishlist" type="object" class="btn-secondary"/>
+                        <button string="Remove All" name="action_clean_wishlist" type="object" class="btn-secondary"/>
+                    </tree>
+                </field>
                 <footer>
-                    <button string="Do It" name="action_add_to_wishlist" type="object" class="btn-primary"/>
-                    <button string="Close" class="btn-secondary" special="save" data-hotkey="v" />
+                    <button string="Close" class="btn-primary" special="save" data-hotkey="v" />
                 </footer>
             </form>
         </field>

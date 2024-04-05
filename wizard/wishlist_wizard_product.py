@@ -23,13 +23,32 @@ class WishlistWizardProduct(models.TransientModel):
         return product_id
 
     product_id = fields.Integer(string='Product', default=_default_product_id)
-    total = fields.Integer(string="Clients", compute="_compute_total")
+    website_ids = fields.One2many('wishlist.wizard.product.website', 'wizard_id', string='Websites', compute='_compute_website_ids', store=True, readonly=False)
 
     @api.depends("product_id")
-    def _compute_total(self):
-        for record in self:
-            recordsInWishlist = self.env['product.wishlist'].search([('website_id', '=', record.product_id.website.id), ('product_id', '=', record.product_id.id)])
-            record.total = len(recordsInWishlist)
+    def _compute_website_ids(self):
+        for wishlist_wizard in self:
+            product = self.env['product.template'].sudo().browse(wishlist_wizard.product_id)
+
+            if product:
+                if product.website_id:
+                    wishlist_wizard.website_ids = [
+                        Command.create({
+                            'website_id': product.website_id,
+                            'product_id': product.id,
+                        })
+                    ]
+                else:
+                    websites = self.env['website'].search([])
+                    wishlist_wizard.website_id = [
+                        Command.create({
+                            'product_id': product.id,
+                            'website_id': website.id,
+                        })
+                        for website in websites
+                    ]
+            else:
+                wishlist_wizard.website_ids = []
 
     @api.model
     def action_open_wizard(self):
@@ -69,6 +88,7 @@ class WishlistWizardProductWebsite(models.TransientModel):
 
     wizard_id = fields.Many2one('wishlist.wizard.product', string='Wizard', required=True, ondelete='cascade')
     product_id = fields.Many2one('product.template', string='Product', required=True, readonly=True, ondelete='cascade')
+    website_id = fields.Many2one('website', string='Website', required=True, readonly=True, ondelete='cascade')
     total = fields.Integer(string="Clients", compute="_compute_total")
     
     @api.depends("product_id")
@@ -76,13 +96,13 @@ class WishlistWizardProductWebsite(models.TransientModel):
         for record in self:
             _logger.info("------------------------")
             _logger.info(record.product_id)
-            recordsInWishlist = self.env['product.wishlist'].search([('website_id', '=', record.product_id.website.id), ('product_id', '=', record.product_id.id)])
+            recordsInWishlist = self.env['product.wishlist'].search([('website_id', '=', record.website_id.id), ('product_id', '=', record.product_id.id)])
             record.total = len(recordsInWishlist)
 
     def _get_pricelist_context(self):
         _logger.info("------------6.1------------")
         pricelist_context = dict()
-        pricelist = self.product_id.website_id.get_current_pricelist()
+        pricelist = self.website_id.get_current_pricelist()
         pricelist_context['pricelist'] = pricelist.id
         _logger.info("------------6.2------------")
         return pricelist_context, pricelist 
@@ -96,7 +116,7 @@ class WishlistWizardProductWebsite(models.TransientModel):
         partners = self.env['res.partner'].sudo().search([('website_id', '=', self.website_id.id)])
         Wishlist = self.env['product.wishlist']
         # get all products in wishlist by website id
-        recordsInWishlist = Wishlist.search([('website_id', '=', self.product_id.website_id.id), ('product_id', '=', self.product_id.id)])
+        recordsInWishlist = Wishlist.search([('website_id', '=', self.website_id.id), ('product_id', '=', self.product_id.id)])
         
         partnersInWishlist = []
         for item in recordsInWishlist:
@@ -115,10 +135,28 @@ class WishlistWizardProductWebsite(models.TransientModel):
                 wish_id = Wishlist._add_to_wishlist(
                     pl.id,
                     pl.currency_id.id,
-                    self.product_id.website_id.id,
+                    self.website_id.id,
                     price,
                     self.product_id.id,
                     partner_id.id
                 )
+        
+        return self.wizard_id._action_open_modal()
+    
+    def action_clean_wishlist(self):
+        self.ensure_one()
+        _logger.info("---------clean_wishlist---------------")
+        _logger.info(self.product_id)
+        _logger.info(self.website_id)
+        
+        # get all products by website id
+        Wishlist = self.env['product.wishlist'].sudo()
+        # get all products in wishlist by website id
+        partnersInWishlist = Wishlist.search([('website_id', '=', self.website_id.id), ('product_id', '=', self.product_id.id)])
+        
+        partnerIdsInWishlist = []
+        for item in partnersInWishlist:
+            wish_id = Wishlist.search([('id', '=', item.id)], limit=1)
+            wish_id.unlink()
         
         return self.wizard_id._action_open_modal()
