@@ -28,19 +28,21 @@ class WishlistWizardProduct(models.TransientModel):
     @api.depends("product_id")
     def _compute_website_ids(self):
         for wishlist_wizard in self:
-            product = self.env['product.template'].sudo().browse(wishlist_wizard.product_id)
+            productTemplate = self.env['product.template'].sudo().browse(wishlist_wizard.product_id)
 
+            if productTemplate:
+                product = productTemplate.product_variant_id
             if product:
                 if product.website_id:
                     wishlist_wizard.website_ids = [
                         Command.create({
-                            'website_id': product.website_id,
+                            'website_id': product.website_id.id,
                             'product_id': product.id,
                         })
                     ]
                 else:
                     websites = self.env['website'].search([])
-                    wishlist_wizard.website_id = [
+                    wishlist_wizard.website_ids = [
                         Command.create({
                             'product_id': product.id,
                             'website_id': website.id,
@@ -87,7 +89,7 @@ class WishlistWizardProductWebsite(models.TransientModel):
     _description = 'Add product to all clients of the website'
 
     wizard_id = fields.Many2one('wishlist.wizard.product', string='Wizard', required=True, ondelete='cascade')
-    product_id = fields.Many2one('product.template', string='Product', required=True, readonly=True, ondelete='cascade')
+    product_id = fields.Many2one('product.product', string='Product', required=True, readonly=True, ondelete='cascade')
     website_id = fields.Many2one('website', string='Website', required=True, readonly=True, ondelete='cascade')
     total = fields.Integer(string="Clients", compute="_compute_total")
     
@@ -129,7 +131,8 @@ class WishlistWizardProductWebsite(models.TransientModel):
             if partner_id not in partnersInWishlist:
                 _logger.info(partner_id)
                 pricelist_context, pl = self._get_pricelist_context()
-                price = self.product_id._get_combination_info_variant()['price']
+                p = self.env['product.product'].with_context(pricelist_context, display_default_code=False).browse(self.product_id.id)
+                price = p._get_combination_info_variant()['price']
                 _logger.info(price)
 
                 wish_id = Wishlist._add_to_wishlist(
@@ -138,7 +141,7 @@ class WishlistWizardProductWebsite(models.TransientModel):
                     self.website_id.id,
                     price,
                     self.product_id.id,
-                    partner_id.id
+                    partner_id
                 )
         
         return self.wizard_id._action_open_modal()
