@@ -16,3 +16,4 @@ from . import account_invoice
 from . import stock_orderpoint
 from . import stock_picking
 from . import mrp_bom_line
+from . import dairy_stock_report

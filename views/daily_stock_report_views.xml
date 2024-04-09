@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_daily_stock_report_tree" model="ir.ui.view">
+        <field name="name">daily.stock.report.tree</field>
+        <field name="model">daily.stock.report</field>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="date"/>
+                <field name="stock_total"/>
+            </tree>
+        </field>
+    </record>
+    <!-- Action for viewing Daily Stock Reports -->
+    <record model="ir.actions.act_window" id="action_view_daily_stock_reports">
+        <field name="name">View Daily Stock Reports</field>
+        <field name="res_model">daily.stock.report</field>
+        <field name="view_mode">tree,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Generate a new report to see daily stock totals.
+            </p>
+        </field>
+    </record>
+
+    <!-- Action for generating Daily Stock Reports -->
+    <record model="ir.actions.server" id="action_generate_daily_stock_report">
+        <field name="name">Generate Last 30 Days Daily Stock Report</field>
+        <field name="model_id" ref="model_daily_stock_report"/>
+        <field name="state">code</field>
+        <field name="code">
+        action = model.generate_report()
+        </field>
+    </record>
+
+    <!-- Menu item for generating and viewing Daily Stock Reports -->
+    <menuitem id="menu_daily_stock_report_root"
+              name="Dairy Stock Reports"
+              parent="stock.menu_stock_report"
+              sequence="10"/>
+
+    <menuitem id="menu_generate_daily_stock_report"
+              name="Generate Daily Stock Report"
+              action="action_generate_daily_stock_report"
+              parent="menu_daily_stock_report_root"
+              sequence="1"/>
+
+    <menuitem id="menu_view_daily_stock_reports"
+              name="View Daily Stock Reports"
+              action="action_view_daily_stock_reports"
+              parent="menu_daily_stock_report_root"
+              sequence="2"/>
+</odoo>

@@ -16,6 +16,7 @@
     ],
     'data': [
         'security/ir.model.access.csv',
+        'security/daily_stock_report_security.xml',
         'views/res_partner_views.xml',
         'views/st_menu.xml',
         'views/st_purchasecard_views.xml',
@@ -31,7 +32,8 @@
         'views/product_template_views.xml',
         'views/stock_orderpoint_views.xml',
         'wizard/stock_orderpoint_replace_views.xml',
-        'views/mrp_bom_views.xml'
+        'views/mrp_bom_views.xml',
+        'views/daily_stock_report_views.xml'
     ],
     'assets': {
         'web.assets_backend': [
