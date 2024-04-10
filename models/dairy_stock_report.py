@@ -32,7 +32,7 @@ class DailyStockReport(models.Model):
         self.search([]).unlink()
     
         # Logic to loop through the last 30 days and generate reports
-        for day in range(1, 31):
+        for day in range(0, 30):
             date = fields.Date.today() - timedelta(days=day)
             total = self.calculate_stock_totals(date)
             self.create({'date': date, 'stock_total': total})
