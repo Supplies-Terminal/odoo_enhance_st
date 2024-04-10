@@ -166,6 +166,12 @@ class SaleOrder(models.Model):
                     'date_deadline': new_date_order
                 })
 
+        _logger.info("------------修改了订单，同时重置一下工单的origin------------")
+        # 修改订单商品后inventory的工作单的source会丢失，重新写入一下
+        pickings = self.env['stock.picking'].search([('sale_id', '=', self.id)])
+        for picking in pickings:
+            picking.write({'origin': self.name})
+
         return result
 
     def pricing_with_latest_cost_button_action(self):
