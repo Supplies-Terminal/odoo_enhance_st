@@ -4,7 +4,7 @@
         <field name="name">daily.stock.report.tree</field>
         <field name="model">daily.stock.report</field>
         <field name="arch" type="xml">
-            <tree>
+            <tree create="false" delete="false">
                 <field name="date"/>
                 <field name="stock_total"/>
             </tree>
@@ -24,7 +24,7 @@
 
     <!-- Action for generating Daily Stock Reports -->
     <record model="ir.actions.server" id="action_generate_daily_stock_report">
-        <field name="name">Generate Last 30 Days Daily Stock Report</field>
+        <field name="name">Generate Daily Stock Report</field>
         <field name="model_id" ref="model_daily_stock_report"/>
         <field name="state">code</field>
         <field name="code">
@@ -35,7 +35,7 @@
     <!-- Menu item for generating and viewing Daily Stock Reports -->
     <menuitem id="menu_daily_stock_report_root"
               name="Dairy Stock Reports"
-              parent="stock.menu_stock_report"
+              parent="stock.menu_warehouse_report"
               sequence="10"/>
 
     <menuitem id="menu_generate_daily_stock_report"

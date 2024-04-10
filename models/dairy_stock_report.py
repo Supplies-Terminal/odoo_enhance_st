@@ -1,4 +1,8 @@
-from odoo import models, fields
+from odoo import models, fields, api
+from datetime import timedelta
+import logging
+_logger = logging.getLogger(__name__)
+
 
 class DailyStockReport(models.Model):
     _name = 'daily.stock.report'
@@ -11,14 +15,22 @@ class DailyStockReport(models.Model):
     
     @api.model
     def calculate_stock_totals(self, date):
-        # Example logic to calculate stock totals
-        # This needs to be adjusted based on your specific requirements
-        stock_quant = self.env['stock.quant'].search([('company_id', '=', self.env.user.company_id.id)])
-        total = sum(quant.quantity for quant in stock_quant)
+        current_company_id = self.env.company.id
+        _logger.info(current_company_id)
+
+        date_str = fields.Date.to_string(date)
+        _logger.info(date_str)
+
+        products = self.env['product.product'].with_company(current_company_id).with_context(to_date=date_str).search([('type', '=', 'product')])
+        total = sum(p.qty_available for p in products)
+
         return total
 
     @api.model
     def generate_report(self):
+        # 首先清空daily.stock.report中的所有数据
+        self.search([]).unlink()
+    
         # Logic to loop through the last 30 days and generate reports
         for day in range(1, 31):
             date = fields.Date.today() - timedelta(days=day)
