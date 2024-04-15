@@ -4,6 +4,7 @@ import logging
 from odoo import fields, http, tools, _
 from odoo.addons.website.controllers.main import Website
 from odoo.addons.auth_signup.controllers.main import AuthSignupHome
+from odoo.http import request
 
 _logger = logging.getLogger(__name__)
 
@@ -114,12 +115,15 @@ class Purchasecard(http.Controller):
         })
         
 class InvoiceReportController(http.Controller):
-    @http.route('/reports/customer_statement', type='json', auth='user')
+    @http.route('/reports/customer_statement', type='http', auth='user')
+    @http.route('/reports/customer_statement', type='http', auth='user')
     def customer_statement(self):
         invoice_ids = request.params.get('invoice_ids')
-    
-        Invoice = request.env['account.move']
-        invoices = Invoice.browse(invoice_ids)
+
+        if invoice_ids:
+            invoice_ids = [int(i) for i in invoice_ids.split(',')]  # 确保 invoice_ids 是整数列表
+
+        invoices = request.env['account.move'].browse(invoice_ids)
 
         # Group invoices by customer
         customers = {}
@@ -134,7 +138,8 @@ class InvoiceReportController(http.Controller):
 
         # Render the report
         data = {'docs': list(customers.values())}
-        pdf_content = request.env.ref('odoo_enhance_st.report_customer_statement').sudo()._render_qweb_pdf(data=data)[0]
+        report = request.env.ref('odoo_enhance_st.report_customer_invoices')
+        pdf_content = report.sudo()._render_qweb_pdf(invoices.ids, data=data)[0]
 
         headers = [
             ('Content-Type', 'application/pdf'),

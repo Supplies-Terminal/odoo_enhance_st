@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
     <data>
-        <template id="report_customer_statement">
+        <template id="template_customer_statement">
             <t t-call="web.html_container">
                 <t t-foreach="docs" t-as="customer">
                     <div class="page">
@@ -29,6 +29,15 @@
                 </t>
             </t>
         </template>
+        <record id="report_customer_statement" model="ir.actions.report">
+            <field name="name">Statement for Customer</field>
+            <field name="model">account.move</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">odoo_enhance_st.template_customer_statement</field>
+            <field name="report_file">odoo_enhance_st.template_customer_statement</field>
+            <field name="binding_model_id" ref="account.model_account_move"/>
+            <field name="binding_type">report</field>
+        </record>
         <record id="action_report_customer_statement" model="ir.actions.server">
             <field name="name">Print Statement for Customer</field>
             <field name="model_id" ref="account.model_account_move"/>
