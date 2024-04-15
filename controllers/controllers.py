@@ -112,3 +112,31 @@ class Purchasecard(http.Controller):
             'website': website.name,
             'data': pages
         })
+        
+class InvoiceReportController(http.Controller):
+    @http.route('/reports/customer_statement', type='json', auth='user')
+    def customer_statement(self, invoice_ids):
+        Invoice = request.env['account.move']
+        invoices = Invoice.browse(invoice_ids)
+
+        # Group invoices by customer
+        customers = {}
+        for inv in invoices:
+            customer = inv.partner_id
+            if customer.id not in customers:
+                customers[customer.id] = {
+                    'name': customer.name,
+                    'invoices': [],
+                }
+            customers[customer.id]['invoices'].append(inv)
+
+        # Render the report
+        data = {'docs': list(customers.values())}
+        pdf_content = request.env.ref('odoo_enhance_st.report_customer_statement').sudo()._render_qweb_pdf(data=data)[0]
+
+        headers = [
+            ('Content-Type', 'application/pdf'),
+            ('Content-Length', len(pdf_content))
+        ]
+
+        return request.make_response(pdf_content, headers=headers)
