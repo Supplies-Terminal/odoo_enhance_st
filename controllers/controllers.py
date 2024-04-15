@@ -138,7 +138,7 @@ class InvoiceReportController(http.Controller):
 
         # Render the report
         data = {'docs': list(customers.values())}
-        report = request.env.ref('odoo_enhance_st.report_customer_invoices')
+        report = request.env.ref('odoo_enhance_st.report_customer_statement')
         pdf_content = report.sudo()._render_qweb_pdf(invoices.ids, data=data)[0]
 
         headers = [
