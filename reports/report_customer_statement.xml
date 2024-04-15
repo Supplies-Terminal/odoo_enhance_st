@@ -37,7 +37,7 @@
             <field name="code">
                 action = {
                     'type': 'ir.actions.act_url',
-                    'url': '/reports/customer_statement?invoice_ids=%s' % (','.join(map(str, [rec.id for rec in records]))),
+                    'url': '/reports/customer_statement?invoice_ids=%s' % (','.join(map(str, records.mapped('id')))),
                     'target': 'new',
                 }
             </field>

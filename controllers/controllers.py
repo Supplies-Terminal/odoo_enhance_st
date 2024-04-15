@@ -115,7 +115,9 @@ class Purchasecard(http.Controller):
         
 class InvoiceReportController(http.Controller):
     @http.route('/reports/customer_statement', type='json', auth='user')
-    def customer_statement(self, invoice_ids):
+    def customer_statement(self):
+        invoice_ids = request.params.get('invoice_ids')
+    
         Invoice = request.env['account.move']
         invoices = Invoice.browse(invoice_ids)
 
