@@ -5,6 +5,7 @@ from odoo import fields, http, tools, _
 from odoo.addons.website.controllers.main import Website
 from odoo.addons.auth_signup.controllers.main import AuthSignupHome
 from odoo.http import request
+from odoo.tools import format_amount
 
 _logger = logging.getLogger(__name__)
 
@@ -116,30 +117,51 @@ class Purchasecard(http.Controller):
         
 class InvoiceReportController(http.Controller):
     @http.route('/reports/customer_statement', type='http', auth='user')
-    @http.route('/reports/customer_statement', type='http', auth='user')
     def customer_statement(self):
+        _logger.info('********customer_statement*********')
         invoice_ids = request.params.get('invoice_ids')
+        company_id = request.params.get('company_id')
 
         if invoice_ids:
             invoice_ids = [int(i) for i in invoice_ids.split(',')]  # 确保 invoice_ids 是整数列表
 
-        invoices = request.env['account.move'].browse(invoice_ids)
+        invoices = request.env['account.move'].search([('id', 'in', invoice_ids)], order='invoice_date asc')
 
-        # Group invoices by customer
-        customers = {}
+        # 准备按客户组织的数据
+        invoices_data = {}
+        
         for inv in invoices:
             customer = inv.partner_id
-            if customer.id not in customers:
-                customers[customer.id] = {
-                    'name': customer.name,
-                    'invoices': [],
-                }
-            customers[customer.id]['invoices'].append(inv)
+            # 确保每个客户记录中有一个发票列表
+            if customer.id not in invoices_data:
+                invoices_data[customer.id] = []
 
-        # Render the report
-        data = {'docs': list(customers.values())}
+            # 将发票添加到客户记录的发票列表中
+            invoices_data[customer.id].append(inv)
+
+        _logger.info(invoices_data.keys())
+        # 获取所有相关的客户记录
+        customers = request.env['res.partner'].browse(invoices_data.keys())
+
+        # 获取当前用户的公司
+        if company_id:
+            current_company = request.env['res.company'].browse(int(company_id))
+        else:
+            current_company = request.env.company 
+        _logger.info(current_company)
+        
+        # 设置QWeb上下文
+        context = {
+            'docs': customers,
+            'invoices': invoices_data,
+            'company': current_company,
+        }
+        _logger.info(customers)
+        # 获取报告动作引用
         report = request.env.ref('odoo_enhance_st.report_customer_statement')
-        pdf_content = report.sudo()._render_qweb_pdf(invoices.ids, data=data)[0]
+
+        # 渲染PDF
+        pdf_content = report.sudo()._render_qweb_pdf(customers.ids, data=context)[0]
 
         headers = [
             ('Content-Type', 'application/pdf'),

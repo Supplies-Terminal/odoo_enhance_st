@@ -3,50 +3,66 @@
     <data>
         <template id="template_customer_statement">
             <t t-call="web.html_container">
-                <t t-foreach="docs" t-as="customer">
-                    <div class="page">
-                        <h2>Customer: <span t-esc="customer.name"/></h2>
-                        <table class="table table-condensed">
-                            <thead>
-                                <tr>
-                                    <th>Invoice Date</th>
-                                    <th>Invoice Number</th>
-                                    <th>Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <t t-foreach="customer.invoices" t-as="invoice">
+                <t t-foreach="docs" t-as="o">
+                    <t t-call="web.external_layout">
+                        <t t-set="company" t-value="company"/>
+                        <div class="page">
+                            <h2>Statement</h2> 
+                            <h3 class="text-center"><span t-field="o.name"/></h3>
+                            <table class="table table-sm o_main_table" name="invoice_line_table">
+                                <thead>
                                     <tr>
-                                        <td><span t-field="invoice.invoice_date"/></td>
-                                        <td><span t-field="invoice.name"/></td>
-                                        <td><span t-field="invoice.amount_total" t-options='{"widget": "monetary", "display_currency": "invoice.currency_id"}'/></td>
+                                        <th name="th_date" class="text-left"><span>Invoice Date</span></th>
+                                        <th name="th_name" class="text-left"><span>Invoice Number</span></th>
+                                        <th name="th_subtotal" class="text-right">
+                                            <span groups="account.group_show_line_subtotals_tax_excluded">Amount</span>
+                                        </th>
                                     </tr>
-                                </t>
-                            </tbody>
-                        </table>
-                        <p style="page-break-after: always;"></p> <!-- Ensure each customer starts on a new page -->
-                    </div>
+                                </thead>
+                                <tbody class="invoice_tbody">
+                                    <t t-set="invs" t-value="invoices[o.id]"/>
+                                    <t t-foreach="invs" t-as="invoice">
+                                        <tr class="bg-200 font-weight-bold o_line_section">
+                                            <td name="account_invoice_line_name"><span t-field="invoice.invoice_date" t-options="{'widget': 'text'}"/></td>
+                                            <td name="account_invoice_line_name"><span t-field="invoice.name" t-options="{'widget': 'text'}"/></td>
+                                            <td name="account_invoice_line_name" class="text-right">
+                                                <span t-field="invoice.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                                <tfoot>
+                                    <tr class="text-right">
+                                        <td colspan="2"><strong>Total:</strong></td>
+                                        <td class="text-right">
+                                            <h4><span t-esc="sum(invoice.amount_total for invoice in invs)" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/></h4>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </t>
                 </t>
             </t>
         </template>
         <record id="report_customer_statement" model="ir.actions.report">
             <field name="name">Statement for Customer</field>
-            <field name="model">account.move</field>
+            <field name="model">res.partner</field>
             <field name="report_type">qweb-pdf</field>
             <field name="report_name">odoo_enhance_st.template_customer_statement</field>
             <field name="report_file">odoo_enhance_st.template_customer_statement</field>
-            <field name="binding_model_id" ref="account.model_account_move"/>
+            <field name="binding_model_id" ref="base.model_res_partner"/>
             <field name="binding_type">report</field>
         </record>
         <record id="action_report_customer_statement" model="ir.actions.server">
-            <field name="name">Print Statement for Customer</field>
+            <field name="name">Statement for Customer</field>
             <field name="model_id" ref="account.model_account_move"/>
             <field name="binding_model_id" ref="account.model_account_move"/>
             <field name="state">code</field>
             <field name="code">
                 action = {
                     'type': 'ir.actions.act_url',
-                    'url': '/reports/customer_statement?invoice_ids=%s' % (','.join(map(str, records.mapped('id')))),
+                    'url': '/reports/customer_statement?invoice_ids=%s&amp;company_id=%s' % (','.join(map(str, records.mapped('id'))), env.company.id),
                     'target': 'new',
                 }
             </field>
