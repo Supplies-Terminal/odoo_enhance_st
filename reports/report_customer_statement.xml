@@ -34,6 +34,9 @@
                                             <td ><span t-field="invoice.invoice_date" t-options="{'widget': 'text'}"/></td>
                                             <td ><span t-field="invoice.name" t-options="{'widget': 'text'}"/></td>
                                             <td class="text-right">
+                                                <t t-if="invoice.move_type == 'out_refund'">
+                                                    <span t-esc="'-'"/>
+                                                </t>
                                                 <span t-field="invoice.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                                             </td>
                                         </tr>
@@ -41,7 +44,7 @@
                                     <tr class="text-right">
                                         <td colspan="2" class="font-weight-bold"><strong>Total:</strong></td>
                                         <td class="text-right font-weight-bold">
-                                            <span t-esc="sum(invoice.amount_total for invoice in invs)" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            <span t-esc="sum(invoice.amount_total if invoice.move_type == 'out_invoice' else -invoice.amount_total for invoice in invs)" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                                         </td>
                                     </tr>
                                 </tbody>
