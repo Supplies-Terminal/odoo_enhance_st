@@ -4,11 +4,19 @@
         <template id="template_customer_statement">
             <t t-call="web.html_container">
                 <t t-foreach="docs" t-as="o">
-                    <t t-call="web.external_layout">
+                    <style type="text/css">
+                        table tr
+                    </style>
+                    <div class="o_company_#{company.id}_layout">
                         <t t-set="company" t-value="company"/>
+                        <div t-attf-class="article o_report_layout_standard1 o_company_#{company.id}_layout {{  'o_layout_background' if company.layout_background in ['Geometric', 'Custom']  else  '' }}" t-attf-style="background-image: url({{ 'data:image/png;base64,%s' % company.layout_background_image.decode('utf-8') if company.layout_background_image and company.layout_background == 'Custom' else '/base/static/img/bg_background_template.jpg' if company.layout_background == 'Geometric' else ''}});" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
                         <div class="page">
-                            <h2>Statement</h2> 
-                            <h3 class="text-center"><span t-field="o.name"/></h3>
+                            <h3><span t-field="company.name"/></h3> 
+                            <div><span t-field="company.street"/>, <span t-field="company.street2"/>,</div>
+                            <div><span t-field="company.city"/>, <span t-field="company.state_id.name"/>, <span t-field="company.country_id.name"/> <span t-field="company.zip"/></div>
+                            <div>Business Number: <span t-field="company.vat"/></div>
+                            <h3>Statement</h3> 
+                            <h4 class="text-center"><span t-field="o.name"/></h4>
                             <table class="table table-sm o_main_table" name="invoice_line_table">
                                 <thead>
                                     <tr>
@@ -19,29 +27,28 @@
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody class="invoice_tbody">
+                                <tbody class="">
                                     <t t-set="invs" t-value="invoices[o.id]"/>
                                     <t t-foreach="invs" t-as="invoice">
-                                        <tr class="bg-200 font-weight-bold o_line_section">
-                                            <td name="account_invoice_line_name"><span t-field="invoice.invoice_date" t-options="{'widget': 'text'}"/></td>
-                                            <td name="account_invoice_line_name"><span t-field="invoice.name" t-options="{'widget': 'text'}"/></td>
-                                            <td name="account_invoice_line_name" class="text-right">
+                                        <tr>
+                                            <td ><span t-field="invoice.invoice_date" t-options="{'widget': 'text'}"/></td>
+                                            <td ><span t-field="invoice.name" t-options="{'widget': 'text'}"/></td>
+                                            <td class="text-right">
                                                 <span t-field="invoice.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                                             </td>
                                         </tr>
                                     </t>
-                                </tbody>
-                                <tfoot>
                                     <tr class="text-right">
-                                        <td colspan="2"><strong>Total:</strong></td>
-                                        <td class="text-right">
-                                            <h4><span t-esc="sum(invoice.amount_total for invoice in invs)" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/></h4>
+                                        <td colspan="2" class="font-weight-bold"><strong>Total:</strong></td>
+                                        <td class="text-right font-weight-bold">
+                                            <span t-esc="sum(invoice.amount_total for invoice in invs)" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                                         </td>
                                     </tr>
-                                </tfoot>
+                                </tbody>
                             </table>
                         </div>
-                    </t>
+                        </div>
+                    </div>
                 </t>
             </t>
         </template>
