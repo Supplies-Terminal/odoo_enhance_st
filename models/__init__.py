@@ -17,3 +17,4 @@ from . import stock_orderpoint
 from . import stock_picking
 from . import mrp_bom_line
 from . import dairy_stock_report
+from . import stock_quantity_history
