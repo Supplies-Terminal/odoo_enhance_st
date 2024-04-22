@@ -25,6 +25,8 @@ class DailyStockReport(models.Model):
         products = self.env['product.product'].with_company(current_company_id).with_context(to_date=date_str).search([('type', '=', 'product')])
         total = sum(p.qty_available for p in products)
 
+        self.create({'date': date, 'stock_total': total})
+        
         return total
 
     @api.model
@@ -42,4 +44,8 @@ class DailyStockReport(models.Model):
             date = end_datetime - timedelta(days=day)
             date_utc = date.astimezone(pytz.UTC)
             total = self.calculate_stock_totals(date_utc)
-            self.create({'date': date, 'stock_total': total})
+            
+
+    def daily_stock_report_wizard_action(self):
+        self.env['daily.stock.report.wizard']._action_open_modal()
+      

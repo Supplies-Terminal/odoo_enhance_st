@@ -9,3 +9,4 @@ res_users_approval,res.users.approval,model_res_users_approval,,1,1,1,1
 "access_stock_orderpoint_replace","access.stock.orderpoint.replace","model_stock_orderpoint_replace","stock.group_stock_user",1,1,1,0
 "access_stock_orderpoint_replace_order","access.stock.orderpoint.replace.order","model_stock_orderpoint_replace_order","stock.group_stock_user",1,1,1,0
 access_daily_stock_report,daily.stock.report,model_daily_stock_report,stock.group_stock_user,1,1,1,1
+"access_stock_daily_report_wizard","access.stock.daily.report.wizard","model_daily_stock_report_wizard",,1,1,1,0

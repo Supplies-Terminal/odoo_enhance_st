@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import fields, models
+from odoo import fields, models, api
+from datetime import datetime, date, time, timedelta
+import pytz
 
+import logging
+_logger = logging.getLogger(__name__)
 
 class DailyStockReportWizard(models.TransientModel):
     _name = 'daily.stock.report.wizard'
@@ -30,6 +34,7 @@ class DailyStockReportWizard(models.TransientModel):
         }
         
     def action_generate_report(self):
+        _logger.info("-------------- action_generate_report --------------------")
         """
         Generates the stock report for each day between the start_date and end_date.
         """
@@ -41,19 +46,34 @@ class DailyStockReportWizard(models.TransientModel):
                 'message': 'Both start and end dates must be set.'
             }}
 
+        # 首先清空daily.stock.report中的所有数据
+        self.env['daily.stock.report'].search([]).unlink()
+        
         current_date = fields.Date.from_string(date_from)
         end_date = fields.Date.from_string(date_to)
+        _logger.info(current_date)
+        _logger.info(end_date)
 
+        tz = pytz.timezone('America/Toronto')
+        
         while current_date <= end_date:
-            self.env['daily.stock.report'].calculate_stock_totals(current_date)
+            naive_datetime = datetime.combine(current_date, datetime.min.time())
+            localized_datetime = tz.localize(naive_datetime, is_dst=None)
+            date_utc = localized_datetime.astimezone(pytz.UTC)
+            self.env['daily.stock.report'].calculate_stock_totals(date_utc)
             current_date += timedelta(days=1)
 
+        # return {
+        #     'type': 'ir.actions.client',
+        #     'tag': 'display_notification',
+        #     'params': {
+        #         'title': 'Report Generated',
+        #         'message': 'The stock report has been generated successfully.',
+        #         'sticky': False,
+        #     }
+        # }
+        # 返回客户端动作以刷新视图
         return {
             'type': 'ir.actions.client',
-            'tag': 'display_notification',
-            'params': {
-                'title': 'Report Generated',
-                'message': 'The stock report has been generated successfully.',
-                'sticky': False,
-            }
+            'tag': 'reload',
         }
