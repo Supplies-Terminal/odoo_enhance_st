@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- wizard action on res.partner -->
+    <record id="stock_daily_report_wizard_action_create_and_open" model="ir.actions.server">
+        <field name="name">Stock Daily Report</field>
+        <field name="model_id" ref="odoo_enhance_st.model_daily_stock_report_wizard"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_open_wizard()</field>
+    </record>
+
+    <record id="stock_daily_report_wizard_action" model="ir.actions.act_window">
+        <field name="name">Stock Daily Report</field>
+        <field name="res_model">daily.stock.report.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="binding_model_id" eval="False"/>
+    </record>
+
+    <record id="stock_daily_report_wizard_view" model="ir.ui.view">
+        <field name="name">Stock Daily Report</field>
+        <field name="model">daily.stock.report.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Init wishlist">
+                <field name="start_date"/>
+                <field name="end_date"/>
+                <footer>
+                    <button name="action_generate_report" string="Confirm" type="object" class="btn-primary" data-hotkey="q"/>
+                    <button string="Discard" class="btn-secondary" special="cancel" data-hotkey="z"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

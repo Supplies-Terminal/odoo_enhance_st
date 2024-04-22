@@ -27,13 +27,14 @@
         'views/product_template_views.xml',
         'views/purchase_order_views.xml',
         'views/sale_order_views.xml',
-        'wizard/wishlist_wizard_views.xml',
-        'wizard/wishlist_wizard_product_views.xml',
         'views/product_template_views.xml',
         'views/stock_orderpoint_views.xml',
         'wizard/stock_orderpoint_replace_views.xml',
         'views/mrp_bom_views.xml',
         'views/daily_stock_report_views.xml'
+        'wizard/wishlist_wizard_views.xml',
+        'wizard/wishlist_wizard_product_views.xml',
+        'wizard/stock_daily_report_wizard.xml',
     ],
     'assets': {
         'web.assets_backend': [
