@@ -46,3 +46,14 @@ class ProductTemplate(models.Model):
                 product_lang = product.with_context(lang=code)
                 names.append(product_lang.name)
             product.combined_name = ' / '.join(names)  # 使用 ' / ' 作为分隔符
+
+    @api.model
+    def search_read(self, domain=None, fields=None, offset=0, limit=None, order=None):
+        domain = domain or []
+        current_company = self.env.company
+
+        # 检查当前公司是否设置了只看私有产品
+        if current_company.private_product_only:
+            domain += [('company_id', '=', current_company.id)]
+
+        return super(ProductTemplate, self).search_read(domain=domain, fields=fields, offset=offset, limit=limit, order=order)
