@@ -81,7 +81,7 @@ class SaleOrderLine(models.Model):
     @api.depends('product_id')
     def _compute_latest_cost(self):
         for rec in self:
-            rec.latest_cost_value = 0
+            rec.latest_cost = 0
             date_order = datetime.now().date()
             if rec.order_id.date_order:
                 date_order = rec.order_id.date_order.date()
