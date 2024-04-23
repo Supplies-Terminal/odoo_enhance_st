@@ -136,6 +136,13 @@ class ProductProduct(models.Model):
     def _name_search(self, name, args=None, operator='ilike', limit=100, name_get_uid=None):
         if not args:
             args = []
+
+        current_company = self.env.company
+        # 根据公司设置调整搜索条件
+        if current_company.private_product_only:
+            args.append(('company_id', '=', current_company.id))
+
+        
         if name:
             _logger.info('******** product _name_search *********')
             context_lang = self._context.get("lang")

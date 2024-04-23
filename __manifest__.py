@@ -35,6 +35,7 @@
         'wizard/wishlist_wizard_product_views.xml',
         'wizard/stock_daily_report_wizard.xml',
         'views/daily_stock_report_views.xml',
+        'views/res_company_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
