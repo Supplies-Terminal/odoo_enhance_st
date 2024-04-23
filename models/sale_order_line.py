@@ -45,26 +45,76 @@ class SaleOrderLine(models.Model):
         for rec in self:
             rec.latest_cost_value = 0
             date_order = datetime.now().date()
-            if self.order_id.date_order:
-                self.order_id.date_order.date()
+            if rec.order_id.date_order:
+                date_order = rec.order_id.date_order.date()
             
-            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
-            if pol:
-                rec.latest_cost_value = pol.price_unit
+            # Accessing Purchase Order Line with elevated privileges
+            PurchaseOrderLine = self.env['purchase.order.line'].sudo()
+            BillLine = self.env['account.move.line'].sudo()
+
+            # Search for purchase order lines
+            pol = PurchaseOrderLine.search([
+                ('product_id', '=', rec.product_id.id),
+                ('order_id.company_id', '=', rec.order_id.company_id.id),
+                ('order_id.state', 'in', ['purchase', 'done']),
+                ('create_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='create_date desc')
+
+            # Search for vendor bill lines
+            bill = BillLine.search([
+                ('product_id', '=', rec.product_id.id),
+                ('move_id.company_id', '=', rec.order_id.company_id.id),
+                ('move_id.state', '=', 'posted'),
+                ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
+                ('create_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='create_date desc')
+
+            # Determine the most recent purchase or bill
+            latest_line = max(pol, bill, key=lambda x: x.create_date if x else datetime.min)
+
+            if latest_line:
+                if 'purchase.order.line' in latest_line._name:
+                    rec.latest_cost_value = latest_line.price_unit
+                elif 'account.move.line' in latest_line._name:
+                    rec.latest_cost_value = latest_line.price_unit
 
     @api.depends('product_id')
     def _compute_latest_cost(self):
         for rec in self:
-            rec.latest_cost = '-'
+            rec.latest_cost_value = 0
             date_order = datetime.now().date()
-            if self.order_id.date_order:
-                self.order_id.date_order.date()
+            if rec.order_id.date_order:
+                date_order = rec.order_id.date_order.date()
             
-            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', date_order + timedelta(days=1))], limit=1, order='create_date desc')
-            if pol:
-                rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
+            # Accessing Purchase Order Line with elevated privileges
+            PurchaseOrderLine = self.env['purchase.order.line'].sudo()
+            BillLine = self.env['account.move.line'].sudo()
+
+            # Search for purchase order lines
+            pol = PurchaseOrderLine.search([
+                ('product_id', '=', rec.product_id.id),
+                ('order_id.company_id', '=', rec.order_id.company_id.id),
+                ('order_id.state', 'in', ['purchase', 'done']),
+                ('create_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='create_date desc')
+
+            # Search for vendor bill lines
+            bill = BillLine.search([
+                ('product_id', '=', rec.product_id.id),
+                ('move_id.company_id', '=', rec.order_id.company_id.id),
+                ('move_id.state', '=', 'posted'),
+                ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
+                ('create_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='create_date desc')
+
+            # Determine the most recent purchase or bill
+            latest_line = max(pol, bill, key=lambda x: x.create_date if x else datetime.min)
+
+            if latest_line:
+                if 'purchase.order.line' in latest_line._name:
+                    rec.latest_cost = "${}/{}".format(latest_line.price_unit, latest_line.product_uom.name)  
+                elif 'account.move.line' in latest_line._name:
+                    rec.latest_cost = "${}/{}".format(latest_line.price_unit, latest_line.product_uom_id.name)  
 
     @api.depends('product_id')
     def _compute_latest_vendor(self):
