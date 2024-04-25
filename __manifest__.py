@@ -7,7 +7,17 @@
     'summary': 'Enhanced user experiences based on the business operations.',
     'website': 'https://suppliesterminal.com',
     'version': '1.2.0',
-    'description': "",
+    'description': "
+        包含下面的功能：
+        - 产品多语言名字整合，能多语言搜索，多处使用，多行显示
+        - 产品计量单位支持
+        - App用户采购卡
+        - App用户申请审批
+        - 内部跨公司采购
+        - 跨公司调度
+        - 客户statement
+        - 多公司对公共商品的访问控制
+    ",
     'depends': [
         'contacts',
         'website',
