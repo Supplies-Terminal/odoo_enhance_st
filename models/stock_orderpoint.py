@@ -193,18 +193,20 @@ class StockWarehouseOrderpoint(models.Model):
                 }
                 invoice_vals['invoice_line_ids'].append((0, 0, invoice_line_vals))
 
+            # 先创建上游的invoice，并把invoice_id填入bill下游的bill中
+            _logger.info("------invoice-------")
+            _logger.info(invoice_vals)
+            invoice = self.env['account.move'].with_context(default_company_id = invoice_vals['company_id']).sudo().create(invoice_vals)
+            # invoice.action_post()
+            _logger.info(invoice)
+
+            bill_vals['ref'] = bill_vals['ref'] + 'Invoice ID #' + str(invoice.id)
             # 创建账单和发票记录
             _logger.info("------bill-------")
             _logger.info(bill_vals)
             bill = self.env['account.move'].with_context(default_company_id = bill_vals['company_id']).sudo().create(bill_vals)
             # bill.action_post()
             _logger.info(bill)
-
-            _logger.info("------invoice-------")
-            _logger.info(invoice_vals)
-            invoice = self.env['account.move'].with_context(default_company_id = invoice_vals['company_id']).sudo().create(invoice_vals)
-            # invoice.action_post()
-            _logger.info(invoice)
 
         # 不能返回这个，否则不会自动刷新
         # message = _('Cross company purchasing successfully!')
