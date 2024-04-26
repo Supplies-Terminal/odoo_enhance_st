@@ -172,7 +172,20 @@ class SaleOrder(models.Model):
         for picking in pickings:
             picking.write({'origin': self.name})
 
-        return result
+
+        if 'packing_done' not in values:
+            # 获取所有与该销售订单相关的工作单
+            all_picks = self.env['stock.picking'].search([('sale_id', '=', self.id),("location_dest_id.name", "not like", "Stock"), ("location_id.name", "like", "Stock"),("picking_type_id.sequence_code", "=", "PICK"),("state", "in", ["confirmed", "done", "waiting", "assigned"])])
+    
+            # 检查是否所有的工作单都已完成
+            all_done = all(all_pick.state == 'done' for all_pick in all_picks)
+    
+            if all_done:
+                self.write({'packing_done': True})
+            else:
+                self.write({'packing_done': False})
+            
+            return result
 
     def pricing_with_latest_cost_button_action(self):
         _logger.info('- pricing_with_latest_cost_button_action -')
