@@ -22,9 +22,8 @@
                                     <tr>
                                         <th name="th_date" class="text-left"><span>Invoice Date</span></th>
                                         <th name="th_name" class="text-left"><span>Invoice Number</span></th>
-                                        <th name="th_subtotal" class="text-right">
-                                            <span groups="account.group_show_line_subtotals_tax_excluded">Amount</span>
-                                        </th>
+                                        <th name="th_subtotal" class="text-right">Amount</th>
+                                        <th name="th_subtotal" class="text-right">Balance</th>
                                     </tr>
                                 </thead>
                                 <tbody class="">
@@ -39,12 +38,18 @@
                                                 </t>
                                                 <span t-field="invoice.amount_total" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                                             </td>
+                                            <td class="text-right">
+                                                <t t-if="invoice.move_type == 'out_refund'">
+                                                    <span t-esc="'-'"/>
+                                                </t>
+                                                <span t-field="invoice.amount_residual_signed" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            </td>
                                         </tr>
                                     </t>
                                     <tr class="text-right">
-                                        <td colspan="2" class="font-weight-bold"><strong>Total:</strong></td>
+                                        <td colspan="3" class="font-weight-bold"><strong>Total:</strong></td>
                                         <td class="text-right font-weight-bold">
-                                            <span t-esc="sum(invoice.amount_total if invoice.move_type == 'out_invoice' else -invoice.amount_total for invoice in invs)" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
+                                            <span t-esc="sum(invoice.amount_residual_signed if invoice.move_type == 'out_invoice' else -invoice.amount_residual_signed for invoice in invs)" t-options='{"widget": "monetary", "display_currency": o.currency_id}'/>
                                         </td>
                                     </tr>
                                 </tbody>
