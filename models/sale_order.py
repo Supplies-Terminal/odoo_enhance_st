@@ -14,7 +14,17 @@ class SaleOrder(models.Model):
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
 
     source_po_id = fields.Many2one('purchase.order', string='Inter-company PO', required=False)
-    
+
+    out_done_percentage = fields.Float(string='Out Done Percentage', compute='_compute_out_done_percentage', store=False)
+    @api.depends('picking_ids.state')
+    def _compute_out_done_percentage(self):
+        for order in self:
+            percentage = 0.0
+            total_out = order.picking_ids.filtered(lambda p: p.picking_type_id.code == 'outgoing').mapped('id')
+            if total_out:
+                done_out = order.picking_ids.filtered(lambda p: p.state == 'done' and p.picking_type_id.code == 'outgoing').mapped('id')
+                order.out_done_percentage = (len(done_out) / len(total_out))
+                
     CUSTOM_FIELD_STATES = {
         state: [('readonly', False)]
         for state in {'sale', 'done', 'cancel'}
@@ -268,3 +278,15 @@ class SaleOrder(models.Model):
             }
         }
         return True
+
+    def action_deliver_order(self):
+        _logger.info('- action_deliver_order -')
+        if self.packing_done:
+            # Assuming there is a method to complete the out picking
+            picking = self.picking_ids.filtered(lambda p: p.state not in ['done', 'cancel'] and p.picking_type_id.code == 'outgoing')
+            _logger.info(picking)
+            if picking:
+                picking.action_assign()  # Check availability
+                picking.button_validate()  # Validate delivery order
+        else:
+            raise UserError('Packing is not completed yet.')

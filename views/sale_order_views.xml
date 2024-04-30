@@ -19,4 +19,27 @@
            </xpath>
         </field>
     </record>
+    <record model="ir.actions.server" id="action_deliver_orders">
+        <field name="name">Deliver Orders</field>
+        <field name="model_id" ref="model_sale_order"/>
+        <field name="state">code</field>
+        <field name="code">
+            action = model.action_deliver_order()
+        </field>
+    </record>
+    <record id="view_order_tree_inherit" model="ir.ui.view">
+        <field name="name">sale.order.tree.inherit</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_tree"/>
+        <field name="arch" type="xml">
+            <tree>
+                <field name="out_done_percentage" 
+                    widget="progressbar" 
+                    options="{'style': 'success'}"
+                    attrs="{'invisible': [('packing_done', '=', False), ('out_done_percentage', '=', '1')]}"/>
+                <button name="%(action_deliver_orders)d" type="action" icon="fa-truck" 
+                    attrs="{'invisible': [('packing_done', '=', False), ('out_done_percentage', '=', '1')]}"/>
+            </tree>
+        </field>
+    </record>
 </odoo>
