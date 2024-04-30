@@ -210,7 +210,6 @@ class SaleOrder(models.Model):
             'type': 'ir.actions.client',
             'tag': 'reload',
         }
-        
     
     def pricing_with_latest_price_button_action(self):
         _logger.info('- pricing_with_latest_price_button_action -')
