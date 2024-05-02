@@ -152,24 +152,25 @@ class SaleOrder(models.Model):
         return invoices
 
     def update_packing_done_flag(self):
-        self.ensure_one()  # 确保这个方法只在单一记录集上调用
-        
-        # 只针对sale order，排除quotation
-        if self.state == 'sale':
-            # 获取所有与该销售订单相关的工作单
-            all_picks = self.env['stock.picking'].search([('sale_id', '=', self.id),("location_dest_id.name", "not like", "Stock"), ("location_id.name", "like", "Stock"),("picking_type_id.sequence_code", "=", "PICK"),("state", "in", ["confirmed", "done", "waiting", "assigned"])])
+        for rec in self:
+            rec.ensure_one()  # 确保这个方法只在单一记录集上调用
+            
+            # 只针对sale order，排除quotation
+            if rec.state == 'sale':
+                # 获取所有与该销售订单相关的工作单
+                all_picks = rec.env['stock.picking'].search([('sale_id', '=', rec.id),("location_dest_id.name", "not like", "Stock"), ("location_id.name", "like", "Stock"),("picking_type_id.sequence_code", "=", "PICK"),("state", "in", ["confirmed", "done", "waiting", "assigned"])])
 
-            # 检查是否所有的工作单都已完成
-            all_done = all(all_pick.state == 'done' for all_pick in all_picks)
+                # 检查是否所有的工作单都已完成
+                all_done = all(all_pick.state == 'done' for all_pick in all_picks)
 
-            if all_done:
-                self.write({'packing_done': True})
+                if all_done:
+                    rec.write({'packing_done': True})
+                else:
+                    rec.write({'packing_done': False})
             else:
-                self.write({'packing_done': False})
-        else:
-            # 如果订单状态不是sale，则重置packing_done标志
-            if self.packing_done == True:
-                self.write({'packing_done': False})
+                # 如果订单状态不是sale，则重置packing_done标志
+                if rec.packing_done == True:
+                    rec.write({'packing_done': False})
         
     def write(self, values):
         result = super(SaleOrder, self).write(values)
