@@ -29,7 +29,6 @@ class ProductProduct(models.Model):
                         quantities.append(f"{company.name.split()[0]}: {round(qty)}")
             product.stock_quantities = ', '.join(quantities)
 
-    @api.model
     def name_get(self):
         def _name_get(d):
             code = self._context.get('display_default_code', True) and d.get('default_code', False) or False
@@ -195,7 +194,8 @@ class ProductProduct(models.Model):
                     product_ids.extend(new_res)
             if not product_ids and operator in positive_operators:
                 _logger.info(" **** ")
-                ptrn = re.compile('(\[(.*?)\])')
+                ptrn = re.compile(r'(\[.*?\])')
+                # ptrn = re.compile(r'(\[(.*?)\])')
                 res = ptrn.search(name)
                 if res:
                     product_ids = list(self._search([('default_code', '=', res.group(2))] + args, limit=limit, access_rights_uid=name_get_uid))
