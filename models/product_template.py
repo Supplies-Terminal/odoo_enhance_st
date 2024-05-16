@@ -7,6 +7,12 @@ from odoo import models, fields, api
 class ProductTemplate(models.Model):
     _inherit = 'product.template'
 
+    inventory_type = fields.Selection([
+        ('Stock', 'Stock'),
+        ('Non-Stock', 'Non-Stock'),
+        ('MRP', 'MRP'),
+    ], string='Inventory Type', default=None, help="Label for stock management")
+
     secondary_uom_enabled = fields.Boolean("Enable Secondary UoM?")
     secondary_uom_id = fields.Many2one('uom.uom', 'Secondary UoM')
     secondary_uom_rate = fields.Float('Secondary Unit Rate', default=1)

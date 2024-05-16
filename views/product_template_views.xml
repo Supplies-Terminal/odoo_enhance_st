@@ -6,6 +6,7 @@
         <field name="inherit_id" ref="product.product_template_only_form_view" />
         <field name="arch" type="xml">
             <xpath expr="//field[@name='uom_po_id']" position="after">
+                <field name="inventory_type" />
                 <field name="secondary_uom_enabled" />
                 <field name="secondary_uom_id" attrs="{'invisible': [('secondary_uom_enabled', '=', False)],'required': [('secondary_uom_enabled', '=', True)]}"/>
                 <field name="secondary_uom_rate" attrs="{'invisible': [('secondary_uom_enabled', '=', False)],'required': [('secondary_uom_enabled', '=', True)]}"/>
@@ -20,6 +21,7 @@
         <field name="inherit_id" ref="account.product_template_view_tree" />
         <field name="arch" type="xml">
             <tree>
+                <field name="inventory_type"/>
                 <field name="secondary_uom_desc"/>
                 <field name="pack_supported"/>
             </tree>
