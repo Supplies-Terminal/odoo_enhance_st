@@ -46,3 +46,36 @@ class StockPicking(models.Model):
                 rec.quantity_counts = 'Quantity Counts: ' + ('; '.join(resultString))
             else:
                 rec.quantity_counts = ''
+
+    # 收货自动分区存放
+    def action_assign(self):
+        res = super(StockPicking, self).action_assign()
+        if self.picking_type_id.code == 'incoming' and self.company_id.mrp_location_id and self.company_id.ricai_location_id:
+            self._create_specific_moves()
+        return res
+
+    def _create_specific_moves(self):
+        for move in self.move_lines:
+            if move.purchase_line_id:
+                so_total_qty = sum(so.quantity for so in move.purchase_line_id.so_ids)
+                mo_total_qty = sum(mo.quantity for mo in move.purchase_line_id.mo_ids)
+
+                if so_total_qty > 0:
+                    self._create_internal_move(move, so_total_qty, self.company_id.ricai_location_id)
+
+                if mo_total_qty > 0:
+                    self._create_internal_move(move, mo_total_qty, self.company_id.mrp_location_id)
+
+    def _create_internal_move(self, original_move, quantity, destination_location):
+        if destination_location and quantity > 0:
+            move_vals = {
+                'name': original_move.name,
+                'product_id': original_move.product_id.id,
+                'product_uom_qty': quantity,
+                'product_uom': original_move.product_uom.id,
+                'location_id': original_move.location_dest_id.id,
+                'location_dest_id': destination_location.id,
+                'picking_id': original_move.picking_id.id,
+                'state': 'confirmed',
+            }
+            self.env['stock.move'].create(move_vals)
