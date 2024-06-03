@@ -2,6 +2,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields, api
+import logging
+_logger = logging.getLogger(__name__)
 
 class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
@@ -20,6 +22,130 @@ class PurchaseOrderLine(models.Model):
     so_ids = fields.One2many('purchase.order.line.so', 'purchase_order_line_id', string='Sale Order Lines')
     mo_ids = fields.One2many('purchase.order.line.mo', 'purchase_order_line_id', string='Manufacturing Order Lines')
 
+    @api.model
+    def create(self, vals):
+        _logger.info("------------PurchaseOrderLine: create--------------")
+        orderLine = super(PurchaseOrderLine, self).create(vals)
+        return orderLine
+
+
+    @api.model
+    def get_current_shortage(self, product_id, warehouse_id):
+        """Get current shortage for a specific product considering two-step delivery and specific warehouse"""
+        # 找到所有涉及销售订单和制造订单且拣货类型为“Pick”的stock.move记录
+        moves = self.env['stock.move'].search([
+            ('state', 'in', ['confirmed', 'waiting', 'assigned']),
+            ('product_id', '=', product_id),
+            ('picking_id.picking_type_id.warehouse_id', '=', warehouse_id),
+            ('picking_id.picking_type_id.name', '=', 'Pick'),
+            '|',
+            ('picking_id.sale_id', '!=', False),
+            ('picking_id.group_id.mrp_production_ids', '!=', False),
+        ])
+
+        shortage_list = []
+
+        for move in moves:
+            demand_qty = move.product_uom_qty
+            reserved_qty = move.reserved_availability
+            shortage_qty = demand_qty - reserved_qty
+
+            if shortage_qty > 0:
+                shortage_list.append({
+                    'move_id': move.id,
+                    'product_id': move.product_id.id,
+                    'product_name': move.product_id.name,
+                    'demand_qty': demand_qty,
+                    'reserved_qty': reserved_qty,
+                    'shortage_qty': shortage_qty,
+                    'origin': move.origin,
+                    'picking_id': move.picking_id.id,
+                    'picking_type': move.picking_id.picking_type_id.name,
+                    'warehouse_id': move.picking_id.picking_type_id.warehouse_id.id,
+                    'warehouse_name': move.picking_id.picking_type_id.warehouse_id.name,
+                    'sale_order_id': move.picking_id.sale_id.id if move.picking_id.sale_id else False,
+                    'production_order_id': move.picking_id.group_id.mrp_production_ids.id if move.picking_id.group_id.mrp_production_ids else False,
+                })
+
+        return shortage_list
+
+    @api.model
+    def create(self, vals):
+        _logger.info("------------PurchaseOrderLine: create--------------")
+        order_line = super(PurchaseOrderLine, self).create(vals)
+        order_line._insert_shortage_sources()
+        return order_line
+
+    def write(self, vals):
+        _logger.info("------------PurchaseOrderLine: write--------------")
+        res = super(PurchaseOrderLine, self).write(vals)
+        self._insert_shortage_sources()
+        return res
+        
+    def _insert_shortage_sources(self):
+        _logger.info("------------PurchaseOrderLine: _insert_shortage_sources--------------")
+        purchase_order_line_so_model = self.env['purchase.order.line.so']
+        purchase_order_line_mo_model = self.env['purchase.order.line.mo']
+
+        for line in self:
+            warehouse = self.env['stock.warehouse'].search([('company_id', '=', line.order_id.company_id.id)], limit=1)
+            warehouse_id = warehouse.id
+
+            shortage_list = self._get_current_shortage(line.product_id.id, warehouse_id)
+            _logger.info(shortage_list)
+            
+            for shortage in shortage_list:
+                if shortage['sale_order_id']:
+                    purchase_order_line_so_model.create({
+                        'purchase_order_line_id': line.id,
+                        'sale_order_id': shortage['sale_order_id'],
+                        'quantity': shortage['shortage_qty'],
+                    })
+                if shortage['production_order_id']:
+                    purchase_order_line_mo_model.create({
+                        'purchase_order_line_id': line.id,
+                        'manufacturing_order_id': shortage['production_order_id'],
+                        'quantity': shortage['shortage_qty'],
+                    })
+    @api.model
+    def _get_current_shortage(self, product_id, warehouse_id):
+        _logger.info("------------PurchaseOrderLine: _get_current_shortage--------------")
+        moves = self.env['stock.move'].search([
+            ('state', 'in', ['confirmed', 'waiting', 'assigned']),
+            ('product_id', '=', product_id),
+            ('picking_id.picking_type_id.warehouse_id', '=', warehouse_id),
+            ('picking_id.picking_type_id.name', '=', 'Pick'),
+            '|',
+            ('picking_id.sale_id', '!=', False),
+            ('picking_id.group_id.mrp_production_ids', '!=', False),
+        ])
+
+        shortage_list = []
+
+        for move in moves:
+            demand_qty = move.product_uom_qty
+            reserved_qty = move.reserved_availability
+            shortage_qty = demand_qty - reserved_qty
+
+            if shortage_qty > 0:
+                shortage_list.append({
+                    'move_id': move.id,
+                    'product_id': move.product_id.id,
+                    'product_name': move.product_id.name,
+                    'demand_qty': demand_qty,
+                    'reserved_qty': reserved_qty,
+                    'shortage_qty': shortage_qty,
+                    'origin': move.origin,
+                    'picking_id': move.picking_id.id,
+                    'picking_type': move.picking_type_id.name,
+                    'warehouse_id': move.picking_type_id.warehouse_id.id,
+                    'warehouse_name': move.picking_type_id.warehouse_id.name,
+                    'sale_order_id': move.picking_id.sale_id.id if move.picking_id.sale_id else False,
+                    'production_order_id': move.picking_id.group_id.mrp_production_ids.id if move.picking_id.group_id.mrp_production_ids else False,
+                })
+
+        return shortage_list
+        
 class PurchaseOrderLineSO(models.Model):
     _name = 'purchase.order.line.so'
     _description = 'Purchase Forecast Sale Order Line'
