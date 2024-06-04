@@ -73,21 +73,26 @@ class PurchaseOrderLine(models.Model):
     def create(self, vals):
         _logger.info("------------PurchaseOrderLine: create--------------")
         order_line = super(PurchaseOrderLine, self).create(vals)
-        order_line._insert_shortage_sources()
+        if 'replenish' in order_line.order_id.origin.lower() or '补货' in order_line.order_id.origin.lower():
+            order_line._insert_shortage_sources()
         return order_line
 
     def write(self, vals):
         _logger.info("------------PurchaseOrderLine: write--------------")
+        _logger.info(self)
         res = super(PurchaseOrderLine, self).write(vals)
-        self._insert_shortage_sources()
+        for line in self:
+            if 'replenish' in line.order_id.origin.lower() or '补货' in line.order_id.origin.lower():
+                line._insert_shortage_sources()
         return res
         
     def _insert_shortage_sources(self):
-        _logger.info("------------PurchaseOrderLine: _insert_shortage_sources--------------")
+        _logger.info(f"------------PurchaseOrderLine: _insert_shortage_sources--------------%s", self.id)
         purchase_order_line_so_model = self.env['purchase.order.line.so']
         purchase_order_line_mo_model = self.env['purchase.order.line.mo']
 
         for line in self:
+            _logger.info(line)
             warehouse = self.env['stock.warehouse'].search([('company_id', '=', line.order_id.company_id.id)], limit=1)
             warehouse_id = warehouse.id
 
@@ -96,20 +101,34 @@ class PurchaseOrderLine(models.Model):
             
             for shortage in shortage_list:
                 if shortage['sale_order_id']:
-                    purchase_order_line_so_model.create({
-                        'purchase_order_line_id': line.id,
-                        'sale_order_id': shortage['sale_order_id'],
-                        'quantity': shortage['shortage_qty'],
-                    })
+                    existing_so_line = purchase_order_line_so_model.search([
+                        ('purchase_order_line_id', '=', line.id),
+                        ('sale_order_id', '=', shortage['sale_order_id'])
+                    ], limit=1)
+                    if existing_so_line:
+                        existing_so_line.quantity = shortage['shortage_qty']
+                    else:
+                        purchase_order_line_so_model.create({
+                            'purchase_order_line_id': line.id,
+                            'sale_order_id': shortage['sale_order_id'],
+                            'quantity': shortage['shortage_qty'],
+                        })
                 if shortage['production_order_id']:
-                    purchase_order_line_mo_model.create({
-                        'purchase_order_line_id': line.id,
-                        'manufacturing_order_id': shortage['production_order_id'],
-                        'quantity': shortage['shortage_qty'],
-                    })
+                    existing_mo_line = purchase_order_line_mo_model.search([
+                        ('purchase_order_line_id', '=', line.id),
+                        ('manufacturing_order_id', '=', shortage['production_order_id'])
+                    ], limit=1)
+                    if existing_mo_line:
+                        existing_mo_line.quantity = shortage['shortage_qty']
+                    else:
+                        purchase_order_line_mo_model.create({
+                            'purchase_order_line_id': line.id,
+                            'manufacturing_order_id': shortage['production_order_id'],
+                            'quantity': shortage['shortage_qty'],
+                        })
     @api.model
     def _get_current_shortage(self, product_id, warehouse_id):
-        _logger.info("------------PurchaseOrderLine: _get_current_shortage--------------")
+        _logger.info(f"------------PurchaseOrderLine: _get_current_shortage--------------%s %s", product_id, warehouse_id)
         moves = self.env['stock.move'].search([
             ('state', 'in', ['confirmed', 'waiting', 'assigned']),
             ('product_id', '=', product_id),
