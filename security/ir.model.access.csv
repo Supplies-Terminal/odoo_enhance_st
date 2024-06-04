@@ -10,3 +10,5 @@ res_users_approval,res.users.approval,model_res_users_approval,,1,1,1,1
 "access_stock_orderpoint_replace_order","access.stock.orderpoint.replace.order","model_stock_orderpoint_replace_order","stock.group_stock_user",1,1,1,0
 access_daily_stock_report,daily.stock.report,model_daily_stock_report,stock.group_stock_user,1,1,1,1
 "access_stock_daily_report_wizard","access.stock.daily.report.wizard","model_daily_stock_report_wizard",,1,1,1,0
+purchase_order_line_so,purchase.order.line.so,model_purchase_order_line_so,,1,1,1,1
+purchase_order_line_mo,purchase.order.line.mo,model_purchase_order_line_mo,,1,1,1,1

@@ -111,7 +111,7 @@ class PurchaseOrder(models.Model):
         return allocation_data
 
     def print_allocation_report(self):
-        return self.env.ref('odoo_enhance_st.report_purchase_order_allocation').report_action(self)
+        return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
 
 class ReportPurchaseOrderAllocation(models.AbstractModel):
     _name = 'report.odoo_enhance_st.report_purchase_order_allocation'
