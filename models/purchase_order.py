@@ -118,10 +118,17 @@ class ReportPurchaseOrderAllocation(models.AbstractModel):
 
     @api.model
     def _get_report_values(self, docids, data=None):
+        _logger.info("---------_get_report_values----------")
         docs = self.env['purchase.order'].browse(docids)
-        allocation_data = docs._get_allocation_data()
+        allocation_data = []
+        for doc in docs:
+            allocation_data.extend(doc._get_allocation_data())
+        _logger.info(allocation_data)
+        current_company = self.env.company
         return {
             'doc_ids': docids,
             'doc_model': 'purchase.order',
-            'docs': allocation_data,
+            'docs': docs,  # 传递 purchase.order 记录集
+            'allocation_data': allocation_data,  # 传递 allocation_data
+            'company': current_company,
         }
