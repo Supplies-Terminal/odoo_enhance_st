@@ -10,6 +10,7 @@
                             type="object"
                             class="oe_highlight"
                             attrs="{'invisible': [('state', '!=', 'purchase')]}"/>
+                <button name="print_allocation_report" type="object" string="Allocation Report" class="oe_highlight"/>
            </xpath>
         </field>
     </record>

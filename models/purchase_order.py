@@ -88,3 +88,40 @@ class PurchaseOrder(models.Model):
             }
         }
         return True
+
+    def _get_allocation_data(self):
+        allocation_data = []
+        for line in self.order_line:
+            for so in line.so_ids:
+                allocation_data.append({
+                    'source': 'SO',
+                    'product': line.product_id.display_name,
+                    'order': so.sale_order_id.name,
+                    'quantity': so.quantity,
+                    'unit': line.product_uom.name,
+                })
+            for mo in line.mo_ids:
+                allocation_data.append({
+                    'source': 'MO',
+                    'product': line.product_id.display_name,
+                    'order': mo.manufacturing_order_id.name,
+                    'quantity': mo.quantity,
+                    'unit': line.product_uom.name,
+                })
+        return allocation_data
+
+    def print_allocation_report(self):
+        return self.env.ref('odoo_enhance_st.report_purchase_order_allocation').report_action(self)
+
+class ReportPurchaseOrderAllocation(models.AbstractModel):
+    _name = 'report.odoo_enhance_st.report_purchase_order_allocation'
+
+    @api.model
+    def _get_report_values(self, docids, data=None):
+        docs = self.env['purchase.order'].browse(docids)
+        allocation_data = docs._get_allocation_data()
+        return {
+            'doc_ids': docids,
+            'doc_model': 'purchase.order',
+            'docs': allocation_data,
+        }
