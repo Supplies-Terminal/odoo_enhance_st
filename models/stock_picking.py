@@ -80,60 +80,46 @@ class StockPicking(models.Model):
     #         }
     #         self.env['stock.move'].create(move_vals)
 
-    def _split_move_lines(self, move_lines, product_quantities, dest_location):
-        for move in move_lines:
-            product = move.product_id
-            if product in product_quantities:
-                quantity = product_quantities[product]
-                if quantity < move.product_uom_qty:
-                    # 创建新的移动行
-                    new_move = move.copy({
-                        'product_uom_qty': quantity,
-                        'location_dest_id': dest_location.id,
-                    })
-                    # 更新现有移动行的数量
-                    move.write({'product_uom_qty': move.product_uom_qty - quantity})
-                else:
-                    # 更新现有移动行的目的地
-                    move.write({'location_dest_id': dest_location.id, 'product_uom_qty': quantity})
-                    product_quantities[product] -= quantity
-
     def action_split_picking(self):
         self.ensure_one()
-        if self.picking_type_id.code != 'incoming':
-            return
-
-        so_product_quantities = {}
-        mo_product_quantities = {}
-        stock_product_quantities = {}
-
         for move in self.move_lines:
-            purchase_line = move.purchase_line_id
-            if purchase_line:
-                for so in purchase_line.so_ids:
-                    product = move.product_id
-                    if product in so_product_quantities:
-                        so_product_quantities[product] += so.quantity
-                    else:
-                        so_product_quantities[product] = so.quantity
-                for mo in purchase_line.mo_ids:
-                    product = move.product_id
-                    if product in mo_product_quantities:
-                        mo_product_quantities[product] += mo.quantity
-                    else:
-                        mo_product_quantities[product] = mo.quantity
-                product = move.product_id
-                remaining_qty = move.product_uom_qty - sum(so_product_quantities.get(product, 0) + mo_product_quantities.get(product, 0))
-                if remaining_qty > 0:
-                    stock_product_quantities[product] = remaining_qty
+            remaining_qty = move.product_uom_qty
+            _logger.info(f('remaining_qty: %s', remaining_qty)
+            so_total = 0
+            # 只分配足够的数量，避免出现负数
+            for so in move.so_ids:
+                if remaining_qty>0:
+                    line_qty = min(remaining_qty, so.quantity)
+                    remaining_qty = remaining_qty - line_qty
+                    _logger.info(f('    %s: %s', line_qty, remaining_qty)
+                    
+                    so_total += line_qty
 
-        if so_product_quantities:
-            self._split_move_lines(self.move_lines, so_product_quantities, self.env.user.company_id.ricai_location_id)
-        if mo_product_quantities:
-            self._split_move_lines(self.move_lines, mo_product_quantities, self.env.user.company_id.mrp_location_id)
-        if stock_product_quantities:
-            self._split_move_lines(self.move_lines, stock_product_quantities, self.location_dest_id)
+            mo_total = 0
+            for mo in move.mo_ids:
+                if remaining_qty>0:
+                    line_qty = min(remaining_qty, so.quantity)
+                    remaining_qty = remaining_qty - line_qty
+                    _logger.info(f('    %s: %s', line_qty, remaining_qty)
+                    
+                    mo_total += line_qty
+                        
+            if so_total>0:
+                new_move = move.copy({
+                    'product_uom_qty': so_total,
+                    'location_dest_id': self.company_id.ricai_location_id,
+                })
+            if mo_total>0:
+                new_move = move.copy({
+                    'product_uom_qty': mo_total,
+                    'location_dest_id': self.company_id.mrp_location_id,
+                })
+            # 把remaining_qty 更新到原来的move上
+            move.write({'product_uom_qty': remaining_qty})
 
     def button_validate(self):
-        self.action_split_picking()
+        if self.picking_type_id.code == 'incoming':
+            if not self.company_id.ricai_location_id or not self.company_id.mrp_location_id:
+                raise UserError(f"Missing location...")
+            self.action_split_picking()
         return super(StockPicking, self).button_validate()
