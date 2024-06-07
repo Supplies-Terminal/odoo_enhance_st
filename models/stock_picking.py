@@ -84,37 +84,38 @@ class StockPicking(models.Model):
         self.ensure_one()
         for move in self.move_lines:
             remaining_qty = move.product_uom_qty
-            _logger.info(f('remaining_qty: %s', remaining_qty)
+            _logger.info(f'Remaining quantity: {remaining_qty}')
+            
             so_total = 0
-            # 只分配足够的数量，避免出现负数
-            for so in move.so_ids:
-                if remaining_qty>0:
+            # 分配给销售订单
+            for so in move.purchase_line_id.so_ids:
+                if remaining_qty > 0:
                     line_qty = min(remaining_qty, so.quantity)
-                    remaining_qty = remaining_qty - line_qty
-                    _logger.info(f('    %s: %s', line_qty, remaining_qty)
-                    
+                    remaining_qty -= line_qty
+                    _logger.info(f'    SO line quantity: {line_qty}, Remaining quantity: {remaining_qty}')
                     so_total += line_qty
 
             mo_total = 0
-            for mo in move.mo_ids:
-                if remaining_qty>0:
-                    line_qty = min(remaining_qty, so.quantity)
-                    remaining_qty = remaining_qty - line_qty
-                    _logger.info(f('    %s: %s', line_qty, remaining_qty)
-                    
+            # 分配给制造订单
+            for mo in move.purchase_line_id.mo_ids:
+                if remaining_qty > 0:
+                    line_qty = min(remaining_qty, mo.quantity)
+                    remaining_qty -= line_qty
+                    _logger.info(f'    MO line quantity: {line_qty}, Remaining quantity: {remaining_qty}')
                     mo_total += line_qty
                         
-            if so_total>0:
-                new_move = move.copy({
+            # 生成新的移动行并更新目标位置
+            if so_total > 0:
+                move.copy({
                     'product_uom_qty': so_total,
-                    'location_dest_id': self.company_id.ricai_location_id,
+                    'location_dest_id': self.company_id.ricai_location_id.id,
                 })
-            if mo_total>0:
-                new_move = move.copy({
+            if mo_total > 0:
+                move.copy({
                     'product_uom_qty': mo_total,
-                    'location_dest_id': self.company_id.mrp_location_id,
+                    'location_dest_id': self.company_id.mrp_location_id.id,
                 })
-            # 把remaining_qty 更新到原来的move上
+            # 更新原移动行上的剩余数量
             move.write({'product_uom_qty': remaining_qty})
 
     def button_validate(self):
