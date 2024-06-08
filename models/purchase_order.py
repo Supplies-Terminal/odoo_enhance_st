@@ -115,15 +115,30 @@ class PurchaseOrder(models.Model):
 
 
     def button_confirm(self):
-        # 如果是replenishment采购单
-        if self.picking_type_id.code == 'incoming' and ('replenishment' in self.origin.lower() or '补货' in self.origin.lower()):
-            if not self.company_id.ricai_location_id or not self.company_id.mrp_location_id:
-                raise UserError(f"Missing location...")
-            _logger.info('拆分收货单')
-            self._seperate_receiving_pickings()
-            
-        res = super(PurchaseOrder, self).button_confirm()
-        return res
+        for order in self:
+            if order.state not in ['draft', 'sent']:
+                continue
+            # 如果是replenishment采购单
+            if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+                if not order.company_id.ricai_location_id or not order.company_id.mrp_location_id:
+                    raise UserError(f"Missing location...")
+                _logger.info('拆分收货单')
+
+                order._add_supplier_to_product()
+                
+                # Deal with double validation process
+                if order._approval_allowed():
+                    order._seperate_receiving_pickings()
+                    # 手动更新订单状态为 'purchase'
+                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
+                else:
+                    order.write({'state': 'to approve'})
+                    
+                if order.partner_id not in order.message_partner_ids:
+                    order.message_subscribe([order.partner_id.id])
+            else:    
+                res = super(PurchaseOrder, order).button_confirm()
+        return True
 
     def _seperate_receiving_pickings(self):
         for order in self:
@@ -160,18 +175,20 @@ class PurchaseOrder(models.Model):
 
                 if remaining_qty > 0:
                     stock_moves.append((product, remaining_qty, ))
-            _logger.info('so_moves')
+                    
+            _logger.info('so_moves:')
             _logger.info(so_moves)
-            _logger.info('mo_moves')
+            _logger.info('mo_moves:')
             _logger.info(mo_moves)
-            _logger.info('stock_moves')
+            _logger.info('stock_moves:')
             _logger.info(stock_moves)
+            
             if so_moves:
-                self._create_seperated_picking(order, so_moves, _('Ricai Transfer'), order.company_id.ricai_location_id.id)
+                self._create_seperated_picking(order, so_moves, order.name, order.company_id.ricai_location_id.id)
             if mo_moves:
-                self._create_seperated_picking(order, mo_moves, _('MRP Transfer'), order.company_id.mrp_location_id.id)
+                self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
             if stock_moves:
-                self._create_seperated_picking(order, stock_moves, _('Stock Transfer'), order.picking_type_id.default_location_dest_id.id)
+                self._create_seperated_picking(order, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
 
     def _create_seperated_picking(self, order, moves, origin, dest_location_id):
         picking_type = self.env['stock.picking.type'].search([
@@ -194,7 +211,10 @@ class PurchaseOrder(models.Model):
             'picking_type_id': picking_type.id,
             'origin': origin,
             'move_lines': move_lines,
-            'partner_id': order.partner_id,
+            'partner_id': order.partner_id.id,
+            'purchase_id': order.id,
+            'company_id': order.company_id.id,
+            'move_type': 'direct',
         })
         _logger.info(origin)
         _logger.info(picking)
