@@ -114,101 +114,122 @@ class PurchaseOrder(models.Model):
         return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
 
 
-    # def button_confirm(self):
-    #     # 如果是replenishment采购单
-    #     if self.picking_type_id.code == 'incoming' and ('replenishment' in self.origin.lower() or '补货' in self.origin.lower()):
-    #         if not self.company_id.ricai_location_id or not self.company_id.mrp_location_id:
-    #             raise UserError(f"Missing location...")
-    #         _logger.info('拆分收货单')
-    #         self._seperate_receiving_pickings()
-            
-    #     res = super(PurchaseOrder, self).button_confirm()
-    #     return res
+    def button_confirm(self):
+        for order in self:
+            if order.state not in ['draft', 'sent']:
+                continue
+            # 如果是replenishment采购单
+            if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+                if not order.company_id.mrp_location_id:
+                    raise UserError(f"Missing location...")
+                _logger.info('拆分收货单')
 
-    # def _seperate_receiving_pickings(self):
-    #     for order in self:
-    #         so_moves = {}
-    #         mo_moves = []
-    #         stock_moves = []
+                order._add_supplier_to_product()
+                
+                # Deal with double validation process
+                if order._approval_allowed():
+                    order._seperate_receiving_pickings()
+                    # 手动更新订单状态为 'purchase'
+                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
+                else:
+                    order.write({'state': 'to approve'})
+                    
+                if order.partner_id not in order.message_partner_ids:
+                    order.message_subscribe([order.partner_id.id])
+            else:    
+                res = super(PurchaseOrder, order).button_confirm()
+        return True
 
-    #         for line in order.order_line:
-    #             product = line.product_id
-    #             remaining_qty = line.product_qty
+    def _seperate_receiving_pickings(self):
+        for order in self:
+            so_moves = {}
+            mo_moves = []
+            stock_moves = []
 
-    #             # 分配给销售订单
-    #             for so in line.so_ids:
-    #                 if remaining_qty > 0:
-    #                     line_qty = min(remaining_qty, so.quantity)
-    #                     remaining_qty -= line_qty
+            for line in order.order_line:
+                product = line.product_id
+                remaining_qty = line.product_qty
 
-    #                     # # 获取preparing_location_id
-    #                     # delivery_job = self.env['delivery.job.stop'].search([('order_id', '=', so.id)], limit=1).job_id
-    #                     # if so_preparing_location_id in so_moves:
-    #                     #     # 如果已经存在，则累加数量
-    #                     #     for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
-    #                     #         if existing_product == product:
-    #                     #             so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
-    #                     #             break
-    #                     #     else:
-    #                     #         so_moves[so_preparing_location_id].append((product, line_qty))
-    #                     # else:
-    #                     #     so_moves[so_preparing_location_id] = [(product, line_qty)]
-    #                     # _logger.info(so_moves)
+                # 分配给销售订单
+                for so in line.so_ids:
+                    if remaining_qty > 0:
+                        line_qty = min(remaining_qty, so.quantity)
+                        remaining_qty -= line_qty
+
+                        # 获取preparing_location_id
+                        delivery_job = self.env['delivery.job.stop'].search([('order_id', '=', so.id)], limit=1).job_id
+                        if so_preparing_location_id in so_moves:
+                            # 如果已经存在，则累加数量
+                            for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
+                                if existing_product == product:
+                                    so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
+                                    break
+                            else:
+                                so_moves[so_preparing_location_id].append((product, line_qty))
+                        else:
+                            so_moves[so_preparing_location_id] = [(product, line_qty)]
+                        _logger.info(so_moves)
                         
-    #             # 分配给制造订单
-    #             mo_total = 0;
-    #             for mo in line.mo_ids:
-    #                 if remaining_qty > 0:
-    #                     line_qty = min(remaining_qty, mo.quantity)
-    #                     remaining_qty -= line_qty
-    #                     mo_total += line_qty
+                # 分配给制造订单
+                mo_total = 0;
+                for mo in line.mo_ids:
+                    if remaining_qty > 0:
+                        line_qty = min(remaining_qty, mo.quantity)
+                        remaining_qty -= line_qty
+                        mo_total += line_qty
 
-    #             if mo_total > 0:
-    #                 mo_moves.append((product, mo_total))
+                if mo_total > 0:
+                    mo_moves.append((product, mo_total))
 
-    #             if remaining_qty > 0:
-    #                 stock_moves.append((product, remaining_qty, ))
-    #         _logger.info('so_moves')
-    #         _logger.info(so_moves)
-    #         _logger.info('mo_moves')
-    #         _logger.info(mo_moves)
-    #         _logger.info('stock_moves')
-    #         _logger.info(stock_moves)
-    #         if so_moves:
-    #             self._create_seperated_picking(order, so_moves, _('Ricai Transfer'), order.company_id.ricai_location_id.id)
-    #         if mo_moves:
-    #             self._create_seperated_picking(order, mo_moves, _('MRP Transfer'), order.company_id.mrp_location_id.id)
-    #         if stock_moves:
-    #             self._create_seperated_picking(order, stock_moves, _('Stock Transfer'), order.picking_type_id.default_location_dest_id.id)
+                if remaining_qty > 0:
+                    stock_moves.append((product, remaining_qty, ))
+                    
+            _logger.info('so_moves:')
+            _logger.info(so_moves)
+            _logger.info('mo_moves:')
+            _logger.info(mo_moves)
+            _logger.info('stock_moves:')
+            _logger.info(stock_moves)
+            
+            if so_moves:
+                for location_id, moves in so_moves.items():
+                    self._create_separated_picking(order, moves, order.name, location_id)
+            if mo_moves:
+                self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
+            if stock_moves:
+                self._create_seperated_picking(order, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
 
-    # def _create_seperated_picking(self, order, moves, origin, dest_location_id):
-    #     picking_type = self.env['stock.picking.type'].search([
-    #         ('code', '=', 'incoming'),
-    #         ('warehouse_id.company_id', '=', order.company_id.id)
-    #     ], limit=1)
+    def _create_seperated_picking(self, order, moves, origin, dest_location_id):
+        picking_type = self.env['stock.picking.type'].search([
+            ('code', '=', 'incoming'),
+            ('warehouse_id.company_id', '=', order.company_id.id)
+        ], limit=1)
 
-    #     move_lines = [(0, 0, {
-    #         'product_id': product.id,
-    #         'product_uom_qty': qty,
-    #         'product_uom': product.uom_id.id,
-    #         'location_id': order.partner_id.property_stock_supplier.id,
-    #         'location_dest_id': dest_location_id,
-    #         'name': product.display_name,
-    #     }) for product, qty in moves]
+        move_lines = [(0, 0, {
+            'product_id': product.id,
+            'product_uom_qty': qty,
+            'product_uom': product.uom_id.id,
+            'location_id': order.partner_id.property_stock_supplier.id,
+            'location_dest_id': dest_location_id,
+            'name': product.display_name,
+        }) for product, qty in moves]
 
-    #     picking = self.env['stock.picking'].create({
-    #         'location_id': order.partner_id.property_stock_supplier.id,
-    #         'location_dest_id': dest_location_id,
-    #         'picking_type_id': picking_type.id,
-    #         'origin': origin,
-    #         'move_lines': move_lines,
-    #         'partner_id': order.partner_id,
-    #     })
-    #     _logger.info(origin)
-    #     _logger.info(picking)
-    #     picking.action_confirm()
-    #     picking.action_assign()
-    #     return picking
+        picking = self.env['stock.picking'].create({
+            'location_id': order.partner_id.property_stock_supplier.id,
+            'location_dest_id': dest_location_id,
+            'picking_type_id': picking_type.id,
+            'origin': origin,
+            'move_lines': move_lines,
+            'partner_id': order.partner_id.id,
+            'purchase_id': order.id,
+            'company_id': order.company_id.id,
+            'move_type': 'direct',
+        })
+        _logger.info(origin)
+        _logger.info(picking)
+        picking.action_confirm()
+        picking.action_assign()
+        return picking
         
 class ReportPurchaseOrderAllocation(models.AbstractModel):
     _name = 'report.odoo_enhance_st.report_purchase_order_allocation'
