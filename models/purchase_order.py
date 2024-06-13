@@ -119,25 +119,25 @@ class PurchaseOrder(models.Model):
             if order.state not in ['draft', 'sent']:
                 continue
             # 如果是replenishment采购单
-            if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
-                if not order.company_id.mrp_location_id:
-                    raise UserError(f"Missing location...")
-                _logger.info('拆分收货单')
+            # if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+            #     if not order.company_id.mrp_location_id:
+            #         raise UserError(f"Missing location...")
+            #     _logger.info('拆分收货单')
 
-                order._add_supplier_to_product()
+            #     order._add_supplier_to_product()
                 
-                # Deal with double validation process
-                if order._approval_allowed():
-                    order._seperate_receiving_pickings()
-                    # 手动更新订单状态为 'purchase'
-                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
-                else:
-                    order.write({'state': 'to approve'})
+            #     # Deal with double validation process
+            #     if order._approval_allowed():
+            #         order._seperate_receiving_pickings()
+            #         # 手动更新订单状态为 'purchase'
+            #         order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
+            #     else:
+            #         order.write({'state': 'to approve'})
                     
-                if order.partner_id not in order.message_partner_ids:
-                    order.message_subscribe([order.partner_id.id])
-            else:    
-                res = super(PurchaseOrder, order).button_confirm()
+            #     if order.partner_id not in order.message_partner_ids:
+            #         order.message_subscribe([order.partner_id.id])
+            # else:    
+            res = super(PurchaseOrder, order).button_confirm()
         return True
 
     def _seperate_receiving_pickings(self):
@@ -158,16 +158,18 @@ class PurchaseOrder(models.Model):
 
                         # 获取preparing_location_id
                         delivery_job = self.env['delivery.job.stop'].search([('order_id', '=', so.id)], limit=1).job_id
-                        if so_preparing_location_id in so_moves:
-                            # 如果已经存在，则累加数量
-                            for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
-                                if existing_product == product:
-                                    so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
-                                    break
+                        if delivery_job:
+                            so_preparing_location_id = delivery_job.preparing_location_id.id
+                            if so_preparing_location_id in so_moves:
+                                # 如果已经存在，则累加数量
+                                for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
+                                    if existing_product == product:
+                                        so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
+                                        break
+                                else:
+                                    so_moves[so_preparing_location_id].append((product, line_qty))
                             else:
-                                so_moves[so_preparing_location_id].append((product, line_qty))
-                        else:
-                            so_moves[so_preparing_location_id] = [(product, line_qty)]
+                                so_moves[so_preparing_location_id] = [(product, line_qty)]
                         _logger.info(so_moves)
                         
                 # 分配给制造订单
