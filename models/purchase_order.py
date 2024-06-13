@@ -120,7 +120,7 @@ class PurchaseOrder(models.Model):
                 continue
             # 如果是replenishment采购单
             if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
-                if not order.company_id.ricai_location_id or not order.company_id.mrp_location_id:
+                if not order.company_id.mrp_location_id:
                     raise UserError(f"Missing location...")
                 _logger.info('拆分收货单')
 
@@ -142,7 +142,7 @@ class PurchaseOrder(models.Model):
 
     def _seperate_receiving_pickings(self):
         for order in self:
-            so_moves = []
+            so_moves = {}
             mo_moves = []
             stock_moves = []
 
@@ -151,14 +151,25 @@ class PurchaseOrder(models.Model):
                 remaining_qty = line.product_qty
 
                 # 分配给销售订单
-                so_total = 0;
                 for so in line.so_ids:
                     if remaining_qty > 0:
                         line_qty = min(remaining_qty, so.quantity)
                         remaining_qty -= line_qty
-                        so_total += line_qty
-                        
 
+                        # 获取preparing_location_id
+                        delivery_job = self.env['delivery.job.stop'].search([('order_id', '=', so.id)], limit=1).job_id
+                        if so_preparing_location_id in so_moves:
+                            # 如果已经存在，则累加数量
+                            for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
+                                if existing_product == product:
+                                    so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
+                                    break
+                            else:
+                                so_moves[so_preparing_location_id].append((product, line_qty))
+                        else:
+                            so_moves[so_preparing_location_id] = [(product, line_qty)]
+                        _logger.info(so_moves)
+                        
                 # 分配给制造订单
                 mo_total = 0;
                 for mo in line.mo_ids:
@@ -166,9 +177,6 @@ class PurchaseOrder(models.Model):
                         line_qty = min(remaining_qty, mo.quantity)
                         remaining_qty -= line_qty
                         mo_total += line_qty
-
-                if so_total > 0:
-                    so_moves.append((product, so_total))
 
                 if mo_total > 0:
                     mo_moves.append((product, mo_total))
@@ -184,7 +192,8 @@ class PurchaseOrder(models.Model):
             _logger.info(stock_moves)
             
             if so_moves:
-                self._create_seperated_picking(order, so_moves, order.name, order.company_id.ricai_location_id.id)
+                for location_id, moves in so_moves.items():
+                    self._create_separated_picking(order, moves, order.name, location_id)
             if mo_moves:
                 self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
             if stock_moves:
