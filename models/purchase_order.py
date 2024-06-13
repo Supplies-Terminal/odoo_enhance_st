@@ -156,19 +156,19 @@ class PurchaseOrder(models.Model):
                         line_qty = min(remaining_qty, so.quantity)
                         remaining_qty -= line_qty
 
-                        # 获取preparing_location_id
-                        delivery_job = self.env['delivery.job.stop'].search([('order_id', '=', so.id)], limit=1).job_id
-                        if so_preparing_location_id in so_moves:
-                            # 如果已经存在，则累加数量
-                            for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
-                                if existing_product == product:
-                                    so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
-                                    break
-                            else:
-                                so_moves[so_preparing_location_id].append((product, line_qty))
-                        else:
-                            so_moves[so_preparing_location_id] = [(product, line_qty)]
-                        _logger.info(so_moves)
+                        # # 获取preparing_location_id
+                        # delivery_job = self.env['delivery.job.stop'].search([('order_id', '=', so.id)], limit=1).job_id
+                        # if so_preparing_location_id in so_moves:
+                        #     # 如果已经存在，则累加数量
+                        #     for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
+                        #         if existing_product == product:
+                        #             so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
+                        #             break
+                        #     else:
+                        #         so_moves[so_preparing_location_id].append((product, line_qty))
+                        # else:
+                        #     so_moves[so_preparing_location_id] = [(product, line_qty)]
+                        # _logger.info(so_moves)
                         
                 # 分配给制造订单
                 mo_total = 0;
