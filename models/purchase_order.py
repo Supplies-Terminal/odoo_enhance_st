@@ -114,31 +114,31 @@ class PurchaseOrder(models.Model):
         return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
 
 
-    def button_confirm(self):
-        for order in self:
-            if order.state not in ['draft', 'sent']:
-                continue
-            # 如果是replenishment采购单
-            # if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
-            #     if not order.company_id.mrp_location_id:
-            #         raise UserError(f"Missing location...")
-            #     _logger.info('拆分收货单')
+    # def button_confirm(self):
+    #     for order in self:
+    #         if order.state not in ['draft', 'sent']:
+    #             continue
+    #         # 如果是replenishment采购单
+    #         # if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+    #         #     if not order.company_id.mrp_location_id:
+    #         #         raise UserError(f"Missing location...")
+    #         #     _logger.info('拆分收货单')
 
-            #     order._add_supplier_to_product()
+    #         #     order._add_supplier_to_product()
                 
-            #     # Deal with double validation process
-            #     if order._approval_allowed():
-            #         order._seperate_receiving_pickings()
-            #         # 手动更新订单状态为 'purchase'
-            #         order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
-            #     else:
-            #         order.write({'state': 'to approve'})
+    #         #     # Deal with double validation process
+    #         #     if order._approval_allowed():
+    #         #         order._seperate_receiving_pickings()
+    #         #         # 手动更新订单状态为 'purchase'
+    #         #         order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
+    #         #     else:
+    #         #         order.write({'state': 'to approve'})
                     
-            #     if order.partner_id not in order.message_partner_ids:
-            #         order.message_subscribe([order.partner_id.id])
-            # else:    
-            res = super(PurchaseOrder, order).button_confirm()
-        return True
+    #         #     if order.partner_id not in order.message_partner_ids:
+    #         #         order.message_subscribe([order.partner_id.id])
+    #         # else:    
+    #         res = super(PurchaseOrder, order).button_confirm()
+    #     return True
 
     def _seperate_receiving_pickings(self):
         for order in self:
