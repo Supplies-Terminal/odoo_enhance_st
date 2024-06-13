@@ -7,8 +7,6 @@
         <field name="arch" type="xml">
             <xpath expr="//field[@name='currency_id']" position="after">
                 <field name="private_product_only"/>
-                <field name="ricai_location_id"/>
-                <field name="mrp_location_id"/>
             </xpath>
         </field>
     </record>
