@@ -1,12 +1,13 @@
 # -*- coding: UTF-8 -*-
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-from odoo import models, fields, api
+from odoo import _, models, fields, api
+from odoo.exceptions import UserError, ValidationError
 import logging
 _logger = logging.getLogger(__name__)
 
 class StockMove(models.Model):
-    _inherit = "stock.move"
+    _inherit = "stock.move" 
 
     secondary_uom_enabled = fields.Boolean("Enable Counting Unit")
     secondary_qty = fields.Float("Secondary QTY")
@@ -20,18 +21,18 @@ class StockMove(models.Model):
         _logger.info('********stock.move.create*********')
         
         res = super(StockMove, self).create(vals)
-        _logger.info(res)
-        _logger.info(res.sale_line_id)
-        _logger.info(vals)
-        _logger.info(res.move_dest_ids)
+        # _logger.info(res)
+        # _logger.info(res.sale_line_id)
+        # _logger.info(vals)
+        # _logger.info(res.move_dest_ids)
         # 直接从sale order中复制过来
         if res.sale_line_id and res.sale_line_id.secondary_uom_enabled and res.sale_line_id.secondary_uom_id:
-            _logger.info('--------------sale_line_id-----------------')
-            _logger.info(res.sale_line_id.secondary_uom_enabled)
-            _logger.info(res.sale_line_id.secondary_uom_id)
-            _logger.info(res.sale_line_id.secondary_uom_name)
-            _logger.info(res.sale_line_id.secondary_uom_rate)
-            _logger.info(res.sale_line_id.secondary_qty)
+            # _logger.info('--------------sale_line_id-----------------')
+            # _logger.info(res.sale_line_id.secondary_uom_enabled)
+            # _logger.info(res.sale_line_id.secondary_uom_id)
+            # _logger.info(res.sale_line_id.secondary_uom_name)
+            # _logger.info(res.sale_line_id.secondary_uom_rate)
+            # _logger.info(res.sale_line_id.secondary_qty)
             res.write({
                 'secondary_uom_enabled': res.sale_line_id.secondary_uom_enabled,
                 'secondary_uom_id': res.sale_line_id.secondary_uom_id.id,
@@ -42,12 +43,12 @@ class StockMove(models.Model):
         elif res.move_dest_ids:
             for move_dest in res.move_dest_ids:
                 if move_dest.secondary_uom_enabled and move_dest.secondary_uom_id:
-                    _logger.info(('--------------move_dest-----------------'))
-                    _logger.info(move_dest.secondary_uom_enabled)
-                    _logger.info(move_dest.secondary_uom_id)
-                    _logger.info(move_dest.secondary_uom_name)
-                    _logger.info(move_dest.secondary_uom_rate)
-                    _logger.info(move_dest.secondary_qty)
+                    # _logger.info(('--------------move_dest-----------------'))
+                    # _logger.info(move_dest.secondary_uom_enabled)
+                    # _logger.info(move_dest.secondary_uom_id)
+                    # _logger.info(move_dest.secondary_uom_name)
+                    # _logger.info(move_dest.secondary_uom_rate)
+                    # _logger.info(move_dest.secondary_qty)
                     res.write({
                         'secondary_uom_enabled': move_dest.secondary_uom_enabled,
                         'secondary_uom_id': move_dest.secondary_uom_id.id,
@@ -70,7 +71,118 @@ class StockMove(models.Model):
                 continue
             for move_line in move.move_line_ids:
                 move_line.secondary_done_qty = move_line.secondary_qty
-                
+
+    @api.model
+    def _action_assign(self):
+        _logger.info('********stock.move._action_assign*********')
+        """
+        Reserve stock moves by creating their stock move lines.
+        """
+        move_lines = super(StockMove, self)._action_assign()
+
+        for move in self:
+            _logger.info(move.state)
+            if move.state not in ['waiting', 'confirmed']:
+                continue
+
+            _logger.info(move)
+            sale_order_id = move.group_id and move.group_id.sale_id
+            _logger.info('     sale_order_id: %s', sale_order_id)
+            
+            # 获取公共库存区域
+            general_stock_locations = self.env['stock.location'].search([
+                ('usage', '=', 'internal'),
+                ('is_for_delivery', '=', False)
+            ])
+            allowed_locations = general_stock_locations
+
+            if sale_order_id:
+                # 获取 delivery.job.stop
+                delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', sale_order_id.id)], limit=1)
+                _logger.info('     delivery_job_stop:')
+                _logger.info(delivery_job_stop)
+                if delivery_job_stop:
+                    # 获取对应的 preparing_location_ids
+                    preparing_locations = delivery_job_stop.job_id.preparing_location_ids
+                    if preparing_locations:
+                        allowed_locations = preparing_locations | general_stock_locations
+                        
+                _logger.info('     allowed_locations:')
+                _logger.info(allowed_locations)
+                # 获取满足条件的 quants
+                quants = self.env['stock.quant'].search([
+                    ('product_id', '=', move.product_id.id),
+                    ('location_id', 'in', allowed_locations.ids),
+                    ('quantity', '>', 0)
+                ])
+                reserved_quantity = 0
+                _logger.info(quants)
+                for quant in quants:
+                    if reserved_quantity >= move.product_uom_qty:
+                        break
+                    remaining_qty = move.product_uom_qty - reserved_quantity
+                    to_reserve_qty = min(remaining_qty, quant.quantity)
+                    self.env['stock.move.line'].create({
+                        'move_id': move.id,
+                        'product_id': move.product_id.id,
+                        'product_uom_id': move.product_uom.id,
+                        'location_id': quant.location_id.id,
+                        'location_dest_id': move.location_dest_id.id,
+                        'qty_done': to_reserve_qty,
+                    })
+                    quant.quantity -= to_reserve_qty
+                    reserved_quantity += to_reserve_qty
+
+                if reserved_quantity < move.product_uom_qty:
+                    raise ValidationError(_('Not enough stock in the specified locations for the order %s.') % sale_order_id.name)
+            else:
+                # 处理没有关联的情况
+                quants = self.env['stock.quant'].search([
+                    ('product_id', '=', move.product_id.id),
+                    ('location_id', 'in', general_stock_locations.ids),
+                    ('quantity', '>', 0)
+                ])
+                reserved_quantity = 0
+                for quant in quants:
+                    if reserved_quantity >= move.product_uom_qty:
+                        break
+                    remaining_qty = move.product_uom_qty - reserved_quantity
+                    to_reserve_qty = min(remaining_qty, quant.quantity)
+                    self.env['stock.move.line'].create({
+                        'move_id': move.id,
+                        'product_id': move.product_id.id,
+                        'product_uom_id': move.product_uom.id,
+                        'location_id': quant.location_id.id,
+                        'location_dest_id': move.location_dest_id.id,
+                        'qty_done': to_reserve_qty,
+                    })
+                    quant.quantity -= to_reserve_qty
+                    reserved_quantity += to_reserve_qty
+
+                if reserved_quantity < move.product_uom_qty:
+                    raise ValidationError(_('Not enough stock in the general stock locations for the move %s.') % move.name)
+
+        return move_lines
+
+class StockQuant(models.Model):
+    _inherit = 'stock.quant'
+
+    def reserve_move_line(self, qty):
+        """
+        Reserve the specified quantity of this quant for a move line.
+        """
+        move_line = self.env['stock.move.line'].create({
+            'product_id': self.product_id.id,
+            'product_uom_qty': qty,
+            'product_uom_id': self.product_id.uom_id.id,
+            'location_id': self.location_id.id,
+            'location_dest_id': self.env.ref('stock.stock_location_stock').id,
+            'move_id': self.move_id.id,
+            'qty_done': qty,
+        })
+        self.quantity -= qty
+        self.reserved_quantity += qty
+        
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
 
