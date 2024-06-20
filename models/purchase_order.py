@@ -114,31 +114,32 @@ class PurchaseOrder(models.Model):
         return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
 
 
-    # def button_confirm(self):
-    #     for order in self:
-    #         if order.state not in ['draft', 'sent']:
-    #             continue
-    #         # 如果是replenishment采购单
-    #         # if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
-    #         #     if not order.company_id.mrp_location_id:
-    #         #         raise UserError(f"Missing location...")
-    #         #     _logger.info('拆分收货单')
+    def button_confirm(self):
+        for order in self:
+            if order.state not in ['draft', 'sent']:
+                continue
+            # 如果是replenishment采购单
+            if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+                if not order.company_id.mrp_location_id:
+                    raise UserError(f"Missing location...")
+                _logger.info('拆分收货单')
 
-    #         #     order._add_supplier_to_product()
+                order._add_supplier_to_product()
                 
-    #         #     # Deal with double validation process
-    #         #     if order._approval_allowed():
-    #         #         order._seperate_receiving_pickings()
-    #         #         # 手动更新订单状态为 'purchase'
-    #         #         order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
-    #         #     else:
-    #         #         order.write({'state': 'to approve'})
+                # Deal with double validation process
+                if order._approval_allowed():
+                    order._seperate_receiving_pickings()
+                    # raise UserError('强行异常，用于调试')
+                    # 手动更新订单状态为 'purchase'
+                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
+                else:
+                    order.write({'state': 'to approve'})
                     
-    #         #     if order.partner_id not in order.message_partner_ids:
-    #         #         order.message_subscribe([order.partner_id.id])
-    #         # else:    
-    #         res = super(PurchaseOrder, order).button_confirm()
-    #     return True
+                if order.partner_id not in order.message_partner_ids:
+                    order.message_subscribe([order.partner_id.id])
+            else:    
+                res = super(PurchaseOrder, order).button_confirm()
+        return True
 
     def _seperate_receiving_pickings(self):
         for order in self:
@@ -154,24 +155,30 @@ class PurchaseOrder(models.Model):
                 for so in line.so_ids:
                     if remaining_qty > 0:
                         line_qty = min(remaining_qty, so.quantity)
-                        remaining_qty -= line_qty
+                        _logger.info(f'       so: %s', so.sale_order_id.id)
 
-                        # 获取preparing_location_id
-                        delivery_job = self.env['delivery.job.stop'].search([('order_id', '=', so.id)], limit=1).job_id
-                        if delivery_job:
-                            so_preparing_location_id = delivery_job.preparing_location_id.id
-                            if so_preparing_location_id in so_moves:
-                                # 如果已经存在，则累加数量
-                                for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
-                                    if existing_product == product:
-                                        so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
-                                        break
-                                else:
-                                    so_moves[so_preparing_location_id].append((product, line_qty))
-                            else:
-                                so_moves[so_preparing_location_id] = [(product, line_qty)]
+                        # 获取preparing_location_ids
+                        delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', so.sale_order_id.id)], limit=1)
+                        if delivery_job_stop:
+                            preparing_locations = delivery_job_stop.job_id.preparing_location_ids
+                            if preparing_locations:
+                                so_preparing_location_id = preparing_locations.filtered(lambda loc: loc.company_id == order.company_id)[:1].id
+                                if so_preparing_location_id:
+                                    if so_preparing_location_id in so_moves:
+                                        _logger.info(f'       so: %s   location: %s', so.sale_order_id.id, so_preparing_location_id)
+                                        # 如果已经存在，则累加数量
+                                        for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
+                                            if existing_product == product:
+                                                so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
+                                                break
+                                        else:
+                                            so_moves[so_preparing_location_id].append((product, line_qty))
+                                    else:
+                                        so_moves[so_preparing_location_id] = [(product, line_qty)]
+                                    remaining_qty -= line_qty
                         _logger.info(so_moves)
-                        
+                        # 这里可能有if不成立的情况，这部分数量将会放到stock去
+
                 # 分配给制造订单
                 mo_total = 0;
                 for mo in line.mo_ids:
@@ -195,7 +202,7 @@ class PurchaseOrder(models.Model):
             
             if so_moves:
                 for location_id, moves in so_moves.items():
-                    self._create_separated_picking(order, moves, order.name, location_id)
+                    self._create_seperated_picking(order, moves, order.name, location_id)
             if mo_moves:
                 self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
             if stock_moves:

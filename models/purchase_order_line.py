@@ -106,6 +106,7 @@ class PurchaseOrderLine(models.Model):
                         ('sale_order_id', '=', shortage['sale_order_id'])
                     ], limit=1)
                     if existing_so_line:
+                        _logger.info( f'                存在, %s', shortage['shortage_qty'])
                         existing_so_line.quantity = shortage['shortage_qty']
                     else:
                         purchase_order_line_so_model.create({
@@ -113,6 +114,7 @@ class PurchaseOrderLine(models.Model):
                             'sale_order_id': shortage['sale_order_id'],
                             'quantity': shortage['shortage_qty'],
                         })
+                        _logger.info( f'                存在, %s %s', shortage['shortage_qty'], shortage['sale_order_id'])
                 if shortage['production_order_id']:
                     existing_mo_line = purchase_order_line_mo_model.search([
                         ('purchase_order_line_id', '=', line.id),
@@ -128,9 +130,9 @@ class PurchaseOrderLine(models.Model):
                         })
     @api.model
     def _get_current_shortage(self, product_id, warehouse_id):
-        _logger.info(f"------------PurchaseOrderLine: _get_current_shortage--------------%s %s", product_id, warehouse_id)
+        # _logger.info(f"------------PurchaseOrderLine: _get_current_shortage--------------%s %s", product_id, warehouse_id)
         moves = self.env['stock.move'].search([
-            ('state', 'in', ['confirmed', 'waiting', 'assigned']),
+            ('state', 'in', ['confirmed', 'waiting', 'assigned', 'partially_available']),
             ('product_id', '=', product_id),
             ('picking_id.picking_type_id.warehouse_id', '=', warehouse_id),
             ('picking_id.picking_type_id.name', '=', 'Pick'),
