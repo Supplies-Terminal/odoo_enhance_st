@@ -72,12 +72,6 @@ class StockMove(models.Model):
             for move_line in move.move_line_ids:
                 move_line.secondary_done_qty = move_line.secondary_qty
 
-from odoo import models, fields, api, _
-from odoo.exceptions import ValidationError
-
-class StockMove(models.Model):
-    _inherit = 'stock.move'
-
     @api.model
     def _action_assign(self):
         _logger.info('********stock.move._action_assign*********')
@@ -97,6 +91,8 @@ class StockMove(models.Model):
             ])
             _logger.info(f'     is_for_delivery_locations: %s', is_for_delivery_locations.mapped('complete_name'))
             
+            locations_to_exclude = is_for_delivery_locations
+            
             sale_order_id = move.group_id and move.group_id.sale_id
             _logger.info('     sale_order_id: %s', sale_order_id)
 
@@ -111,22 +107,23 @@ class StockMove(models.Model):
                     locations_to_exclude = is_for_delivery_locations - preparing_locations
                     _logger.info(f'     排除区域: %s', locations_to_exclude.mapped('complete_name'))
 
-                    # 临时将非当前订单相关的is_for_delivery区域的库存设为0
-                    quants_to_exclude = self.env['stock.quant'].search([
-                        ('location_id', 'in', locations_to_exclude.ids),
-                        ('product_id', '=', move.product_id.id)
-                    ])
-                    for quant in quants_to_exclude:
-                        original_quantities[quant.id] = quant.quantity
-                        quant.quantity = 0
+            # 临时将非当前订单相关的is_for_delivery区域的库存设为0
+            quants_to_exclude = self.env['stock.quant'].search([
+                ('location_id', 'in', locations_to_exclude.ids),
+                ('product_id', '=', move.product_id.id)
+            ])
+            for quant in quants_to_exclude:
+                original_quantities[quant.id] = quant.quantity
+                quant.write({'quantity': 0})
 
             # 调用super方法
             move_lines = super(StockMove, move)._action_assign()
 
             # 恢复原库存
+            # 为了确保不覆盖已经预留的库存数量，我们需要在恢复原库存时跳过那些已经预留的数量。这可以通过比较预留前后的库存数量来实现。
             for quant_id, original_qty in original_quantities.items():
                 quant = self.env['stock.quant'].browse(quant_id)
-                quant.quantity = original_qty
+                quant.write({'quantity': original_qty})
 
         return True
 
