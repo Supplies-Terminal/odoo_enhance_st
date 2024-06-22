@@ -72,6 +72,12 @@ class StockMove(models.Model):
             for move_line in move.move_line_ids:
                 move_line.secondary_done_qty = move_line.secondary_qty
 
+from odoo import models, fields, api, _
+from odoo.exceptions import ValidationError
+
+class StockMove(models.Model):
+    _inherit = 'stock.move'
+
     @api.model
     def _action_assign(self):
         _logger.info('********stock.move._action_assign*********')
@@ -91,14 +97,20 @@ class StockMove(models.Model):
             _logger.info(move)
             sale_order_id = move.group_id and move.group_id.sale_id
             _logger.info('     sale_order_id: %s', sale_order_id)
+
+            remaining_qty = move.product_uom_qty - move.reserved_availability
             
-            # 获取公共库存区域
+            # 优先获取 is_for_delivery 的库存区域
+            is_for_delivery_locations = self.env['stock.location'].search([
+                ('usage', '=', 'internal'),
+                ('is_for_delivery', '=', True),
+                ('company_id', '=', move.company_id.id)
+            ])
             general_stock_locations = self.env['stock.location'].search([
                 ('usage', '=', 'internal'),
                 ('is_for_delivery', '=', False)
             ])
-            allowed_locations = general_stock_locations
-
+            
             if sale_order_id:
                 # 获取 delivery.job.stop
                 delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', sale_order_id.id)], limit=1)
@@ -108,44 +120,51 @@ class StockMove(models.Model):
                     # 获取对应的 preparing_location_ids
                     preparing_locations = delivery_job_stop.job_id.preparing_location_ids
                     if preparing_locations:
-                        allowed_locations = preparing_locations | general_stock_locations
-                        
-                _logger.info('     allowed_locations:')
-                _logger.info(allowed_locations)
-                # 获取满足条件的 quants
-                quants = self.env['stock.quant'].search([
-                    ('product_id', '=', move.product_id.id),
-                    ('location_id', 'in', allowed_locations.ids),
-                    ('quantity', '>', 0)
-                ])
-                _logger.info(quants)
-                remaining_qty = move.product_uom_qty - move.reserved_availability
-                for quant in quants:
-                    _logger.info(f'  remaining: %s', remaining_qty)
-                    to_reserve_qty = min(remaining_qty, quant.quantity)
-                    if to_reserve_qty>0:
-                        self.env['stock.move.line'].create({
-                            'move_id': move.id,
-                            'product_id': move.product_id.id,
-                            'product_uom_id': move.product_uom.id,
-                            'location_id': quant.location_id.id,
-                            'location_dest_id': move.location_dest_id.id,
-                            'qty_done': to_reserve_qty,
-                        })
-                        remaining_qty -= to_reserve_qty
-            else:
-                # 处理没有关联的情况
+                        is_for_delivery_locations = preparing_locations & is_for_delivery_locations
+
+                        if is_for_delivery_locations:
+                            _logger.info('     is_for_delivery_locations:')
+                            _logger.info(is_for_delivery_locations)
+                            
+                            # 尝试从 is_for_delivery_locations 中预留库存
+                            quants = self.env['stock.quant'].search([
+                                ('product_id', '=', move.product_id.id),
+                                ('location_id', 'in', is_for_delivery_locations.ids),
+                                ('quantity', '>', 0)
+                            ])
+                            
+                            _logger.info(quants)
+                            for quant in quants:
+                                _logger.info(f'  remaining: %s', remaining_qty)
+                                to_reserve_qty = min(remaining_qty, quant.quantity)
+                                if to_reserve_qty > 0:
+                                    self.env['stock.move.line'].create({
+                                        'move_id': move.id,
+                                        'product_id': move.product_id.id,
+                                        'product_uom_id': move.product_uom.id,
+                                        'location_id': quant.location_id.id,
+                                        'location_dest_id': move.location_dest_id.id,
+                                        'qty_done': to_reserve_qty,
+                                    })
+                                    remaining_qty -= to_reserve_qty
+                                    if remaining_qty <= 0:
+                                        break
+
+            # 如果 is_for_delivery_locations 中的库存不足，再尝试从 general_stock_locations 中预留库存
+            if remaining_qty > 0:
+                _logger.info('     general_stock_locations:')
+                _logger.info(general_stock_locations)
+                
                 quants = self.env['stock.quant'].search([
                     ('product_id', '=', move.product_id.id),
                     ('location_id', 'in', general_stock_locations.ids),
                     ('quantity', '>', 0)
                 ])
                 _logger.info(quants)
-                remaining_qty = move.product_uom_qty - move.reserved_availability
                 for quant in quants:
                     _logger.info(f'  remaining: %s', remaining_qty)
                     to_reserve_qty = min(remaining_qty, quant.quantity)
-                    if to_reserve_qty>0:
+                    if to_reserve_qty > 0:
                         self.env['stock.move.line'].create({
                             'move_id': move.id,
                             'product_id': move.product_id.id,
@@ -155,9 +174,8 @@ class StockMove(models.Model):
                             'qty_done': to_reserve_qty,
                         })
                         remaining_qty -= to_reserve_qty
-
-                # if reserved_quantity < move.product_uom_qty:
-                #     raise ValidationError(_('Not enough stock in the general stock locations for the move %s.') % move.name)
+                        if remaining_qty <= 0:
+                            break
 
         return move_lines
 
