@@ -84,98 +84,52 @@ class StockMove(models.Model):
         """
         Reserve stock moves by creating their stock move lines.
         """
-        # move_lines = super(StockMove, self)._action_assign()
-        _logger.info(self)
-        # _logger.info(move_lines)
-        
-        for move in self:
-            _logger.info(move.state)
-            if move.state not in ['waiting', 'confirmed', 'assigned']:
-                continue
 
-            _logger.info(move)
-            sale_order_id = move.group_id and move.group_id.sale_id
-            _logger.info('     sale_order_id: %s', sale_order_id)
-
-            remaining_qty = move.product_uom_qty - move.reserved_availability
-            _logger.info(f'     remaining_qty: %s -  %s = %s', move.product_uom_qty, move.reserved_availability, remaining_qty)
-            # 优先获取 is_for_delivery 的库存区域
+        # 临时修改库存
+        for move in self.filtered(lambda m: m.state in ['confirmed', 'waiting', 'partially_available']):
+            original_quantities = {}
+            
+            # 获取本公司的is_for_delivery的库存区域
             is_for_delivery_locations = self.env['stock.location'].search([
                 ('usage', '=', 'internal'),
                 ('is_for_delivery', '=', True),
                 ('company_id', '=', move.company_id.id)
             ])
-            general_stock_locations = self.env['stock.location'].search([
-                ('usage', '=', 'internal'),
-                ('is_for_delivery', '=', False)
-            ])
+            _logger.info(f'     is_for_delivery_locations: %s', is_for_delivery_locations.mapped('complete_name'))
             
+            sale_order_id = move.group_id and move.group_id.sale_id
+            _logger.info('     sale_order_id: %s', sale_order_id)
+
             if sale_order_id:
-                # 获取 delivery.job.stop
+                # 获取当前销售订单的delivery.job.stop
                 delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', sale_order_id.id)], limit=1)
-                _logger.info(f'     delivery_job_stop: %s', delivery_job_stop.job_id.name)
                 if delivery_job_stop:
-                    # 获取对应的 preparing_location_ids
+                    _logger.info(f'     delivery_job_stop: %s', delivery_job_stop.job_id.name)
                     preparing_locations = delivery_job_stop.job_id.preparing_location_ids
-                    if preparing_locations:
-                        is_for_delivery_locations = preparing_locations & is_for_delivery_locations
+                    _logger.info(f'     正确区域: %s', preparing_locations.mapped('complete_name'))
+                    # 需要排除的区域：非当前订单相关的is_for_delivery区域
+                    locations_to_exclude = is_for_delivery_locations - preparing_locations
+                    _logger.info(f'     排除区域: %s', locations_to_exclude.mapped('complete_name'))
 
-                        if is_for_delivery_locations:
-                            _logger.info(f'     is_for_delivery_locations: %s', is_for_delivery_locations.mapped('complete_name'))
-                            
-                            # 尝试从 is_for_delivery_locations 中预留库存
-                            quants = self.env['stock.quant'].search([
-                                ('product_id', '=', move.product_id.id),
-                                ('location_id', 'in', is_for_delivery_locations.ids),
-                                ('quantity', '>', 0)
-                            ])
-                            
-                            _logger.info(f'       gruants: %s', quants)
-                            for quant in quants:
-                                _logger.info(f'             %s %s %s', remaining_qty, quant.location_id.complete_name, quant.quantity)
-                                to_reserve_qty = min(remaining_qty, quant.quantity)
-                                _logger.info(f'             to_reserve_qty %s', to_reserve_qty)
-                                if to_reserve_qty > 0:
-                                    self.env['stock.move.line'].create({
-                                        'move_id': move.id,
-                                        'product_id': move.product_id.id,
-                                        'product_uom_id': move.product_uom.id,
-                                        'location_id': quant.location_id.id,
-                                        'location_dest_id': move.location_dest_id.id,
-                                        'qty_done': to_reserve_qty,
-                                    })
-                                    remaining_qty -= to_reserve_qty
-                                    if remaining_qty <= 0:
-                                        break
+                    # 临时将非当前订单相关的is_for_delivery区域的库存设为0
+                    quants_to_exclude = self.env['stock.quant'].search([
+                        ('location_id', 'in', locations_to_exclude.ids),
+                        ('product_id', '=', move.product_id.id)
+                    ])
+                    for quant in quants_to_exclude:
+                        original_quantities[quant.id] = quant.quantity
+                        quant.quantity = 0
 
-            # 如果 is_for_delivery_locations 中的库存不足，再尝试从 general_stock_locations 中预留库存
-            if remaining_qty > 0:
-                _logger.info(f'     general_stock_locations: %s', general_stock_locations.mapped('name'))
-                
-                quants = self.env['stock.quant'].search([
-                    ('product_id', '=', move.product_id.id),
-                    ('location_id', 'in', general_stock_locations.ids),
-                    ('quantity', '>', 0)
-                ])
-                _logger.info(f'       gruants: %s', quants)
-                for quant in quants:
-                    _logger.info(f'             %s %s %s', remaining_qty, quant.location_id.complete_name, quant.quantity)
-                    to_reserve_qty = min(remaining_qty, quant.quantity)
-                    _logger.info(f'             to_reserve_qty %s', to_reserve_qty)
-                    if to_reserve_qty > 0:
-                        self.env['stock.move.line'].create({
-                            'move_id': move.id,
-                            'product_id': move.product_id.id,
-                            'product_uom_id': move.product_uom.id,
-                            'location_id': quant.location_id.id,
-                            'location_dest_id': move.location_dest_id.id,
-                            'qty_done': to_reserve_qty,
-                        })
-                        remaining_qty -= to_reserve_qty
-                        if remaining_qty <= 0:
-                            break
+            # 调用super方法
+            move_lines = super(StockMove, move)._action_assign()
+
+            # 恢复原库存
+            for quant_id, original_qty in original_quantities.items():
+                quant = self.env['stock.quant'].browse(quant_id)
+                quant.quantity = original_qty
 
         return True
+
 
 class StockQuant(models.Model):
     _inherit = 'stock.quant'
