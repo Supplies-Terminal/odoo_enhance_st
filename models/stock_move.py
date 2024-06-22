@@ -84,10 +84,9 @@ class StockMove(models.Model):
         """
         Reserve stock moves by creating their stock move lines.
         """
-        move_lines = super(StockMove, self)._action_assign()
-        _logger.info('xxxxx')
+        # move_lines = super(StockMove, self)._action_assign()
         _logger.info(self)
-        _logger.info(move_lines)
+        # _logger.info(move_lines)
         
         for move in self:
             _logger.info(move.state)
@@ -99,7 +98,7 @@ class StockMove(models.Model):
             _logger.info('     sale_order_id: %s', sale_order_id)
 
             remaining_qty = move.product_uom_qty - move.reserved_availability
-            
+            _logger.info(f'     remaining_qty: %s -  %s = %s', move.product_uom_qty, move.reserved_availability, remaining_qty)
             # 优先获取 is_for_delivery 的库存区域
             is_for_delivery_locations = self.env['stock.location'].search([
                 ('usage', '=', 'internal'),
@@ -114,8 +113,7 @@ class StockMove(models.Model):
             if sale_order_id:
                 # 获取 delivery.job.stop
                 delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', sale_order_id.id)], limit=1)
-                _logger.info('     delivery_job_stop:')
-                _logger.info(delivery_job_stop)
+                _logger.info(f'     delivery_job_stop: %s', delivery_job_stop.job_id.name)
                 if delivery_job_stop:
                     # 获取对应的 preparing_location_ids
                     preparing_locations = delivery_job_stop.job_id.preparing_location_ids
@@ -123,8 +121,7 @@ class StockMove(models.Model):
                         is_for_delivery_locations = preparing_locations & is_for_delivery_locations
 
                         if is_for_delivery_locations:
-                            _logger.info('     is_for_delivery_locations:')
-                            _logger.info(is_for_delivery_locations)
+                            _logger.info(f'     is_for_delivery_locations: %s', is_for_delivery_locations.mapped('complete_name'))
                             
                             # 尝试从 is_for_delivery_locations 中预留库存
                             quants = self.env['stock.quant'].search([
@@ -133,10 +130,11 @@ class StockMove(models.Model):
                                 ('quantity', '>', 0)
                             ])
                             
-                            _logger.info(quants)
+                            _logger.info(f'       gruants: %s', quants)
                             for quant in quants:
-                                _logger.info(f'  remaining: %s', remaining_qty)
+                                _logger.info(f'             %s %s %s', remaining_qty, quant.location_id.complete_name, quant.quantity)
                                 to_reserve_qty = min(remaining_qty, quant.quantity)
+                                _logger.info(f'             to_reserve_qty %s', to_reserve_qty)
                                 if to_reserve_qty > 0:
                                     self.env['stock.move.line'].create({
                                         'move_id': move.id,
@@ -152,18 +150,18 @@ class StockMove(models.Model):
 
             # 如果 is_for_delivery_locations 中的库存不足，再尝试从 general_stock_locations 中预留库存
             if remaining_qty > 0:
-                _logger.info('     general_stock_locations:')
-                _logger.info(general_stock_locations)
+                _logger.info(f'     general_stock_locations: %s', general_stock_locations.mapped('name'))
                 
                 quants = self.env['stock.quant'].search([
                     ('product_id', '=', move.product_id.id),
                     ('location_id', 'in', general_stock_locations.ids),
                     ('quantity', '>', 0)
                 ])
-                _logger.info(quants)
+                _logger.info(f'       gruants: %s', quants)
                 for quant in quants:
-                    _logger.info(f'  remaining: %s', remaining_qty)
+                    _logger.info(f'             %s %s %s', remaining_qty, quant.location_id.complete_name, quant.quantity)
                     to_reserve_qty = min(remaining_qty, quant.quantity)
+                    _logger.info(f'             to_reserve_qty %s', to_reserve_qty)
                     if to_reserve_qty > 0:
                         self.env['stock.move.line'].create({
                             'move_id': move.id,
@@ -177,7 +175,7 @@ class StockMove(models.Model):
                         if remaining_qty <= 0:
                             break
 
-        return move_lines
+        return True
 
 class StockQuant(models.Model):
     _inherit = 'stock.quant'
