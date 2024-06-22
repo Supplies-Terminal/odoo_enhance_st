@@ -157,27 +157,28 @@ class PurchaseOrder(models.Model):
                         line_qty = min(remaining_qty, so.quantity)
                         _logger.info(f'       so: %s', so.sale_order_id.id)
 
-                        # 获取preparing_location_ids
-                        delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', so.sale_order_id.id)], limit=1)
-                        if delivery_job_stop:
-                            preparing_locations = delivery_job_stop.job_id.preparing_location_ids
-                            if preparing_locations:
-                                so_preparing_location_id = preparing_locations.filtered(lambda loc: loc.company_id == order.company_id)[:1].id
-                                if so_preparing_location_id:
-                                    if so_preparing_location_id in so_moves:
-                                        _logger.info(f'       so: %s   location: %s', so.sale_order_id.id, so_preparing_location_id)
-                                        # 如果已经存在，则累加数量
-                                        for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
-                                            if existing_product == product:
-                                                so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
-                                                break
+                        if line_qty>0:
+                            # 获取preparing_location_ids
+                            delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', so.sale_order_id.id)], limit=1)
+                            if delivery_job_stop:
+                                preparing_locations = delivery_job_stop.job_id.preparing_location_ids
+                                if preparing_locations:
+                                    so_preparing_location_id = preparing_locations.filtered(lambda loc: loc.company_id == order.company_id)[:1].id
+                                    if so_preparing_location_id:
+                                        if so_preparing_location_id in so_moves:
+                                            _logger.info(f'       so: %s   location: %s', so.sale_order_id.id, so_preparing_location_id)
+                                            # 如果已经存在，则累加数量
+                                            for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
+                                                if existing_product == product:
+                                                    so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
+                                                    break
+                                            else:
+                                                so_moves[so_preparing_location_id].append((product, line_qty))
                                         else:
-                                            so_moves[so_preparing_location_id].append((product, line_qty))
-                                    else:
-                                        so_moves[so_preparing_location_id] = [(product, line_qty)]
-                                    remaining_qty -= line_qty
-                        _logger.info(so_moves)
-                        # 这里可能有if不成立的情况，这部分数量将会放到stock去
+                                            so_moves[so_preparing_location_id] = [(product, line_qty)]
+                                        remaining_qty -= line_qty
+                            _logger.info(so_moves)
+                            # 这里可能有if不成立的情况，这部分数量将会放到stock去
 
                 # 分配给制造订单
                 mo_total = 0;
