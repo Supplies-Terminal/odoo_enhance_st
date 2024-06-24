@@ -116,9 +116,10 @@ class StockMove(models.Model):
                 ('quantity', '>', 0),
             ])
             _logger.info(quants_to_exclude);
+            # 改为调整reserved数量（不能修改quantity）
             for quant in quants_to_exclude:
-                original_quantities[quant.id] = quant.quantity
-                quant.write({'quantity': 0})
+                original_quantities[quant.id] = quant.reserved_quantity
+                quant.write({'reserved_quantity': quant.quantity})
 
             # 调用super方法
             move_lines = super(StockMove, move)._action_assign()
@@ -127,7 +128,7 @@ class StockMove(models.Model):
             # 为了确保不覆盖已经预留的库存数量，我们需要在恢复原库存时跳过那些已经预留的数量。这可以通过比较预留前后的库存数量来实现。
             for quant_id, original_qty in original_quantities.items():
                 quant = self.env['stock.quant'].browse(quant_id)
-                quant.write({'quantity': original_qty})
+                quant.write({'reserved_quantity': original_qty})
 
         return True
 
