@@ -105,13 +105,17 @@ class StockMove(models.Model):
                     _logger.info(f'     正确区域: %s', preparing_locations.mapped('complete_name'))
                     # 需要排除的区域：非当前订单相关的is_for_delivery区域
                     locations_to_exclude = is_for_delivery_locations - preparing_locations
-                    _logger.info(f'     排除区域: %s', locations_to_exclude.mapped('complete_name'))
-
+                    
+            _logger.info(f'     排除区域: %s', locations_to_exclude.mapped('complete_name'))
+            _logger.info(f'     排除区域: %s', locations_to_exclude.mapped('id'))
+            _logger.info(f'     商品: %s', move.product_id)
             # 临时将非当前订单相关的is_for_delivery区域的库存设为0
             quants_to_exclude = self.env['stock.quant'].search([
                 ('location_id', 'in', locations_to_exclude.ids),
-                ('product_id', '=', move.product_id.id)
+                ('product_id', '=', move.product_id.id),
+                ('quantity', '>', 0),
             ])
+            _logger.info(quants_to_exclude);
             for quant in quants_to_exclude:
                 original_quantities[quant.id] = quant.quantity
                 quant.write({'quantity': 0})
@@ -126,7 +130,6 @@ class StockMove(models.Model):
                 quant.write({'quantity': original_qty})
 
         return True
-
 
 class StockQuant(models.Model):
     _inherit = 'stock.quant'
