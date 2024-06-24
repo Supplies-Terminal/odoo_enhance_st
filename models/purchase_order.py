@@ -119,7 +119,14 @@ class PurchaseOrder(models.Model):
             if order.state not in ['draft', 'sent']:
                 continue
             # 如果是replenishment采购单
-            if order.picking_type_id.code == 'incoming' and ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+            is_replenishment = False
+            if order.picking_type_id.code == 'incoming' and order.origin:
+                _logger.info("    order.origin     :")
+                _logger.info(order.origin)
+                if ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+                    is_replenishment = True
+
+            if is_replenishment:
                 if not order.company_id.mrp_location_id:
                     raise UserError(f"Missing location...")
                 _logger.info('拆分收货单')

@@ -73,8 +73,9 @@ class PurchaseOrderLine(models.Model):
     def create(self, vals):
         _logger.info("------------PurchaseOrderLine: create--------------")
         order_line = super(PurchaseOrderLine, self).create(vals)
-        if 'replenish' in order_line.order_id.origin.lower() or '补货' in order_line.order_id.origin.lower():
-            order_line._insert_shortage_sources()
+        if order_line.order_id.origin:
+            if 'replenish' in order_line.order_id.origin.lower() or '补货' in order_line.order_id.origin.lower():
+                order_line._insert_shortage_sources()
         return order_line
 
     def write(self, vals):
@@ -82,8 +83,9 @@ class PurchaseOrderLine(models.Model):
         _logger.info(self)
         res = super(PurchaseOrderLine, self).write(vals)
         for line in self:
-            if 'replenish' in line.order_id.origin.lower() or '补货' in line.order_id.origin.lower():
-                line._insert_shortage_sources()
+            if line.order_id.origin:
+                if 'replenish' in line.order_id.origin.lower() or '补货' in line.order_id.origin.lower():
+                    line._insert_shortage_sources()
         return res
         
     def _insert_shortage_sources(self):
