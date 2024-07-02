@@ -132,24 +132,24 @@ class StockMove(models.Model):
 
         return True
 
-class StockQuant(models.Model):
-    _inherit = 'stock.quant'
+# class StockQuant(models.Model):
+#     _inherit = 'stock.quant'
 
-    def reserve_move_line(self, qty):
-        """
-        Reserve the specified quantity of this quant for a move line.
-        """
-        move_line = self.env['stock.move.line'].create({
-            'product_id': self.product_id.id,
-            'product_uom_qty': qty,
-            'product_uom_id': self.product_id.uom_id.id,
-            'location_id': self.location_id.id,
-            'location_dest_id': self.env.ref('stock.stock_location_stock').id,
-            'move_id': self.move_id.id,
-            'qty_done': qty,
-        })
-        self.quantity -= qty
-        self.reserved_quantity += qty
+#     def reserve_move_line(self, qty):
+#         """
+#         Reserve the specified quantity of this quant for a move line.
+#         """
+#         move_line = self.env['stock.move.line'].create({
+#             'product_id': self.product_id.id,
+#             'product_uom_qty': qty,
+#             'product_uom_id': self.product_id.uom_id.id,
+#             'location_id': self.location_id.id,
+#             'location_dest_id': self.env.ref('stock.stock_location_stock').id,
+#             'move_id': self.move_id.id,
+#             'qty_done': qty,
+#         })
+#         self.quantity -= qty
+#         self.reserved_quantity += qty
         
 class StockMoveLine(models.Model):
     _inherit = "stock.move.line"
