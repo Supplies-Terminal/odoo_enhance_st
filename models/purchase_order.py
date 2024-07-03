@@ -135,10 +135,10 @@ class PurchaseOrder(models.Model):
                 
                 # Deal with double validation process
                 if order._approval_allowed():
-                    order._seperate_receiving_pickings()
+                    picking_ids = order._seperate_receiving_pickings()
                     # raise UserError('强行异常，用于调试')
                     # 手动更新订单状态为 'purchase'
-                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now()})
+                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now(), 'picking_ids': [(6, 0, picking_ids)]})
                 else:
                     order.write({'state': 'to approve'})
                     
@@ -149,6 +149,7 @@ class PurchaseOrder(models.Model):
         return True
 
     def _seperate_receiving_pickings(self):
+        picking_ids = []
         for order in self:
             so_moves = {}
             mo_moves = []
@@ -210,11 +211,15 @@ class PurchaseOrder(models.Model):
             
             if so_moves:
                 for location_id, moves in so_moves.items():
-                    self._create_seperated_picking(order, moves, order.name, location_id)
+                    picking = self._create_seperated_picking(order, moves, order.name, location_id)
+                    picking_ids.append(picking.id)
             if mo_moves:
-                self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
+                picking = self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
+                picking_ids.append(picking.id)
             if stock_moves:
-                self._create_seperated_picking(order, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
+                picking = self._create_seperated_picking(order, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
+                picking_ids.append(picking.id)
+        return picking_ids
 
     def _create_seperated_picking(self, order, moves, origin, dest_location_id):
         picking_type = self.env['stock.picking.type'].search([
