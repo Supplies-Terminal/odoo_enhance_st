@@ -127,9 +127,9 @@ class PurchaseOrder(models.Model):
                     is_replenishment = True
 
             if is_replenishment:
-                if not order.company_id.mrp_location_id:
-                    raise UserError(f"Missing location...")
-                _logger.info('拆分收货单')
+                # if not order.company_id.mrp_location_id:
+                #     raise UserError(f"Missing location...")
+                # _logger.info('拆分收货单')
 
                 order._add_supplier_to_product()
                 
@@ -188,34 +188,34 @@ class PurchaseOrder(models.Model):
                             _logger.info(so_moves)
                             # 这里可能有if不成立的情况，这部分数量将会放到stock去
 
-                # 分配给制造订单
-                mo_total = 0;
-                for mo in line.mo_ids:
-                    if remaining_qty > 0:
-                        line_qty = min(remaining_qty, mo.quantity)
-                        remaining_qty -= line_qty
-                        mo_total += line_qty
+                # # 分配给制造订单
+                # mo_total = 0;
+                # for mo in line.mo_ids:
+                #     if remaining_qty > 0:
+                #         line_qty = min(remaining_qty, mo.quantity)
+                #         remaining_qty -= line_qty
+                #         mo_total += line_qty
 
-                if mo_total > 0:
-                    mo_moves.append((product, mo_total))
+                # if mo_total > 0:
+                #     mo_moves.append((product, mo_total))
 
                 if remaining_qty > 0:
                     stock_moves.append((product, remaining_qty, ))
                     
-            _logger.info('so_moves:')
-            _logger.info(so_moves)
-            _logger.info('mo_moves:')
-            _logger.info(mo_moves)
-            _logger.info('stock_moves:')
-            _logger.info(stock_moves)
+            # _logger.info('so_moves:')
+            # _logger.info(so_moves)
+            # _logger.info('mo_moves:')
+            # _logger.info(mo_moves)
+            # _logger.info('stock_moves:')
+            # _logger.info(stock_moves)
             
             if so_moves:
                 for location_id, moves in so_moves.items():
                     picking = self._create_seperated_picking(order, moves, order.name, location_id)
                     picking_ids.append(picking.id)
-            if mo_moves:
-                picking = self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
-                picking_ids.append(picking.id)
+            # if mo_moves:
+            #     picking = self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
+            #     picking_ids.append(picking.id)
             if stock_moves:
                 picking = self._create_seperated_picking(order, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
                 picking_ids.append(picking.id)
