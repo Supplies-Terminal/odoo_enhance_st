@@ -5,6 +5,22 @@ from odoo import models, fields, api
 import logging
 _logger = logging.getLogger(__name__)
 
+class PurchaseOrderLineSO(models.Model):
+    _name = 'purchase.order.line.so'
+    _description = 'Purchase Forecast Sale Order Line'
+
+    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line')
+    sale_order_id = fields.Many2one('sale.order', string='Sale Order')
+    quantity = fields.Float(string='Quantity')
+
+class PurchaseOrderLineMO(models.Model):
+    _name = 'purchase.order.line.mo'
+    _description = 'Purchase Forecast Manufacturing Order Line'
+
+    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line')
+    manufacturing_order_id = fields.Many2one('mrp.production', string='Manufacturing Order')
+    quantity = fields.Float(string='Quantity')
+
 class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
 
@@ -168,19 +184,4 @@ class PurchaseOrderLine(models.Model):
                 })
 
         return shortage_list
-        
-class PurchaseOrderLineSO(models.Model):
-    _name = 'purchase.order.line.so'
-    _description = 'Purchase Forecast Sale Order Line'
-
-    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line')
-    sale_order_id = fields.Many2one('sale.order', string='Sale Order')
-    quantity = fields.Float(string='Quantity')
-
-class PurchaseOrderLineMO(models.Model):
-    _name = 'purchase.order.line.mo'
-    _description = 'Purchase Forecast Manufacturing Order Line'
-
-    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line')
-    manufacturing_order_id = fields.Many2one('mrp.production', string='Manufacturing Order')
-    quantity = fields.Float(string='Quantity')
+            
