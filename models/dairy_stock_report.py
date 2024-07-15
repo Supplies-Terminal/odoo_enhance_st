@@ -22,7 +22,7 @@ class DailyStockReport(models.Model):
         date_str = date.strftime('%Y-%m-%d %H:%M:%S')
         _logger.info(date_str)
 
-        products = self.env['product.product'].with_company(current_company_id).with_context(to_date=date_str).search([('type', '=', 'product'), ('product_tmpl_id.pack_supported', '=', True)])
+        products = self.env['product.product'].with_company(current_company_id).with_context(to_date=date_str).search([('type', '=', 'product'), ('product_tmpl_id.pack_supported', '=', False)])
         total = sum(p.qty_available for p in products)
 
         self.create({'date': date, 'stock_total': total})
