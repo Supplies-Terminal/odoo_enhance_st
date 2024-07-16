@@ -180,12 +180,12 @@ class SaleOrder(models.Model):
             _logger.info("------------修改了date_order，同时调整sheduled_date------------")
             new_date_order = fields.Datetime.from_string(values['date_order'])
             
-            # 更新所有关联的库存工作单的预定日期
-            for picking in self.picking_ids:
-                picking.write({
-                    'scheduled_date': new_date_order,
-                    'date_deadline': new_date_order
-                })
+            # # 更新所有关联的库存工作单的预定日期
+            # for picking in self.picking_ids:
+            #     picking.write({
+            #         'scheduled_date': new_date_order,
+            #         'date_deadline': new_date_order
+            #     })
 
         _logger.info("------------修改了订单，同时重置一下工单的origin------------")
         # 修改订单商品后inventory的工作单的source会丢失，重新写入一下
