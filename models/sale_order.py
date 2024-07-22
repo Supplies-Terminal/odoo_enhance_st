@@ -15,8 +15,6 @@ class SaleOrder(models.Model):
 
     source_po_id = fields.Many2one('purchase.order', string='Inter-company PO', required=False)
 
-    sale_company_id = fields.Many2one('res.company', string='Sold Company', default=lambda self: self.env.company)
-    
     CUSTOM_FIELD_STATES = {
         state: [('readonly', False)]
         for state in {'sale', 'done', 'cancel'}
@@ -270,3 +268,28 @@ class SaleOrder(models.Model):
             }
         }
         return True
+
+    sale_company_id = fields.Many2one('res.company', string='Sold Company')
+    current_company_is_virtual = fields.Boolean(string='Current Company is Virtual', compute='_compute_current_company_is_virtual')
+
+    @api.depends('company_id')
+    def _compute_current_company_is_virtual(self):
+        for order in self:
+            if order.env.user.company_id:
+                order.current_company_is_virtual = order.env.user.company_id.is_virtual
+            else:
+                order.current_company_is_virtual = False
+
+
+
+    @api.model
+    def create(self, vals):
+        if self.env.user.company_id.is_virtual and not vals.get('sale_company_id'):
+            raise UserError(_('Sold Company is required for virtual companies.'))
+        return super(SaleOrder, self).create(vals)    
+
+    def write(self, vals):
+        for order in self:
+            if order.env.user.company_id.is_virtual and not vals.get('sale_company_id'):
+                raise UserError(_('Sold Company is required for virtual companies.'))
+        return super(SaleOrder, self).write(vals)

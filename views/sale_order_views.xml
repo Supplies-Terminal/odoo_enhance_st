@@ -18,8 +18,9 @@
                             attrs="{'invisible': [('state', '!=', 'sale')]}"/>
            </xpath>
            <field name="partner_id" position="before">
-                <field name="sale_company_id" attrs="{'invisible': [('company_id.is_virtual', '=', False)]}"/>
-            </field>
+               <field name="current_company_is_virtual" invisible="1"/>
+               <field name="sale_company_id" attrs="{'invisible': [('current_company_is_virtual', '=', False)]}"/>
+           </field>
         </field>
     </record>
 </odoo>
