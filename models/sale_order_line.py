@@ -3,6 +3,8 @@
 
 from odoo import models, fields, api
 from datetime import datetime, timedelta
+from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT
+import pytz
 
 import logging
 _logger = logging.getLogger(__name__)
@@ -152,6 +154,7 @@ class SaleOrderLine(models.Model):
     @api.depends('product_id')
     def _compute_latest_price_value(self):
         for rec in self:
+            
             rec.latest_price_value = 0
             # 获取本人之前最后购买该商品的记录
             date_order = datetime.now().date()
@@ -175,16 +178,41 @@ class SaleOrderLine(models.Model):
             if isinstance(order_id, int)==False:
                 order_id = 0
             
-            if self.order_id.partner_id:
+            if self.order_id.partner_id and self.product_id:
                 # 获取当前日期
-                current_date = datetime.now().date()
+                now = datetime.now()
 
-                # 计算前一天的日期
-                previous_date = current_date #- timedelta(days=1)
-                SaleOrderLineSudo = self.env['sale.order.line'].sudo();
-                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_id.date_order', '<=', previous_date)], limit=1, order='create_date desc')
+                # 将 previous_date 转换为 UTC
+                previous_date_utc = now.replace(tzinfo=pytz.UTC).strftime(DEFAULT_SERVER_DATETIME_FORMAT)
+                
+                query = """
+                    SELECT sol.id FROM sale_order_line sol
+                    JOIN sale_order so ON sol.order_id = so.id
+                    WHERE sol.product_id = %s
+                    AND sol.order_id != %s
+                    AND so.company_id = %s
+                    AND so.partner_id = %s
+                    AND so.state IN ('sale', 'done')
+                    AND so.date_order <= %s
+                """
+                params = [
+                    rec.product_id.id,
+                    order_id,
+                    rec.order_id.company_id.id,
+                    rec.order_id.partner_id.id,
+                    previous_date_utc
+                ]
 
-                if sol:
+                if rec.order_id.sale_company_id:
+                    query += " AND so.sale_company_id = %s"
+                    params.append(rec.order_id.sale_company_id.id)
+
+                query += " ORDER BY so.date_order DESC LIMIT 1"
+
+                self.env.cr.execute(query, params)
+                result = self.env.cr.fetchone()
+                if result:
+                    sol = self.env['sale.order.line'].browse(result[0])
                     rec.latest_price_value = sol.price_unit
 
     @api.depends('product_id')
@@ -207,16 +235,41 @@ class SaleOrderLine(models.Model):
             if isinstance(order_id, int)==False:
                 order_id = 0
             
-            if self.order_id.partner_id:
+            if self.order_id.partner_id and self.product_id:
                 # 获取当前日期
-                current_date = datetime.now().date()
+                now = datetime.now()
 
-                # 计算前一天的日期
-                previous_date = current_date #- timedelta(days=1)
-                SaleOrderLineSudo = self.env['sale.order.line'].sudo();
-                sol = SaleOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id', '!=', order_id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['sale', 'done']), ('order_id.date_order', '<=', previous_date)], limit=1, order='create_date desc')
+                # 将 previous_date 转换为 UTC
+                previous_date_utc = now.replace(tzinfo=pytz.UTC).strftime(DEFAULT_SERVER_DATETIME_FORMAT)
+                
+                query = """
+                    SELECT sol.id FROM sale_order_line sol
+                    JOIN sale_order so ON sol.order_id = so.id
+                    WHERE sol.product_id = %s
+                    AND sol.order_id != %s
+                    AND so.company_id = %s
+                    AND so.partner_id = %s
+                    AND so.state IN ('sale', 'done')
+                    AND so.date_order <= %s
+                """
+                params = [
+                    rec.product_id.id,
+                    order_id,
+                    rec.order_id.company_id.id,
+                    rec.order_id.partner_id.id,
+                    previous_date_utc
+                ]
 
-                if sol:
+                if rec.order_id.sale_company_id:
+                    query += " AND so.sale_company_id = %s"
+                    params.append(rec.order_id.sale_company_id.id)
+
+                query += " ORDER BY so.date_order DESC LIMIT 1"
+
+                self.env.cr.execute(query, params)
+                result = self.env.cr.fetchone()
+                if result:
+                    sol = self.env['sale.order.line'].browse(result[0])
                     rec.latest_price = "${}/{}".format(sol.price_unit, sol.product_uom.name)  
 
     @api.depends('product_id')
