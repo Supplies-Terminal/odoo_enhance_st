@@ -275,8 +275,8 @@ class SaleOrder(models.Model):
     @api.depends('company_id')
     def _compute_current_company_is_virtual(self):
         for order in self:
-            if order.env.user.company_id:
-                order.current_company_is_virtual = order.env.user.company_id.is_virtual
+            if order.company_id:
+                order.current_company_is_virtual = order.company_id.is_virtual
             else:
                 order.current_company_is_virtual = False
 
@@ -284,12 +284,12 @@ class SaleOrder(models.Model):
 
     @api.model
     def create(self, vals):
-        if self.env.user.company_id.is_virtual and not vals.get('sale_company_id'):
+        if order.company_id.is_virtual and not vals.get('sale_company_id'):
             raise UserError(_('Sold Company is required for virtual companies.'))
         return super(SaleOrder, self).create(vals)    
 
     def write(self, vals):
         for order in self:
-            if order.env.user.company_id.is_virtual and not vals.get('sale_company_id'):
+            if order.company_id.is_virtual and not vals.get('sale_company_id'):
                 raise UserError(_('Sold Company is required for virtual companies.'))
         return super(SaleOrder, self).write(vals)
