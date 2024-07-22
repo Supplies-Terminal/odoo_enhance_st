@@ -17,6 +17,9 @@
         - 跨公司调度
         - 客户statement
         - 多公司对公共商品的访问控制
+        - virtual company模式支持：
+            - 替销售公司下单
+            - 替销售公司打印订单
     """,
     'depends': [
         'contacts',

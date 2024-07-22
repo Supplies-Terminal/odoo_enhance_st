@@ -15,6 +15,8 @@ class SaleOrder(models.Model):
 
     source_po_id = fields.Many2one('purchase.order', string='Inter-company PO', required=False)
 
+    sale_company_id = fields.Many2one('res.company', string='Sold Company', default=lambda self: self.env.company)
+    
     CUSTOM_FIELD_STATES = {
         state: [('readonly', False)]
         for state in {'sale', 'done', 'cancel'}
