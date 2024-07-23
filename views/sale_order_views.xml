@@ -16,7 +16,7 @@
                             type="object"
                             class="oe_highlight"
                             attrs="{'invisible': [('state', '!=', 'sale')]}"/>
-                <button name="action_create_sold_company_invoice" type="object" string="Create Sold Company Invoice" class="oe_highlight" attrs="{'invisible': [('sold_company_id', '=', False)]}"/>
+                <button name="action_create_sold_company_invoice" type="object" string="Create Sold Company Invoice" class="oe_highlight" attrs="{'invisible': [('sale_company_id', '=', False)]}"/>
            </xpath>
            <field name="partner_id" position="before">
                <field name="current_company_is_virtual" invisible="1"/>
@@ -24,6 +24,11 @@
            </field>
            <xpath expr="//field[@name='partner_id']" position="attributes">
                 <attribute name="domain">[('type', '!=', 'private'), ('company_id', 'in', (False, company_id, sale_company_id))]</attribute>
+            </xpath>
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button name="action_view_sold_company_invoices" type="object" class="oe_stat_button" icon="fa-file-text">
+                    <field name="invoice_count" widget="statinfo" string="Sales Invoices"/>
+                </button>
             </xpath>
         </field>
     </record>

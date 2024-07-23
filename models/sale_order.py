@@ -272,6 +272,12 @@ class SaleOrder(models.Model):
     sale_company_id = fields.Many2one('res.company', string='Sold Company')
     current_company_is_virtual = fields.Boolean(string='Current Company is Virtual', compute='_compute_current_company_is_virtual')
 
+    invoice_count = fields.Integer(string='Invoice Count', compute='_compute_invoice_count')
+
+    def _compute_invoice_count(self):
+        for order in self:
+            order.invoice_count = self.env['account.move'].search_count([('company_id', '=', order.sale_company_id.id),('invoice_origin', '=', order.name), ('move_type', '=', 'out_invoice')])
+
     @api.depends('company_id')
     def _compute_current_company_is_virtual(self):
         for order in self:
@@ -282,7 +288,15 @@ class SaleOrder(models.Model):
             else:
                 order.current_company_is_virtual = False
 
-
+    def action_view_sold_company_invoices(self):
+        invoices = self.env['account.move'].search([('invoice_origin', '=', self.name), ('move_type', '=', 'out_invoice')])
+        action = self.env.ref('account.action_move_out_invoice_type').read()[0]
+        if len(invoices) > 1:
+            action['domain'] = [('id', 'in', invoices.ids)]
+        elif invoices:
+            action['views'] = [(self.env.ref('account.view_move_form').id, 'form')]
+            action['res_id'] = invoices.id
+        return action
 
     @api.model
     def create(self, vals):
@@ -298,7 +312,7 @@ class SaleOrder(models.Model):
 
     def action_create_sold_company_invoice(self):
         for order in self:
-            if not order.sold_company_id:
+            if not order.sale_company_id:
                 raise UserError("Sold Company must be set on the sale order before creating an invoice.")
 
             # 准备发票的值
@@ -307,16 +321,16 @@ class SaleOrder(models.Model):
                 'partner_id': order.partner_id.id,
                 'invoice_origin': order.name,
                 'invoice_user_id': order.user_id.id,
-                'company_id': order.sold_company_id.id,
+                'company_id': order.sale_company_id.id,
                 'invoice_line_ids': [],
             }
 
             for line in order.order_line:
                 # 获取商品的收入账户，根据公司的不同可能不同
-                account_id = line.product_id.with_company(order.sold_company_id.id).property_account_income_id.id or line.product_id.categ_id.with_company(order.sold_company_id.id).property_account_income_categ_id.id
+                account_id = line.product_id.with_company(order.sale_company_id.id).property_account_income_id.id or line.product_id.categ_id.with_company(order.sale_company_id.id).property_account_income_categ_id.id
 
                 if not account_id:
-                    raise UserError("No income account defined for the product %s in company %s." % (line.product_id.display_name, order.sold_company_id.display_name))
+                    raise UserError("No income account defined for the product %s in company %s." % (line.product_id.display_name, order.sale_company_id.display_name))
 
                 invoice_line_vals = {
                     'product_id': line.product_id.id,
@@ -328,6 +342,34 @@ class SaleOrder(models.Model):
                 invoice_vals['invoice_line_ids'].append((0, 0, invoice_line_vals))
 
             # 使用with_context来确保环境为销售公司
-            invoice = self.env['account.move'].with_context(default_company_id=order.sold_company_id.id).create(invoice_vals)
-            order.invoice_ids = [(4, invoice.id)]
+            invoice = self.env['account.move'].with_context(default_company_id=order.sale_company_id.id).create(invoice_vals)
+            # order.invoice_ids = [(4, invoice.id)]
+
+            # 更新为跟SO同号， 检查是否已经创建过一次invoice
+            currentInvoices = self.env['account.move'].search([
+                ('company_id', '=', order.sale_company_id.id),
+                ('name', '=', order.name),
+            ])
+            
+            if currentInvoices:
+                invoice.write({
+                    'name': order.name + '-' + (len(currentInvoices) + 1),
+                    'invoice_date': order.date_order
+                })
+            else:
+                invoice.write({
+                    'name': order.name
+                })
+                
+            # 确认发票
+            invoice.action_post()
+            
+            # 显示成功提示信息
+            message = "Invoice created successfully for the sold company %s." % order.sale_company_id.name
+            self.env['bus.bus']._sendone(self.env.user.partner_id.id, 'simple_notification', {
+                'title': 'Success',
+                'message': message,
+                'sticky': False,
+            })
+            
         return True
