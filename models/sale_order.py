@@ -295,3 +295,39 @@ class SaleOrder(models.Model):
             if order.current_company_is_virtual and not order.sale_company_id and not vals.get('sale_company_id'):
                 raise UserError(_('Sales Company is required for virtual companies.'))
         return super(SaleOrder, self).write(vals)
+
+    def action_create_sold_company_invoice(self):
+        for order in self:
+            if not order.sold_company_id:
+                raise UserError("Sold Company must be set on the sale order before creating an invoice.")
+
+            # 准备发票的值
+            invoice_vals = {
+                'move_type': 'out_invoice',
+                'partner_id': order.partner_id.id,
+                'invoice_origin': order.name,
+                'invoice_user_id': order.user_id.id,
+                'company_id': order.sold_company_id.id,
+                'invoice_line_ids': [],
+            }
+
+            for line in order.order_line:
+                # 获取商品的收入账户，根据公司的不同可能不同
+                account_id = line.product_id.with_company(order.sold_company_id.id).property_account_income_id.id or line.product_id.categ_id.with_company(order.sold_company_id.id).property_account_income_categ_id.id
+
+                if not account_id:
+                    raise UserError("No income account defined for the product %s in company %s." % (line.product_id.display_name, order.sold_company_id.display_name))
+
+                invoice_line_vals = {
+                    'product_id': line.product_id.id,
+                    'quantity': line.product_uom_qty,
+                    'price_unit': line.price_unit,
+                    'name': line.name,
+                    'account_id': account_id
+                }
+                invoice_vals['invoice_line_ids'].append((0, 0, invoice_line_vals))
+
+            # 使用with_context来确保环境为销售公司
+            invoice = self.env['account.move'].with_context(default_company_id=order.sold_company_id.id).create(invoice_vals)
+            order.invoice_ids = [(4, invoice.id)]
+        return True

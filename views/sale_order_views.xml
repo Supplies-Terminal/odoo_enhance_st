@@ -16,6 +16,7 @@
                             type="object"
                             class="oe_highlight"
                             attrs="{'invisible': [('state', '!=', 'sale')]}"/>
+                <button name="action_create_sold_company_invoice" type="object" string="Create Sold Company Invoice" class="oe_highlight" attrs="{'invisible': [('sold_company_id', '=', False)]}"/>
            </xpath>
            <field name="partner_id" position="before">
                <field name="current_company_is_virtual" invisible="1"/>
