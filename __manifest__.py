@@ -26,6 +26,7 @@
         'website',
         'sale',
         'web',
+        'rma'
     ],
     'data': [
         'security/ir.model.access.csv',
