@@ -20,6 +20,8 @@
         - virtual company模式支持：
             - 替销售公司下单
             - 替销售公司打印订单
+            - 提销售公司退货
+            - 替销售公司创建credit note
     """,
     'depends': [
         'contacts',
@@ -51,6 +53,7 @@
         'wizard/stock_daily_report_wizard.xml',
         'views/daily_stock_report_views.xml',
         'views/res_company_views.xml',
+        'views/rma_views.xml',
     ],
     'assets': {
         'web.assets_backend': [
