@@ -25,9 +25,15 @@ class Rma(models.Model):
 
     @api.model
     def create(self, vals):
+        # Set sale_company_id based on order_id
+        if 'order_id' in vals:
+            sale_order = self.env['sale.order'].browse(vals['order_id'])
+            if sale_order and sale_order.sale_company_id:
+                vals['sale_company_id'] = sale_order.sale_company_id.id
+                
         if self.current_company_is_virtual and not vals.get('sale_company_id'):
             raise UserError(_('Sales Company is required for virtual companies.'))
-        return super(Rma, self).create(vals)    
+        return super(Rma, self).create(vals)
 
     def write(self, vals):
         for order in self:
