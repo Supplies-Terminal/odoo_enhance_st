@@ -33,7 +33,16 @@ class Partner(models.Model):
 
     @api.model
     def name_search(self, name, args=None, operator='ilike', limit=100):
+        _logger.info("-----res.partner name_search---------")
         args = args or []
+        current_company = self.env.company
+        
+        # 根据公司设置调整搜索条件
+        if current_company.private_contact_only:
+            args.append(('company_id', '=', current_company.id))
+        _logger.info("--------------")
+        _logger.info(args)
+        
         recs = self.search([('full_name', operator, name)] + args, limit=limit)
 
         if not recs.ids:
@@ -41,7 +50,6 @@ class Partner(models.Model):
                                                        operator=operator,
                                                        limit=limit)
         return recs.name_get()
-
 
     @api.model
     def search_read(self, domain=None, fields=None, offset=0, limit=None, order=None):
