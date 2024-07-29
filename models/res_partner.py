@@ -35,8 +35,24 @@ class Partner(models.Model):
     def name_search(self, name, args=None, operator='ilike', limit=100):
         args = args or []
         recs = self.search([('full_name', operator, name)] + args, limit=limit)
+
         if not recs.ids:
             return super(Partner, self)._name_search(name=name, args=args,
                                                        operator=operator,
                                                        limit=limit)
         return recs.name_get()
+
+
+    def _get_private_contact_domain(self):
+        if self.self.env.company.private_contact_only:
+            return [('company_id', '!=', False), ('company_id', '=', self.env.company.id)]
+        return []
+
+class ResPartnerRule(models.Model):
+    _inherit = 'ir.rule'
+
+    def _compute_domain(self):
+        domain = super(ResPartnerRule, self)._compute_domain()
+        if self.model_id.model == 'res.partner':
+            domain += self.env['res.partner']._get_private_contact_domain()
+        return domain
