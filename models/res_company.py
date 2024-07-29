@@ -6,6 +6,7 @@ class ResCompany(models.Model):
     _inherit = 'res.company'
 
     private_product_only = fields.Boolean(string='Private Products Only', default=False)
+    private_contact_only = fields.Boolean(string="Private Contact Only")
     is_virtual = fields.Boolean(string='Is Virtual Company', default=False)
 
     # ricai_location_id = fields.Many2one('stock.location', string='日采发货区', domain=[('usage', '=', 'internal')])
