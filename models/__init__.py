@@ -3,7 +3,6 @@
 
 from . import product_product
 from . import product_template
-from . import res_partner
 from . import st_preference
 from . import st_purchasecard
 from . import res_user_approval
@@ -19,4 +18,5 @@ from . import mrp_bom_line
 from . import dairy_stock_report
 from . import stock_quantity_history
 from . import res_company
+from . import res_partner
 from . import rma

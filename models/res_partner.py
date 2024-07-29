@@ -43,16 +43,13 @@ class Partner(models.Model):
         return recs.name_get()
 
 
-    def _get_private_contact_domain(self):
-        if self.self.env.company.private_contact_only:
-            return [('company_id', '!=', False), ('company_id', '=', self.env.company.id)]
-        return []
+    @api.model
+    def search_read(self, domain=None, fields=None, offset=0, limit=None, order=None):
+        domain = domain or []
+        current_company = self.env.company
 
-class ResPartnerRule(models.Model):
-    _inherit = 'ir.rule'
+        # 检查当前公司是否设置了只看私有产品
+        if current_company.private_contact_only:
+            domain += [('company_id', '=', current_company.id)]
 
-    def _compute_domain(self):
-        domain = super(ResPartnerRule, self)._compute_domain()
-        if self.model_id.model == 'res.partner':
-            domain += self.env['res.partner']._get_private_contact_domain()
-        return domain
+        return super(Partner, self).search_read(domain=domain, fields=fields, offset=offset, limit=limit, order=order)
