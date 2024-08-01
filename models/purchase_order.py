@@ -114,39 +114,48 @@ class PurchaseOrder(models.Model):
         return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
 
 
-    # def button_confirm(self):
-    #     for order in self:
-    #         if order.state not in ['draft', 'sent']:
-    #             continue
-    #         # 如果是replenishment采购单
-    #         is_replenishment = False
-    #         if order.picking_type_id.code == 'incoming' and order.origin:
-    #             _logger.info("    order.origin     :")
-    #             _logger.info(order.origin)
-    #             if ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
-    #                 is_replenishment = True
+    def button_confirm(self):
+        for order in self:
+            if order.state not in ['draft', 'sent']:
+                continue
+            # 如果是replenishment采购单
+            is_replenishment = False
+            if order.picking_type_id.code == 'incoming' and order.origin:
+                _logger.info("    order.origin     :")
+                _logger.info(order.origin)
+                if ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+                    is_replenishment = True
 
-    #         if is_replenishment:
-    #             # if not order.company_id.mrp_location_id:
-    #             #     raise UserError(f"Missing location...")
-    #             # _logger.info('拆分收货单')
+            if is_replenishment:
+                # if not order.company_id.mrp_location_id:
+                #     raise UserError(f"Missing location...")
+                _logger.info('拆分收货单')
 
-    #             order._add_supplier_to_product()
-                
-    #             # Deal with double validation process
-    #             if order._approval_allowed():
-    #                 picking_ids = order._seperate_receiving_pickings()
-    #                 # raise UserError('强行异常，用于调试')
-    #                 # 手动更新订单状态为 'purchase'
-    #                 order.write({'state': 'purchase', 'date_approve': fields.Datetime.now(), 'picking_ids': [(6, 0, picking_ids)]})
-    #             else:
-    #                 order.write({'state': 'to approve'})
+                order._add_supplier_to_product()
+
+                if not order.group_id:
+                    group = self.env['procurement.group'].create({
+                        'name': order.name,
+                        'move_type': 'direct',
+                        'partner_id': order.partner_id.id,
+                    })
+                    order.write({'group_id': group.id})
                     
-    #             if order.partner_id not in order.message_partner_ids:
-    #                 order.message_subscribe([order.partner_id.id])
-    #         else:    
-    #             res = super(PurchaseOrder, order).button_confirm()
-    #     return True
+                _logger.info(order.group_id)
+                # Deal with double validation process
+                if order._approval_allowed():
+                    picking_ids = order._seperate_receiving_pickings()
+                    # raise UserError('强行异常，用于调试')
+                    # 手动更新订单状态为 'purchase'
+                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now(), 'picking_ids': [(6, 0, picking_ids)]})
+                else:
+                    order.write({'state': 'to approve'})
+                    
+                if order.partner_id not in order.message_partner_ids:
+                    order.message_subscribe([order.partner_id.id])
+            else:    
+                res = super(PurchaseOrder, order).button_confirm()
+        return True
 
     def _seperate_receiving_pickings(self):
         picking_ids = []
@@ -211,17 +220,17 @@ class PurchaseOrder(models.Model):
             
             if so_moves:
                 for location_id, moves in so_moves.items():
-                    picking = self._create_seperated_picking(order, moves, order.name, location_id)
+                    picking = self._create_seperated_picking(order, line, moves, order.name, location_id)
                     picking_ids.append(picking.id)
             # if mo_moves:
-            #     picking = self._create_seperated_picking(order, mo_moves, order.name, order.company_id.mrp_location_id.id)
+            #     picking = self._create_seperated_picking(order, line, mo_moves, order.name, order.company_id.mrp_location_id.id)
             #     picking_ids.append(picking.id)
             if stock_moves:
-                picking = self._create_seperated_picking(order, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
+                picking = self._create_seperated_picking(order, line, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
                 picking_ids.append(picking.id)
         return picking_ids
 
-    def _create_seperated_picking(self, order, moves, origin, dest_location_id):
+    def _create_seperated_picking(self, order, order_line, moves, origin, dest_location_id):
         picking_type = self.env['stock.picking.type'].search([
             ('code', '=', 'incoming'),
             ('warehouse_id.company_id', '=', order.company_id.id)
@@ -234,9 +243,11 @@ class PurchaseOrder(models.Model):
             'location_id': order.partner_id.property_stock_supplier.id,
             'location_dest_id': dest_location_id,
             'name': product.display_name,
+            'group_id': order.group_id.id,
+            'purchase_line_id': order_line.id
         }) for product, qty in moves]
 
-        picking = self.env['stock.picking'].create({
+        picking_data = {
             'location_id': order.partner_id.property_stock_supplier.id,
             'location_dest_id': dest_location_id,
             'picking_type_id': picking_type.id,
@@ -246,7 +257,10 @@ class PurchaseOrder(models.Model):
             'purchase_id': order.id,
             'company_id': order.company_id.id,
             'move_type': 'direct',
-        })
+            'group_id': order.group_id.id,
+        }
+        _logger.info(picking_data)
+        picking = self.env['stock.picking'].create(picking_data)
         _logger.info(origin)
         _logger.info(picking)
         picking.action_confirm()
