@@ -276,7 +276,7 @@ class SaleOrder(models.Model):
 
     def _compute_invoice_count(self):
         for order in self:
-            order.invoice_count = self.env['account.move'].search_count([('company_id', '=', order.sale_company_id.id),('invoice_origin', '=', order.name), ('move_type', '=', 'out_invoice')])
+            order.invoice_count = self.env['account.move'].sudo().search_count([('company_id', '=', order.sale_company_id.id),('invoice_origin', '=', order.name), ('move_type', '=', 'out_invoice')])
 
     @api.depends('company_id')
     def _compute_current_company_is_virtual(self):
@@ -342,8 +342,8 @@ class SaleOrder(models.Model):
                 invoice_vals['invoice_line_ids'].append((0, 0, invoice_line_vals))
 
             # 使用with_context来确保环境为销售公司
-            invoice = self.env['account.move'].with_context(default_company_id=order.sale_company_id.id).create(invoice_vals)
-            # order.invoice_ids = [(4, invoice.id)]
+            invoice = self.env['account.move'].sudo().with_context(default_company_id=order.sale_company_id.id).create(invoice_vals)
+            order.invoice_ids = [(4, invoice.id)]
 
             # 更新为跟SO同号， 检查是否已经创建过一次invoice
             currentInvoices = self.env['account.move'].search([
