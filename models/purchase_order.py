@@ -114,48 +114,48 @@ class PurchaseOrder(models.Model):
         return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
 
 
-    def button_confirm(self):
-        for order in self:
-            if order.state not in ['draft', 'sent']:
-                continue
-            # 如果是replenishment采购单
-            is_replenishment = False
-            if order.picking_type_id.code == 'incoming' and order.origin:
-                _logger.info("    order.origin     :")
-                _logger.info(order.origin)
-                if ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
-                    is_replenishment = True
+    # def button_confirm(self):
+    #     for order in self:
+    #         if order.state not in ['draft', 'sent']:
+    #             continue
+    #         # 如果是replenishment采购单
+    #         is_replenishment = False
+    #         if order.picking_type_id.code == 'incoming' and order.origin:
+    #             _logger.info("    order.origin     :")
+    #             _logger.info(order.origin)
+    #             if ('replenishment' in order.origin.lower() or '补货' in order.origin.lower()):
+    #                 is_replenishment = True
 
-            if is_replenishment:
-                # if not order.company_id.mrp_location_id:
-                #     raise UserError(f"Missing location...")
-                _logger.info('拆分收货单')
+    #         if is_replenishment:
+    #             # if not order.company_id.mrp_location_id:
+    #             #     raise UserError(f"Missing location...")
+    #             _logger.info('拆分收货单')
 
-                order._add_supplier_to_product()
+    #             order._add_supplier_to_product()
 
-                if not order.group_id:
-                    group = self.env['procurement.group'].create({
-                        'name': order.name,
-                        'move_type': 'direct',
-                        'partner_id': order.partner_id.id,
-                    })
-                    order.write({'group_id': group.id})
+    #             if not order.group_id:
+    #                 group = self.env['procurement.group'].create({
+    #                     'name': order.name,
+    #                     'move_type': 'direct',
+    #                     'partner_id': order.partner_id.id,
+    #                 })
+    #                 order.write({'group_id': group.id})
                     
-                _logger.info(order.group_id)
-                # Deal with double validation process
-                if order._approval_allowed():
-                    picking_ids = order._seperate_receiving_pickings()
-                    # raise UserError('强行异常，用于调试')
-                    # 手动更新订单状态为 'purchase'
-                    order.write({'state': 'purchase', 'date_approve': fields.Datetime.now(), 'picking_ids': [(6, 0, picking_ids)]})
-                else:
-                    order.write({'state': 'to approve'})
+    #             _logger.info(order.group_id)
+    #             # Deal with double validation process
+    #             if order._approval_allowed():
+    #                 picking_ids = order._seperate_receiving_pickings()
+    #                 # raise UserError('强行异常，用于调试')
+    #                 # 手动更新订单状态为 'purchase'
+    #                 order.write({'state': 'purchase', 'date_approve': fields.Datetime.now(), 'picking_ids': [(6, 0, picking_ids)]})
+    #             else:
+    #                 order.write({'state': 'to approve'})
                     
-                if order.partner_id not in order.message_partner_ids:
-                    order.message_subscribe([order.partner_id.id])
-            else:    
-                res = super(PurchaseOrder, order).button_confirm()
-        return True
+    #             if order.partner_id not in order.message_partner_ids:
+    #                 order.message_subscribe([order.partner_id.id])
+    #         else:    
+    #             res = super(PurchaseOrder, order).button_confirm()
+    #     return True
 
     def _seperate_receiving_pickings(self):
         picking_ids = []
