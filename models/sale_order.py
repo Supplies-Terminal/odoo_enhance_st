@@ -332,12 +332,23 @@ class SaleOrder(models.Model):
                 if not account_id:
                     raise UserError("No income account defined for the product %s in company %s." % (line.product_id.display_name, order.sale_company_id.display_name))
 
+                # 获取sale_company_id下同名的税
+                taxes = self.env['account.tax'].with_company(order.sale_company_id.id).search([
+                    ('name', 'in', line.tax_id.mapped('name')),
+                    ('company_id', '=', order.sale_company_id.id),
+                ])
+
+                if not taxes:
+                    # 获取产品在本公司设定的税
+                    taxes = line.product_id.with_company(order.sale_company_id.id).taxes_id.filtered(lambda t: t.company_id == order.sale_company_id)
+                
                 invoice_line_vals = {
                     'product_id': line.product_id.id,
                     'quantity': line.product_uom_qty,
                     'price_unit': line.price_unit,
                     'name': line.name,
-                    'account_id': account_id
+                    'account_id': account_id,
+                    'tax_ids': [(6, 0, taxes.ids)]  # 添加税务信息
                 }
                 invoice_vals['invoice_line_ids'].append((0, 0, invoice_line_vals))
 
