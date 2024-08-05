@@ -3,10 +3,49 @@
 
 from odoo import models, fields, api
 from pytz import timezone
+from datetime import datetime, time
+import pytz
+
+import logging
+_logger = logging.getLogger(__name__)
+
 
 class AccountInvoice(models.Model):
     _inherit = 'account.move'
 
+    def _set_next_sequence(self):
+        if not self.company_id.private_contact_only and not self.company_id.private_product_only and not self.company_id.is_virtual:
+            _logger.info("销售公司使用virtual company序列号")
+            # 检查前置条件
+            invoices = self.env['account.move'].sudo().search([
+                ('company_id.is_virtual', '=', True),
+                ('invoice_user_id', '=', 2),
+                ('payment_reference', '=', 'SO_SEQUENCE'),
+            ], order='name desc')
+            
+            if not invoices or len(invoices) < 2:
+                raise UserError('No SO_SEQUENCE found for invoices (at least 2) in virtual company')
+
+            toronto_timezone = pytz.timezone('America/Toronto')
+            now_utc = datetime.utcnow().replace(tzinfo=pytz.utc)
+            now_toronto = now_utc.astimezone(toronto_timezone)
+        
+            invoice = invoices[1]
+            invoice.button_draft()
+            invoice.write({
+                'name': 'draft',
+                'date': now_toronto
+            })
+            _logger.info(invoice.name)
+            invoice._set_next_sequence()
+
+            # 使用虚拟公司生成的序列号
+            self.name = invoice.name
+            _logger.info(self.name)
+        else:
+            _logger.info("非销售公司，使用自己的序列号")
+            super(AccountInvoice, self)._set_next_sequence()
+            
     def _prepare_invoice_line_from_po_line(self, line):
         res = super(AccountInvoice,
                     self)._prepare_invoice_line_from_po_line(line)
