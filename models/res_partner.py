@@ -42,10 +42,21 @@ class Partner(models.Model):
         # 根据公司设置调整搜索条件
         if current_company.private_contact_only:
             args.append(('company_id', '=', current_company.id))
+            
         _logger.info("--------------")
         _logger.info(args)
         
         recs = self.search([('full_name', operator, name)] + args, limit=limit)
+
+        # 根据公司设置调整搜索条件(专门用于dymac的跨公司调货特殊情形)
+        if current_company.private_contact_only:
+            # 查找所有 is_virtual=True 的公司，并获取它们的 partner_id
+            virtual_companies = self.env['res.company'].search([('is_virtual', '=', True)])
+            special_partners = self.browse(virtual_companies.mapped('partner_id').ids)
+
+            # 如果找到这些特殊 partners，将它们添加到结果集中
+            if special_partners:
+                recs |= special_partners
 
         if not recs.ids:
             return super(Partner, self)._name_search(name=name, args=args,
