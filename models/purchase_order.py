@@ -93,27 +93,32 @@ class PurchaseOrder(models.Model):
 
 
     def _get_allocation_data(self):
-        allocation_data = defaultdict(lambda: defaultdict(list))
-        
+        allocation_data = defaultdict(lambda: defaultdict(lambda: defaultdict(float)))
+
         for order in self:
-            for line in order.order_line:
-                pickup_job = order.pickup_job  # 使用 pickup_job 字段
-                for picking in line.move_ids.filtered(lambda m: m.state in ['done', 'assigned', 'waiting']):  # 获取已完成的收货记录
-                    location = picking.location_dest_id.name
-                    allocation_data[pickup_job][location].append({
-                        'source': 'SO' if line.so_ids else 'MO',
-                        'product': line.product_id.display_name,
-                        'order': line.so_ids[0].sale_order_id.name if line.so_ids else line.mo_ids[0].manufacturing_order_id.name,
-                        'quantity': sum(so.quantity for so in line.so_ids) if line.so_ids else sum(mo.quantity for mo in line.mo_ids),
-                        'unit': line.product_uom.name,
-                    })
+            pickup_job = order.pickup_job  # 使用 pickup_job 字段
+            for picking in order.picking_ids:  # 遍历每个采购订单相关的收货记录
+                location = picking.location_dest_id.name
+                for move in picking.move_lines:  # 遍历每个收货记录的库存移动行
+                    # 聚合相同产品的需求数量
+                    allocation_data[pickup_job][location][move.product_id.id] += move.product_uom_qty
         
-        # 转换数据结构以便于在模板中使用
         formatted_allocation_data = []
         for pickup_job, locations in allocation_data.items():
+            location_data = []
+            for location, products in locations.items():
+                items = [{
+                    'product': self.env['product.product'].browse(product_id).display_name,
+                    'quantity': quantity,
+                    'unit': self.env['product.product'].browse(product_id).uom_id.name
+                } for product_id, quantity in products.items()]
+                location_data.append({
+                    'location': location,
+                    'items': items
+                })
             formatted_allocation_data.append({
                 'pickup_job': pickup_job,
-                'locations': [{'location': loc, 'items': items} for loc, items in locations.items()],
+                'locations': location_data,
             })
 
         return formatted_allocation_data
@@ -291,7 +296,6 @@ class ReportPurchaseOrderAllocation(models.AbstractModel):
         return {
             'doc_ids': docids,
             'doc_model': 'purchase.order',
-            'docs': docs,  # 传递 purchase.order 记录集
             'allocation_data': allocation_data,  # 传递 allocation_data
             'company': current_company,
         }
