@@ -3,6 +3,8 @@
 from datetime import datetime, time
 from odoo.exceptions import UserError, ValidationError
 from dateutil.relativedelta import relativedelta
+from collections import defaultdict
+
 import json
 import logging
 _logger = logging.getLogger(__name__)
@@ -89,39 +91,32 @@ class PurchaseOrder(models.Model):
         }
         return True
 
+
     def _get_allocation_data(self):
-        allocation_data = []
-        for line in self.order_line:
-            pickup_job = line.order_id.pickup_job
-            
-            for picking in line.move_ids.filtered(lambda m: m.state in ['done', 'assigned', 'waiting']):  # 获取已完成的收货记录
-                location = picking.location_dest_id.name
-                
-                for so in line.so_ids:
+        allocation_data = defaultdict(lambda: defaultdict(list))
+        
+        for order in self:
+            for line in order.order_line:
+                pickup_job = order.pickup_job  # 使用 pickup_job 字段
+                for picking in line.move_ids.filtered(lambda m: m.state in ['done', 'assigned', 'waiting']):  # 获取已完成的收货记录
+                    location = picking.location_dest_id.name
                     allocation_data[pickup_job][location].append({
-                        'source': 'SO',
+                        'source': 'SO' if line.so_ids else 'MO',
                         'product': line.product_id.display_name,
-                        'order': so.sale_order_id.name,
-                        'quantity': so.quantity,
+                        'order': line.so_ids[0].sale_order_id.name if line.so_ids else line.mo_ids[0].manufacturing_order_id.name,
+                        'quantity': sum(so.quantity for so in line.so_ids) if line.so_ids else sum(mo.quantity for mo in line.mo_ids),
                         'unit': line.product_uom.name,
                     })
-                for mo in line.mo_ids:
-                    allocation_data[pickup_job][location].append({
-                        'source': 'MO',
-                        'product': line.product_id.display_name,
-                        'order': mo.manufacturing_order_id.name,
-                        'quantity': mo.quantity,
-                        'unit': line.product_uom.name,
-                    })
-        # Flatten the defaultdict to a list for the report
-        flat_allocation_data = []
+        
+        # 转换数据结构以便于在模板中使用
+        formatted_allocation_data = []
         for pickup_job, locations in allocation_data.items():
             formatted_allocation_data.append({
                 'pickup_job': pickup_job,
                 'locations': [{'location': loc, 'items': items} for loc, items in locations.items()],
             })
-            
-        return allocation_data
+
+        return formatted_allocation_data
 
     def print_allocation_report(self):
         return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
@@ -287,10 +282,11 @@ class ReportPurchaseOrderAllocation(models.AbstractModel):
     def _get_report_values(self, docids, data=None):
         _logger.info("---------_get_report_values----------")
         docs = self.env['purchase.order'].browse(docids)
-        allocation_data = []
-        for doc in docs:
-            allocation_data.extend(doc._get_allocation_data())
-        _logger.info(allocation_data)
+        
+        # 调用 purchase.order 的 _get_allocation_data 方法，处理所有订单
+        allocation_data = docs._get_allocation_data()
+        _logger.info("Final Allocation Data: %s", allocation_data)
+        
         current_company = self.env.company
         return {
             'doc_ids': docids,
