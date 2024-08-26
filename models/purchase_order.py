@@ -92,22 +92,35 @@ class PurchaseOrder(models.Model):
     def _get_allocation_data(self):
         allocation_data = []
         for line in self.order_line:
-            for so in line.so_ids:
-                allocation_data.append({
-                    'source': 'SO',
-                    'product': line.product_id.display_name,
-                    'order': so.sale_order_id.name,
-                    'quantity': so.quantity,
-                    'unit': line.product_uom.name,
-                })
-            for mo in line.mo_ids:
-                allocation_data.append({
-                    'source': 'MO',
-                    'product': line.product_id.display_name,
-                    'order': mo.manufacturing_order_id.name,
-                    'quantity': mo.quantity,
-                    'unit': line.product_uom.name,
-                })
+            pickup_job = line.order_id.pickup_job
+            
+            for picking in line.move_ids.filtered(lambda m: m.state in ['done', 'assigned', 'waiting']):  # 获取已完成的收货记录
+                location = picking.location_dest_id.name
+                
+                for so in line.so_ids:
+                    allocation_data[pickup_job][location].append({
+                        'source': 'SO',
+                        'product': line.product_id.display_name,
+                        'order': so.sale_order_id.name,
+                        'quantity': so.quantity,
+                        'unit': line.product_uom.name,
+                    })
+                for mo in line.mo_ids:
+                    allocation_data[pickup_job][location].append({
+                        'source': 'MO',
+                        'product': line.product_id.display_name,
+                        'order': mo.manufacturing_order_id.name,
+                        'quantity': mo.quantity,
+                        'unit': line.product_uom.name,
+                    })
+        # Flatten the defaultdict to a list for the report
+        flat_allocation_data = []
+        for pickup_job, locations in allocation_data.items():
+            formatted_allocation_data.append({
+                'pickup_job': pickup_job,
+                'locations': [{'location': loc, 'items': items} for loc, items in locations.items()],
+            })
+            
         return allocation_data
 
     def print_allocation_report(self):

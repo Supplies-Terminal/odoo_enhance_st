@@ -7,31 +7,34 @@
                     <div class="o_company_#{company.id}_layout">
                         <t t-set="company" t-value="company"/>
                         <div t-attf-class="article o_report_layout_standard1 o_company_#{company.id}_layout {{  'o_layout_background' if company.layout_background in ['Geometric', 'Custom']  else  '' }}" t-attf-style="background-image: url({{ 'data:image/png;base64,%s' % company.layout_background_image.decode('utf-8') if company.layout_background_image and company.layout_background == 'Custom' else '/base/static/img/bg_background_template.jpg' if company.layout_background == 'Geometric' else ''}});" t-att-data-oe-model="o and o._name" t-att-data-oe-id="o and o.id" t-att-data-oe-lang="o and o.env.context.get('lang')">
-                            <div class="page">
-                                <h2>Allocation Report - <t t-esc="o.name"/></h2>
-                                <table class="table table-condensed">
-                                    <thead>
-                                        <tr>
-                                            <th>Source</th>
-                                            <th>Product</th>
-                                            <th>Order</th>
-                                            <th>Quantity</th>
-                                            <th>Unit</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <t t-foreach="allocation_data" t-as="item">
-                                            <tr>
-                                                <td><t t-esc="item['source']"/></td>
-                                                <td><t t-esc="item['product']"/></td>
-                                                <td><t t-esc="item['order']"/></td>
-                                                <td><t t-esc="item['quantity']"/></td>
-                                                <td><t t-esc="item['unit']"/></td>
-                                            </tr>
-                                        </t>
-                                    </tbody>
-                                </table>
-                            </div>
+                            <t t-foreach="allocation_data" t-as="page">
+                                <div class="page">
+                                    <h2>Pickup Job: <t t-esc="page['pickup_job']"/></h2>
+                                    <t t-foreach="page['locations']" t-as="location_group">
+                                        <h3>Destination: <t t-esc="location_group['location']"/></h3>
+                                        <table class="table table-condensed">
+                                            <thead>
+                                                <tr>
+                                                    <th>Product</th>
+                                                    <th>Order</th>
+                                                    <th>Quantity</th>
+                                                    <th>Unit</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <t t-foreach="location_group['items']" t-as="item">
+                                                    <tr>
+                                                        <td><t t-esc="item['product']"/></td>
+                                                        <td><t t-esc="item['order']"/></td>
+                                                        <td><t t-esc="item['quantity']"/></td>
+                                                        <td><t t-esc="item['unit']"/></td>
+                                                    </tr>
+                                                </t>
+                                            </tbody>
+                                        </table>
+                                    </t>
+                                </div>
+                            </t>
                         </div>
                     </div>
                 </t>
