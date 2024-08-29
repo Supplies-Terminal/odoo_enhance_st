@@ -98,10 +98,12 @@ class PurchaseOrder(models.Model):
         for order in self:
             pickup_job = order.pickup_job  # 使用 pickup_job 字段
             for picking in order.picking_ids:  # 遍历每个采购订单相关的收货记录
-                location = picking.location_dest_id.name
-                for move in picking.move_lines:  # 遍历每个收货记录的库存移动行
-                    # 聚合相同产品的需求数量
-                    allocation_data[pickup_job][location][move.product_id.id] += move.product_uom_qty
+                _logger.info(picking.state)
+                if picking.state == 'done':  # 只处理状态为 'done' 的收货记录
+                    location = picking.location_dest_id.name
+                    for move in picking.move_lines:  # 遍历每个收货记录的库存移动行
+                        # 聚合相同产品的需求数量
+                        allocation_data[pickup_job][location][move.product_id.id] += move.product_uom_qty
         
         formatted_allocation_data = []
         for pickup_job, locations in allocation_data.items():
@@ -173,9 +175,25 @@ class PurchaseOrder(models.Model):
     def _seperate_receiving_pickings(self):
         picking_ids = []
         for order in self:
+            bulk_moves = []
             so_moves = {}
             mo_moves = []
             stock_moves = []
+
+            bulk_location = self.env['stock.location'].search([
+                ('usage', '=', 'internal'),
+                ('is_for_bulk', '=', True),
+                ('company_id', '=', order.company_id.id)
+            ], limit=1)
+
+            mrp_location = self.env['stock.location'].search([
+                ('usage', '=', 'internal'),
+                ('is_for_mrp', '=', True),
+                ('company_id', '=', order.company_id.id)
+            ], limit=1)
+            
+            if not bulk_location or not mrp_location:
+                raise UserError(f"Missing Bulk Location MRP Location ...")
 
             for line in order.order_line:
                 product = line.product_id
@@ -183,61 +201,76 @@ class PurchaseOrder(models.Model):
 
                 # 分配给销售订单
                 for so in line.so_ids:
+                    bulk_total = 0;
                     if remaining_qty > 0:
                         line_qty = min(remaining_qty, so.quantity)
                         _logger.info(f'       so: %s', so.sale_order_id.id)
 
                         if line_qty>0:
-                            # 获取preparing_location_ids
-                            delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', so.sale_order_id.id)], limit=1)
-                            if delivery_job_stop:
-                                preparing_locations = delivery_job_stop.job_id.preparing_location_ids
-                                if preparing_locations:
-                                    so_preparing_location_id = preparing_locations.filtered(lambda loc: loc.company_id == order.company_id)[:1].id
-                                    if so_preparing_location_id:
-                                        if so_preparing_location_id in so_moves:
-                                            _logger.info(f'       so: %s   location: %s', so.sale_order_id.id, so_preparing_location_id)
-                                            # 如果已经存在，则累加数量
-                                            for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
-                                                if existing_product == product:
-                                                    so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
-                                                    break
+                            # 如果是散货，直接分流到散货区
+                            if product.pack_supported:
+                                _logger.info(f'       so: %s   location: %s', so.sale_order_id.id, bulk_location)
+                                bulk_total += line_qty
+                                remaining_qty -= line_qty
+                            else:
+                                # 否则分流到车辆发货区preparing_location_ids
+                                delivery_job_stop = self.env['delivery.job.stop'].search([('order_id', '=', so.sale_order_id.id)], limit=1)
+                                if delivery_job_stop:
+                                    preparing_locations = delivery_job_stop.job_id.preparing_location_ids
+                                    if preparing_locations:
+                                        so_preparing_location_id = preparing_locations.filtered(lambda loc: loc.company_id == order.company_id)[:1].id
+                                        if so_preparing_location_id:
+                                            if so_preparing_location_id in so_moves:
+                                                _logger.info(f'       so: %s   location: %s', so.sale_order_id.id, so_preparing_location_id)
+                                                # 如果已经存在，则累加数量
+                                                for idx, (existing_product, existing_qty) in enumerate(so_moves[so_preparing_location_id]):
+                                                    if existing_product == product:
+                                                        so_moves[so_preparing_location_id][idx] = (existing_product, existing_qty + line_qty)
+                                                        break
+                                                else:
+                                                    so_moves[so_preparing_location_id].append((product, line_qty))
                                             else:
-                                                so_moves[so_preparing_location_id].append((product, line_qty))
-                                        else:
-                                            so_moves[so_preparing_location_id] = [(product, line_qty)]
-                                        remaining_qty -= line_qty
-                            _logger.info(so_moves)
-                            # 这里可能有if不成立的情况，这部分数量将会放到stock去
+                                                so_moves[so_preparing_location_id] = [(product, line_qty)]
+                                            remaining_qty -= line_qty
+                                _logger.info(so_moves)
+                                # 这里可能有if不成立的情况，这部分数量将会放到stock去
 
-                # # 分配给制造订单
-                # mo_total = 0;
-                # for mo in line.mo_ids:
-                #     if remaining_qty > 0:
-                #         line_qty = min(remaining_qty, mo.quantity)
-                #         remaining_qty -= line_qty
-                #         mo_total += line_qty
+                if bulk_total > 0:
+                    bulk_moves.append((product, bulk_total))
 
-                # if mo_total > 0:
-                #     mo_moves.append((product, mo_total))
+                # 分配给制造订单
+                mo_total = 0;
+                for mo in line.mo_ids:
+                    if remaining_qty > 0:
+                        line_qty = min(remaining_qty, mo.quantity)
+                        remaining_qty -= line_qty
+                        mo_total += line_qty
+
+                if mo_total > 0:
+                    mo_moves.append((product, mo_total))
 
                 if remaining_qty > 0:
-                    stock_moves.append((product, remaining_qty, ))
+                    stock_moves.append((product, remaining_qty))
                     
-            # _logger.info('so_moves:')
-            # _logger.info(so_moves)
-            # _logger.info('mo_moves:')
-            # _logger.info(mo_moves)
-            # _logger.info('stock_moves:')
-            # _logger.info(stock_moves)
+            _logger.info('---- so_moves ----')
+            _logger.info(so_moves)
+            _logger.info('---- bulk_moves ----')
+            _logger.info(bulk_moves)
+            _logger.info('---- mo_moves ----')
+            _logger.info(mo_moves)
+            _logger.info('---- stock_moves ----')
+            _logger.info(stock_moves)
             
             if so_moves:
                 for location_id, moves in so_moves.items():
                     picking = self._create_seperated_picking(order, line, moves, order.name, location_id)
                     picking_ids.append(picking.id)
-            # if mo_moves:
-            #     picking = self._create_seperated_picking(order, line, mo_moves, order.name, order.company_id.mrp_location_id.id)
-            #     picking_ids.append(picking.id)
+            if bulk_moves and bulk_location:
+                picking = self._create_seperated_picking(order, line, bulk_moves, order.name, bulk_location.id)
+                picking_ids.append(picking.id)
+            if mo_moves:
+                picking = self._create_seperated_picking(order, line, mo_moves, order.name, mrp_location.id)
+                picking_ids.append(picking.id)
             if stock_moves:
                 picking = self._create_seperated_picking(order, line, stock_moves, order.name, order.picking_type_id.default_location_dest_id.id)
                 picking_ids.append(picking.id)
@@ -287,7 +320,31 @@ class ReportPurchaseOrderAllocation(models.AbstractModel):
     def _get_report_values(self, docids, data=None):
         _logger.info("---------_get_report_values----------")
         docs = self.env['purchase.order'].browse(docids)
-        
+
+        # 检查是否有未完成的收货记录
+        missing_pickup_job_order_names = []
+        for order in docs:
+            if not order.pickup_job:
+                missing_pickup_job_order_names.append(order.name)
+
+        if len(missing_pickup_job_order_names)>0:
+            # 将未完成任务的采购订单名称用逗号分隔开
+            missing_pickup_job_order_names_str = ', '.join(missing_pickup_job_order_names)
+            raise UserError('Missing pickup/delivery planning: %s' % missing_pickup_job_order_names_str)
+                
+        # 检查是否有未完成的收货记录
+        incomplete_order_names = []
+        for order in docs:
+            for picking in order.picking_ids:
+                if picking.state != 'done' and picking.state != 'cancel':
+                    incomplete_order_names.append(order.name)
+                    break  # 只需要记录一次这个订单就可以，跳出当前订单的 picking 检查
+
+        if len(incomplete_order_names)>0:
+            # 将未完成任务的采购订单名称用逗号分隔开
+            incomplete_order_names_str = ', '.join(incomplete_order_names)
+            raise UserError('Please receive all products for the following orders before printing the report: %s' % incomplete_order_names_str)
+                
         # 调用 purchase.order 的 _get_allocation_data 方法，处理所有订单
         allocation_data = docs._get_allocation_data()
         _logger.info("Final Allocation Data: %s", allocation_data)
