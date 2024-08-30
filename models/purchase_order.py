@@ -199,9 +199,9 @@ class PurchaseOrder(models.Model):
                 product = line.product_id
                 remaining_qty = line.product_qty
 
+                bulk_total = 0;
                 # 分配给销售订单
                 for so in line.so_ids:
-                    bulk_total = 0;
                     if remaining_qty > 0:
                         line_qty = min(remaining_qty, so.quantity)
                         _logger.info(f'       so: %s', so.sale_order_id.id)
