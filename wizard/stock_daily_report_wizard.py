@@ -60,7 +60,7 @@ class DailyStockReportWizard(models.TransientModel):
             naive_datetime = datetime.combine(current_date, datetime.max.time())
             localized_datetime = tz.localize(naive_datetime, is_dst=None)
             date_utc = localized_datetime.astimezone(pytz.UTC)
-            self.env['daily.stock.report'].calculate_stock_totals(date_utc)
+            self.env['daily.stock.report'].calculate_stock_totals(current_date, date_utc)
             current_date += timedelta(days=1)
 
         # return {

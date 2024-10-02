@@ -15,11 +15,11 @@ class DailyStockReport(models.Model):
     company_id = fields.Many2one('res.company', string='Company', required=True, default=lambda self: self.env.company)
     
     @api.model
-    def calculate_stock_totals(self, date):
+    def calculate_stock_totals(self, date, end_date):
         current_company_id = self.env.company.id
         _logger.info(current_company_id)
 
-        date_str = date.strftime('%Y-%m-%d %H:%M:%S')
+        date_str = end_date.strftime('%Y-%m-%d %H:%M:%S')
         _logger.info(date_str)
 
         products = self.env['product.product'].with_company(current_company_id).with_context(to_date=date_str).search([('type', '=', 'product'), ('product_tmpl_id.pack_supported', '=', False)])
@@ -43,7 +43,7 @@ class DailyStockReport(models.Model):
         for day in range(0, 30):
             date = end_datetime - timedelta(days=day)
             date_utc = date.astimezone(pytz.UTC)
-            total = self.calculate_stock_totals(date_utc)
+            total = self.calculate_stock_totals(date, date_utc)
             
 
     def daily_stock_report_wizard_action(self):
