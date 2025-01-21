@@ -322,6 +322,7 @@ class SaleOrder(models.Model):
                 'invoice_origin': order.name,
                 'invoice_user_id': order.user_id.id,
                 'company_id': order.sale_company_id.id,
+                'operating_company_id': order.company_id.id,
                 'invoice_line_ids': [],
             }
 

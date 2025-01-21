@@ -54,6 +54,7 @@
         'views/daily_stock_report_views.xml',
         'views/res_company_views.xml',
         'views/rma_views.xml',
+        'views/account_move_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

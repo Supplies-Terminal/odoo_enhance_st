@@ -13,6 +13,20 @@ _logger = logging.getLogger(__name__)
 class AccountInvoice(models.Model):
     _inherit = 'account.move'
 
+    operating_company_id = fields.Many2one('res.company', string='Operating Company', required=False)
+    current_company_is_virtual = fields.Boolean(string='Current Company is Virtual', compute='_compute_current_company_is_virtual')
+    @api.depends('company_id')
+    def _compute_current_company_is_virtual(self):
+        for order in self:
+            _logger.info("_compute_current_company_is_virtual")
+            _logger.info(order.company_id)
+            if order.company_id:
+                order.current_company_is_virtual = order.company_id.is_virtual
+            else:
+                order.current_company_is_virtual = False
+
+    def _updateDailyStatement(self):
+
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
             if not self.company_id.private_contact_only and not self.company_id.private_product_only and not self.company_id.is_virtual:
