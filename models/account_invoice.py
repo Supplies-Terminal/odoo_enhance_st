@@ -18,14 +18,10 @@ class AccountInvoice(models.Model):
     @api.depends('company_id')
     def _compute_current_company_is_virtual(self):
         for order in self:
-            _logger.info("_compute_current_company_is_virtual")
-            _logger.info(order.company_id)
             if order.company_id:
                 order.current_company_is_virtual = order.company_id.is_virtual
             else:
                 order.current_company_is_virtual = False
-
-    def _updateDailyStatement(self):
 
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
