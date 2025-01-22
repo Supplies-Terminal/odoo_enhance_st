@@ -13,15 +13,15 @@ _logger = logging.getLogger(__name__)
 class AccountInvoice(models.Model):
     _inherit = 'account.move'
 
-    operating_company_id = fields.Many2one('res.company', string='Operating Company', required=False)
-    current_company_is_virtual = fields.Boolean(string='Current Company is Virtual', compute='_compute_current_company_is_virtual')
+    operating_company_id = fields.Many2one('res.company', string='Operating Company', required=False, domain=[('is_virtual', '=', True)])
+    is_sales_company = fields.Boolean(string='Current Company is Virtual', compute='_compute_is_sales_company')
     @api.depends('company_id')
-    def _compute_current_company_is_virtual(self):
+    def _compute_is_sales_company(self):
         for order in self:
             if order.company_id:
-                order.current_company_is_virtual = order.company_id.is_virtual
+                order.is_sales_company = order.company_id.private_product_only == False and order.company_id.private_contact_only == False
             else:
-                order.current_company_is_virtual = False
+                order.is_sales_company = False
 
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
