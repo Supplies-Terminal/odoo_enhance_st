@@ -23,6 +23,96 @@ class AccountInvoice(models.Model):
             else:
                 order.is_sales_company = False
 
+    @api.model
+    def create(self, vals):
+        move = super(AccountMove, self).create(vals)
+        if move.operating_company_id:
+            move._update_daily_settlement()
+        return move
+
+    def write(self, vals):
+        res = super(AccountMove, self).write(vals)
+        if 'operating_company_id' in vals or 'invoice_date' in vals:
+            self._update_daily_settlement()
+        return res
+
+    def _update_daily_settlement(self):
+        """更新每日结算单"""
+        for record in self:
+            # 使用当前 record 的 invoice_date 作为 settlement_date
+            settlement_date = record.invoice_date
+            if not settlement_date:
+                continue  # 如果没有 invoice_date，跳过
+
+            operating_company = record.operating_company_id
+            sales_company = record.company_id
+
+            # 查询当日销售公司与运营公司的结算记录
+            settlement_invoice = self.env['account.move'].search([
+                ('company_id', '=', operating_company.id),
+                ('type', '=', 'out_invoice'),
+                ('invoice_date', '=', settlement_date)
+            ], limit=1)
+            settlement_bill = self.env['account.move'].search([
+                ('company_id', '=', sales_company.id),
+                ('type', '=', 'in_bill'),
+                ('invoice_date', '=', settlement_date)
+            ], limit=1)
+
+            # 计算当日所有相关的总金额
+            total_amount = sum(self.env['account.move'].search([
+                ('operating_company_id', '=', operating_company.id),
+                ('company_id', '=', sales_company.id),
+                ('invoice_date', '=', settlement_date)
+            ]).mapped('amount_total'))
+
+            # 更新或创建结算单
+            if not settlement_invoice:
+                settlement_invoice = self.env['account.move'].create({
+                    'company_id': operating_company.id,
+                    'type': 'out_invoice',
+                    'invoice_date': settlement_date,
+                    'partner_id': sales_company.partner_id.id,  # 假设运营公司和销售公司是彼此的客户
+                    'line_ids': [(0, 0, {
+                        'name': 'Daily Settlement',
+                        'price_unit': total_amount,
+                        'quantity': 1,
+                        'account_id': self.env['account.account'].search([], limit=1).id
+                    })],
+                })
+            else:
+                settlement_invoice.write({
+                    'line_ids': [(0, 0, {
+                        'name': 'Daily Settlement',
+                        'price_unit': total_amount,
+                        'quantity': 1,
+                        'account_id': self.env['account.account'].search([], limit=1).id
+                    })],
+                })
+
+            if not settlement_bill:
+                settlement_bill = self.env['account.move'].create({
+                    'company_id': sales_company.id,
+                    'type': 'in_bill',
+                    'invoice_date': settlement_date,
+                    'partner_id': operating_company.partner_id.id,
+                    'line_ids': [(0, 0, {
+                        'name': 'Daily Settlement',
+                        'price_unit': total_amount,
+                        'quantity': 1,
+                        'account_id': self.env['account.account'].search([], limit=1).id
+                    })],
+                })
+            else:
+                settlement_bill.write({
+                    'line_ids': [(0, 0, {
+                        'name': 'Daily Settlement',
+                        'price_unit': total_amount,
+                        'quantity': 1,
+                        'account_id': self.env['account.account'].search([], limit=1).id
+                    })],
+                })
+
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
             if not self.company_id.private_contact_only and not self.company_id.private_product_only and not self.company_id.is_virtual:
