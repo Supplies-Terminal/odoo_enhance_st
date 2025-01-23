@@ -25,13 +25,13 @@ class AccountInvoice(models.Model):
 
     @api.model
     def create(self, vals):
-        move = super(AccountMove, self).create(vals)
+        move = super(AccountInvoice, self).create(vals)
         if move.operating_company_id:
             move._update_daily_settlement()
         return move
 
     def write(self, vals):
-        res = super(AccountMove, self).write(vals)
+        res = super(AccountInvoice, self).write(vals)
         if 'operating_company_id' in vals or 'invoice_date' in vals:
             self._update_daily_settlement()
         return res
