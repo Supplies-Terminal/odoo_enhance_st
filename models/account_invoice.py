@@ -36,8 +36,23 @@ class AccountInvoice(models.Model):
             self._update_daily_settlement()
         return res
 
+    def _get_account_from_journal(self, journal, move_type):
+        """
+        根据 Journal 和 move_type 获取正确的科目
+        :param journal: account.journal 对象
+        :param move_type: 'out_invoice', 'in_bill' 等
+        :return: account.account 对象
+        """
+        if move_type == 'out_invoice':  # 销售发票（收入科目）
+            return journal.default_account_id or journal.income_account_id
+        elif move_type == 'in_bill':  # 供应商账单（费用科目）
+            return journal.default_account_id or journal.expense_account_id
+        else:
+            raise ValueError(f"Unsupported move type: {move_type}")
+
     def _update_daily_settlement(self):
         """更新每日结算单"""
+        _logger.info("-----更新每日结算单--------")
         for record in self:
             # 使用当前 record 的 invoice_date 作为 settlement_date
             settlement_date = record.invoice_date
@@ -46,16 +61,18 @@ class AccountInvoice(models.Model):
 
             operating_company = record.operating_company_id
             sales_company = record.company_id
+            _logger.info(f"Operating company: {operating_company.id} {operating_company.name}")
+            _logger.info(f"Sales company: {sales_company.id} {sales_company.name}")
 
             # 查询当日销售公司与运营公司的结算记录
             settlement_invoice = self.env['account.move'].search([
                 ('company_id', '=', operating_company.id),
-                ('type', '=', 'out_invoice'),
+                ('move_type', '=', 'out_invoice'),
                 ('invoice_date', '=', settlement_date)
             ], limit=1)
             settlement_bill = self.env['account.move'].search([
                 ('company_id', '=', sales_company.id),
-                ('type', '=', 'in_bill'),
+                ('move_type', '=', 'in_bill'),
                 ('invoice_date', '=', settlement_date)
             ], limit=1)
 
@@ -66,18 +83,34 @@ class AccountInvoice(models.Model):
                 ('invoice_date', '=', settlement_date)
             ]).mapped('amount_total'))
 
+            # 获取正确的科目
+            operating_journal = self.env['account.journal'].sudo().search([
+                ('company_id', '=', operating_company.id),
+                ('type', '=', 'sale')  # 或 'purchase'，视结算单类型而定
+            ], limit=1)
+
+            sales_journal = self.env['account.journal'].sudo().search([
+                ('company_id', '=', sales_company.id),
+                ('type', '=', 'purchase')
+            ], limit=1)
+
+            # 获取正确的科目
+            operating_account = self._get_account_from_journal(operating_journal, 'out_invoice')
+            sales_account = self._get_account_from_journal(sales_journal, 'in_bill')
+            _logger.info('运营公司开出的Invoice')
             # 更新或创建结算单
             if not settlement_invoice:
                 settlement_invoice = self.env['account.move'].create({
                     'company_id': operating_company.id,
-                    'type': 'out_invoice',
+                    'move_type': 'out_invoice',
                     'invoice_date': settlement_date,
-                    'partner_id': sales_company.partner_id.id,  # 假设运营公司和销售公司是彼此的客户
+                    'partner_id': sales_company.partner_id.id,
+                    'journal_id': operating_journal.id,
                     'line_ids': [(0, 0, {
                         'name': 'Daily Settlement',
                         'price_unit': total_amount,
                         'quantity': 1,
-                        'account_id': self.env['account.account'].search([], limit=1).id
+                        'account_id': operating_account.id,
                     })],
                 })
             else:
@@ -86,21 +119,23 @@ class AccountInvoice(models.Model):
                         'name': 'Daily Settlement',
                         'price_unit': total_amount,
                         'quantity': 1,
-                        'account_id': self.env['account.account'].search([], limit=1).id
+                        'account_id': operating_account.id,
                     })],
                 })
 
+            _logger.info('销售公司记录的Bill')
             if not settlement_bill:
                 settlement_bill = self.env['account.move'].create({
                     'company_id': sales_company.id,
-                    'type': 'in_bill',
+                    'move_type': 'in_bill',
                     'invoice_date': settlement_date,
                     'partner_id': operating_company.partner_id.id,
+                    'journal_id': sales_journal.id,
                     'line_ids': [(0, 0, {
                         'name': 'Daily Settlement',
                         'price_unit': total_amount,
                         'quantity': 1,
-                        'account_id': self.env['account.account'].search([], limit=1).id
+                        'account_id': sales_account.id,
                     })],
                 })
             else:
@@ -109,10 +144,9 @@ class AccountInvoice(models.Model):
                         'name': 'Daily Settlement',
                         'price_unit': total_amount,
                         'quantity': 1,
-                        'account_id': self.env['account.account'].search([], limit=1).id
+                        'account_id': sales_account.id,
                     })],
-                })
-
+                })        
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
             if not self.company_id.private_contact_only and not self.company_id.private_product_only and not self.company_id.is_virtual:
