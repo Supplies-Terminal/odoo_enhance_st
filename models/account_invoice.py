@@ -83,68 +83,83 @@ class AccountInvoice(models.Model):
                 ('invoice_date', '=', settlement_date)
             ]).mapped('amount_total'))
 
-            # 获取正确的科目
-            operating_journal = self.env['account.journal'].sudo().search([
-                ('company_id', '=', operating_company.id),
-                ('type', '=', 'sale')  # 或 'purchase'，视结算单类型而定
+            # 获取专用产品
+            daily_settlement_product = self.env['product.product'].search([
+                ('name', '=', 'Daily Settlement')  # 专用产品
             ], limit=1)
+            if not daily_settlement_product:
+                raise UserError("Please create a product named 'Daily Settlement' for settlement invoices.")
 
-            sales_journal = self.env['account.journal'].sudo().search([
-                ('company_id', '=', sales_company.id),
-                ('type', '=', 'purchase')
-            ], limit=1)
+            _logger.info(f"Daily Settlement Product: {daily_settlement_product.id} - {daily_settlement_product.name}")
 
-            # 获取正确的科目
-            operating_account = self._get_account_from_journal(operating_journal, 'out_invoice')
-            sales_account = self._get_account_from_journal(sales_journal, 'in_bill')
-            _logger.info('运营公司开出的Invoice')
-            # 更新或创建结算单
+            # 生成运营公司发票（Invoice）
             if not settlement_invoice:
-                settlement_invoice = self.env['account.move'].create({
-                    'company_id': operating_company.id,
+                invoice_vals = {
                     'move_type': 'out_invoice',
-                    'invoice_origin': 'Daily Settlement',
-                    'invoice_date': settlement_date,
                     'partner_id': sales_company.partner_id.id,
-                    'line_ids': [(0, 0, {
-                        'product_id': 14245,
+                    'company_id': operating_company.id,
+                    'invoice_date': settlement_date,
+                    'invoice_origin': 'Daily Settlement',
+                    'invoice_line_ids': [(0, 0, {
+                        'product_id': daily_settlement_product.id,
+                        'quantity': 1.0,
                         'price_unit': total_amount,
-                        'quantity': 1,
-                    })],
-                })
+                        'name': daily_settlement_product.name,
+                        'account_id': daily_settlement_product.property_account_income_id.id or
+                                    daily_settlement_product.categ_id.property_account_income_categ_id.id,
+                        'tax_ids': [(6, 0, daily_settlement_product.taxes_id.ids)]
+                    })]
+                }
+                settlement_invoice = self.env['account.move'].create(invoice_vals)
+                _logger.info(f"Created Invoice: {settlement_invoice.id}")
             else:
                 settlement_invoice.write({
-                    'line_ids': [(0, 0, {
-                        'product_id': 14245,
+                    'invoice_line_ids': [(0, 0, {
+                        'product_id': daily_settlement_product.id,
+                        'quantity': 1.0,
                         'price_unit': total_amount,
-                        'quantity': 1,
-                        'account_id': operating_account.id,
-                    })],
+                        'name': daily_settlement_product.name,
+                        'account_id': daily_settlement_product.property_account_income_id.id or
+                                    daily_settlement_product.categ_id.property_account_income_categ_id.id,
+                        'tax_ids': [(6, 0, daily_settlement_product.taxes_id.ids)]
+                    })]
                 })
+                _logger.info(f"Updated Invoice: {settlement_invoice.id}")
 
-            _logger.info('销售公司记录的Bill')
+            # 生成销售公司账单（Bill）
             if not settlement_bill:
-                settlement_bill = self.env['account.move'].create({
-                    'company_id': sales_company.id,
+                bill_vals = {
                     'move_type': 'in_bill',
-                    'invoice_origin': 'Daily Settlement',
-                    'invoice_date': settlement_date,
                     'partner_id': operating_company.partner_id.id,
-                    'line_ids': [(0, 0, {
-                        'product_id': 14245,
+                    'company_id': sales_company.id,
+                    'invoice_date': settlement_date,
+                    'invoice_origin': 'Daily Settlement',
+                    'invoice_line_ids': [(0, 0, {
+                        'product_id': daily_settlement_product.id,
+                        'quantity': 1.0,
                         'price_unit': total_amount,
-                        'quantity': 1,
-                    })],
-                })
+                        'name': daily_settlement_product.name,
+                        'account_id': daily_settlement_product.property_account_expense_id.id or
+                                    daily_settlement_product.categ_id.property_account_expense_categ_id.id,
+                        'tax_ids': [(6, 0, daily_settlement_product.supplier_taxes_id.ids)]
+                    })]
+                }
+                settlement_bill = self.env['account.move'].create(bill_vals)
+                _logger.info(f"Created Bill: {settlement_bill.id}")
             else:
                 settlement_bill.write({
-                    'line_ids': [(0, 0, {
-                        'product_id': 14245,
+                    'invoice_line_ids': [(0, 0, {
+                        'product_id': daily_settlement_product.id,
+                        'quantity': 1.0,
                         'price_unit': total_amount,
-                        'quantity': 1,
-                    })],
-                })        
-
+                        'name': daily_settlement_product.name,
+                        'account_id': daily_settlement_product.property_account_expense_id.id or
+                                    daily_settlement_product.categ_id.property_account_expense_categ_id.id,
+                        'tax_ids': [(6, 0, daily_settlement_product.supplier_taxes_id.ids)]
+                    })]
+                })
+                _logger.info(f"Updated Bill: {settlement_bill.id}")
+                
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
             if not self.company_id.private_contact_only and not self.company_id.private_product_only and not self.company_id.is_virtual:
