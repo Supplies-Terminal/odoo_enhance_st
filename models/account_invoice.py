@@ -24,17 +24,18 @@ class AccountInvoice(models.Model):
             else:
                 order.is_sales_company = False
 
-    @api.model
-    def create(self, vals):
-        move = super(AccountInvoice, self).create(vals)
-        if move.operating_company_id:
-            move._update_daily_settlement()
-        return move
+    # @api.model
+    # def create(self, vals):
+    #     move = super(AccountInvoice, self).create(vals)
+    #     if move.operating_company_id:
+    #         move._update_daily_settlement()
+    #     return move
 
     def write(self, vals):
         res = super(AccountInvoice, self).write(vals)
-        if 'operating_company_id' in vals or 'invoice_date' in vals:
-            self._update_daily_settlement()
+        for record in self:
+            if record.operating_company_id:
+                record._update_daily_settlement()
         return res
 
     def _get_product_and_accounts(self, company, product_name, account_type):
@@ -94,7 +95,15 @@ class AccountInvoice(models.Model):
             settlement_bill = self._get_settlement_move(
                 sales_company, 'in_invoice', operating_company.partner_id.id, 'Daily Settlement', settlement_date
             )
-    
+
+            # 如果存在草稿状态的发票或账单，先删除
+            if settlement_invoice:
+                _logger.info(f"Deleting existing Invoice: {settlement_invoice.id}")
+                settlement_invoice.unlink()
+            if settlement_bill:
+                _logger.info(f"Deleting existing Bill: {settlement_bill.id}")
+                settlement_bill.unlink()
+                
             # 获取所有相关的 move line
             all_move_lines = self.env['account.move.line'].search([
                 ('move_id.company_id', '=', sales_company.id),
@@ -109,6 +118,24 @@ class AccountInvoice(models.Model):
     
             _logger.info(f"Total Amount with Tax: {total_amount_tax}, Total Amount without Tax: {total_amount_notax}")
     
+            # 扣减已过账的结算发票中的金额
+            posted_invoices = self.env['account.move'].search([
+                ('company_id', '=', operating_company.id),
+                ('move_type', '=', 'out_invoice'),
+                ('invoice_date', '=', settlement_date),
+                ('partner_id', '=', sales_company.partner_id.id),
+                ('invoice_origin', '=', 'Daily Settlement'),
+                ('state', '=', 'posted'),
+            ])
+    
+            posted_amount_tax = sum(line.price_unit for invoice in posted_invoices for line in invoice.invoice_line_ids if line.tax_ids)
+            posted_amount_notax = sum(line.price_unit for invoice in posted_invoices for line in invoice.invoice_line_ids if not line.tax_ids)
+    
+            total_amount_tax_deducted = total_amount_tax - posted_amount_tax
+            total_amount_notax_deducted = total_amount_notax - posted_amount_notax
+    
+            _logger.info(f"Total Amount with Tax (after deduction): {total_amount_tax}, Total Amount without Tax (after deduction): {total_amount_notax}")
+
             # 获取商品和科目
             product_with_tax, income_account_tax, taxes_ids = self._get_product_and_accounts(
                 operating_company, 'Daily Settlement Products with TAX', 'income'
@@ -118,78 +145,64 @@ class AccountInvoice(models.Model):
             )
     
             # 获取运营公司的销售日记账
-            operating_journal = self.env['account.journal'].search([
+            operating_journal = self.env['account.journal'].sudo().search([
                 ('type', '=', 'sale'),
                 ('company_id', '=', operating_company.id)
             ], limit=1)
     
             if not operating_journal:
                 raise UserError(f"No sales journal found for company {operating_company.name}.")
-    
-            # 更新或创建发票
-            if settlement_invoice:
-                _logger.info(f"Updating existing Invoice: {settlement_invoice.id}")
-                # 更新含税商品
-                existing_line_with_tax = settlement_invoice.invoice_line_ids.filtered(lambda line: line.product_id == product_with_tax)
-                if existing_line_with_tax:
-                    existing_line_with_tax.write({'price_unit': total_amount_tax})
-                else:
-                    settlement_invoice.write({
-                        'invoice_line_ids': [(0, 0, {
-                            'product_id': product_with_tax.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_tax,
-                            'name': product_with_tax.name,
-                            'account_id': income_account_tax.id,
-                            'tax_ids': [(6, 0, taxes_ids)] if taxes_ids else []
-                        })]
+
+            # 创建新发票
+            _logger.info("Creating new Invoice")
+            invoice_vals = {
+                'move_type': 'out_invoice',
+                'partner_id': sales_company.partner_id.id,
+                'company_id': operating_company.id,
+                'journal_id': operating_journal.id,
+                'invoice_date': settlement_date,
+                'invoice_origin': 'Daily Settlement',
+                'invoice_line_ids': [
+                    (0, 0, {
+                        'product_id': product_with_tax.id,
+                        'quantity': 1.0,
+                        'price_unit': total_amount_tax_deducted,
+                        'name': product_with_tax.name,
+                        'account_id': income_account_tax.id,
+                        'tax_ids': [(6, 0, taxes_ids)] if taxes_ids else []
+                    }),
+                    (0, 0, {
+                        'product_id': product_without_tax.id,
+                        'quantity': 1.0,
+                        'price_unit': total_amount_notax_deducted,
+                        'name': product_without_tax.name,
+                        'account_id': income_account_notax.id,
+                        'tax_ids': []
                     })
+                ]
+            }
+            settlement_invoice = self.env['account.move'].with_company(operating_company.id).create(invoice_vals)
+            _logger.info(f"Created Invoice: {settlement_invoice.id}")
     
-                # 更新不含税商品
-                existing_line_without_tax = settlement_invoice.invoice_line_ids.filtered(lambda line: line.product_id == product_without_tax)
-                if existing_line_without_tax:
-                    existing_line_without_tax.write({'price_unit': total_amount_notax})
-                else:
-                    settlement_invoice.write({
-                        'invoice_line_ids': [(0, 0, {
-                            'product_id': product_without_tax.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_notax,
-                            'name': product_without_tax.name,
-                            'account_id': income_account_notax.id,
-                            'tax_ids': []
-                        })]
-                    })
-            else:
-                _logger.info("Creating new Invoice")
-                invoice_vals = {
-                    'move_type': 'out_invoice',
-                    'partner_id': sales_company.partner_id.id,
-                    'company_id': operating_company.id,
-                    'journal_id': operating_journal.id,
-                    'invoice_date': settlement_date,
-                    'invoice_origin': 'Daily Settlement',
-                    'invoice_line_ids': [
-                        (0, 0, {
-                            'product_id': product_with_tax.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_tax,
-                            'name': product_with_tax.name,
-                            'account_id': income_account_tax.id,
-                            'tax_ids': [(6, 0, taxes_ids)] if taxes_ids else []
-                        }),
-                        (0, 0, {
-                            'product_id': product_without_tax.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_notax,
-                            'name': product_without_tax.name,
-                            'account_id': income_account_notax.id,
-                            'tax_ids': []
-                        })
-                    ]
-                }
-                settlement_invoice = self.env['account.move'].with_company(operating_company.id).create(invoice_vals)
+
+            # 扣减已过账的结算发票中的金额
+            posted_bills = self.env['account.move'].search([
+                ('company_id', '=', sales_company.id),
+                ('move_type', '=', 'in_invoice'),
+                ('invoice_date', '=', settlement_date),
+                ('partner_id', '=', operating_company.partner_id.id),
+                ('invoice_origin', '=', 'Daily Settlement'),
+                ('state', '=', 'posted'),
+            ])
     
+            posted_amount_tax = sum(line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if line.tax_ids)
+            posted_amount_notax = sum(line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if not line.tax_ids)
+    
+            total_amount_tax_deducted = total_amount_tax - posted_amount_tax
+            total_amount_notax_deducted = total_amount_notax - posted_amount_notax
+    
+            _logger.info(f"Total Amount with Tax (after deduction): {total_amount_tax}, Total Amount without Tax (after deduction): {total_amount_notax}")
+            
             # 创建或更新账单（逻辑类似发票）
             product_with_tax_sales, expense_account_tax, supplier_taxes_ids = self._get_product_and_accounts(
                 sales_company, 'Daily Settlement Products with TAX', 'expense'
@@ -197,7 +210,7 @@ class AccountInvoice(models.Model):
             product_without_tax_sales, expense_account_notax, _ = self._get_product_and_accounts(
                 sales_company, 'Daily Settlement Products without TAX', 'expense'
             )
-            sales_journal = self.env['account.journal'].search([
+            sales_journal = self.env['account.journal'].sudo().search([
                 ('type', '=', 'purchase'),
                 ('company_id', '=', sales_company.id)
             ], limit=1)
@@ -205,66 +218,36 @@ class AccountInvoice(models.Model):
             if not sales_journal:
                 raise UserError(f"No purchase journal found for company {sales_company.name}.")
     
-            if settlement_bill:
-                _logger.info(f"Updating existing Bill: {settlement_bill.id}")
-                existing_line_with_tax = settlement_bill.invoice_line_ids.filtered(lambda line: line.product_id == product_with_tax_sales)
-                if existing_line_with_tax:
-                    existing_line_with_tax.write({'price_unit': total_amount_tax})
-                else:
-                    settlement_bill.write({
-                        'invoice_line_ids': [(0, 0, {
-                            'product_id': product_with_tax_sales.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_tax,
-                            'name': product_with_tax_sales.name,
-                            'account_id': expense_account_tax.id,
-                            'tax_ids': [(6, 0, supplier_taxes_ids)] if supplier_taxes_ids else []
-                        })]
+            # 创建新账单
+            _logger.info("Creating new Bill")
+            bill_vals = {
+                'move_type': 'in_invoice',
+                'partner_id': operating_company.partner_id.id,
+                'company_id': sales_company.id,
+                'journal_id': sales_journal.id,
+                'invoice_date': settlement_date,
+                'invoice_origin': 'Daily Settlement',
+                'invoice_line_ids': [
+                    (0, 0, {
+                        'product_id': product_with_tax_sales.id,
+                        'quantity': 1.0,
+                        'price_unit': total_amount_tax_deducted,
+                        'name': product_with_tax_sales.name,
+                        'account_id': expense_account_tax.id,
+                        'tax_ids': [(6, 0, supplier_taxes_ids)] if supplier_taxes_ids else []
+                    }),
+                    (0, 0, {
+                        'product_id': product_without_tax_sales.id,
+                        'quantity': 1.0,
+                        'price_unit': total_amount_notax_deducted,
+                        'name': product_without_tax_sales.name,
+                        'account_id': expense_account_notax.id,
+                        'tax_ids': []
                     })
-    
-                existing_line_without_tax = settlement_bill.invoice_line_ids.filtered(lambda line: line.product_id == product_without_tax_sales)
-                if existing_line_without_tax:
-                    existing_line_without_tax.write({'price_unit': total_amount_notax})
-                else:
-                    settlement_bill.write({
-                        'invoice_line_ids': [(0, 0, {
-                            'product_id': product_without_tax_sales.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_notax,
-                            'name': product_without_tax_sales.name,
-                            'account_id': expense_account_notax.id,
-                            'tax_ids': []
-                        })]
-                    })
-            else:
-                _logger.info("Creating new Bill")
-                bill_vals = {
-                    'move_type': 'in_invoice',
-                    'partner_id': operating_company.partner_id.id,
-                    'company_id': sales_company.id,
-                    'journal_id': sales_journal.id,
-                    'invoice_date': settlement_date,
-                    'invoice_origin': 'Daily Settlement',
-                    'invoice_line_ids': [
-                        (0, 0, {
-                            'product_id': product_with_tax_sales.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_tax,
-                            'name': product_with_tax_sales.name,
-                            'account_id': expense_account_tax.id,
-                            'tax_ids': [(6, 0, supplier_taxes_ids)] if supplier_taxes_ids else []
-                        }),
-                        (0, 0, {
-                            'product_id': product_without_tax_sales.id,
-                            'quantity': 1.0,
-                            'price_unit': total_amount_notax,
-                            'name': product_without_tax_sales.name,
-                            'account_id': expense_account_notax.id,
-                            'tax_ids': []
-                        })
-                    ]
-                }
-                settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
+                ]
+            }
+            settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
+            _logger.info(f"Created Bill: {settlement_bill.id}")
                 
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
