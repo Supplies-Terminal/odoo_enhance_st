@@ -14,7 +14,7 @@ _logger = logging.getLogger(__name__)
 class AccountInvoice(models.Model):
     _inherit = 'account.move'
 
-    operating_company_id = fields.Many2one('res.company', string='Operating Company', required=False, domain=[('is_virtual', '=', True)])
+    operating_company_id = fields.Many2one('res.company', index=True, string='Operating Company', required=False, domain=[('is_virtual', '=', True)])
     is_sales_company = fields.Boolean(string='Current Company is Virtual', compute='_compute_is_sales_company')
     @api.depends('company_id')
     def _compute_is_sales_company(self):

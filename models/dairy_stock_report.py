@@ -10,9 +10,9 @@ class DailyStockReport(models.Model):
     _description = 'Daily Stock Report'
     _rec_name = 'date'
     
-    date = fields.Date(string='Date', required=True)
+    date = fields.Date(string='Date', index=True, required=True)
     stock_total = fields.Float(string='Stock Total')
-    company_id = fields.Many2one('res.company', string='Company', required=True, default=lambda self: self.env.company)
+    company_id = fields.Many2one('res.company', string='Company', index=True, required=True, default=lambda self: self.env.company)
     
     @api.model
     def calculate_stock_totals(self, date, end_date):

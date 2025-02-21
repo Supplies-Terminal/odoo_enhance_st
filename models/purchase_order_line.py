@@ -9,16 +9,16 @@ class PurchaseOrderLineSO(models.Model):
     _name = 'purchase.order.line.so'
     _description = 'Purchase Forecast Sale Order Line'
 
-    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line')
-    sale_order_id = fields.Many2one('sale.order', string='Sale Order')
+    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line', index=True)
+    sale_order_id = fields.Many2one('sale.order', string='Sale Order', index=True)
     quantity = fields.Float(string='Quantity')
 
 class PurchaseOrderLineMO(models.Model):
     _name = 'purchase.order.line.mo'
     _description = 'Purchase Forecast Manufacturing Order Line'
 
-    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line')
-    manufacturing_order_id = fields.Many2one('mrp.production', string='Manufacturing Order')
+    purchase_order_line_id = fields.Many2one('purchase.order.line', string='Purchase Order Line', index=True)
+    manufacturing_order_id = fields.Many2one('mrp.production', string='Manufacturing Order', index=True)
     quantity = fields.Float(string='Quantity')
 
 class PurchaseOrderLine(models.Model):
