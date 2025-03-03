@@ -135,7 +135,7 @@ class SaleOrder(models.Model):
             
             if currentInvoices:
                 invoice.write({
-                    'name': self.name + '-' + (len(currentInvoices) + 1),
+                    'name': self.name + '-' + str(len(currentInvoices) + 1),
                     'invoice_date': self.date_order
                 })
             else:
