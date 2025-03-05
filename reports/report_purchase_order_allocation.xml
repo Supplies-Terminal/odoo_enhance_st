@@ -42,14 +42,12 @@
                 </t>
             </t>
         </template>
-        <report
-            id="action_report_purchase_order_allocation"
-            string="Purchase Order Allocation"
-            model="purchase.order"
-            report_type="qweb-pdf"
-            name="odoo_enhance_st.report_purchase_order_allocation"
-            file="odoo_enhance_st.report_purchase_order_allocation"
-            print_report_name="'Purchase Order Allocation - %s' % (object.name)"
-        />
+        <record id="action_report_purchase_order_allocation" model="ir.actions.report">
+            <field name="name">Purchase Order Allocation</field>
+            <field name="model">purchase.order</field>
+            <field name="report_type">qweb-pdf</field>
+            <field name="report_name">odoo_enhance_st.report_purchase_order_allocation</field>
+            <field name="print_report_name">'Purchase Order Allocation - %s' % (object.name)</field>
+        </record>
     </data>
 </odoo>
