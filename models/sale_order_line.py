@@ -178,6 +178,10 @@ class SaleOrderLine(models.Model):
             if isinstance(order_id, int)==False:
                 order_id = 0
             
+            # **确保 product_id 存在，否则跳过**
+            if not rec.product_id:
+                continue
+
             if self.order_id.partner_id and self.product_id:
                 # 获取当前日期
                 now = datetime.now()
@@ -235,6 +239,10 @@ class SaleOrderLine(models.Model):
             if isinstance(order_id, int)==False:
                 order_id = 0
             
+            # **确保 product_id 存在，否则跳过**
+            if not rec.product_id:
+                continue
+
             if self.order_id.partner_id and self.product_id:
                 # 获取当前日期
                 now = datetime.now()
