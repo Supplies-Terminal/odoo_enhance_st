@@ -4,6 +4,10 @@
 from odoo import models, fields, api
 import logging
 _logger = logging.getLogger(__name__)
+        
+class PurchaseOrderLineSO(models.Model):
+    _name = 'purchase.order.line.so'
+    _description = 'Purchase Forecast Sale Order Line'
 
 class PurchaseOrderLineSO(models.Model):
     _name = 'purchase.order.line.so'
