@@ -183,7 +183,7 @@ class AccountInvoice(models.Model):
                     (0, 0, {
                         'product_id': product_with_tax.id,
                         'quantity': 1.0,
-                        'price_unit': total_amount_tax_invoice,
+                        'price_unit': total_amount_tax_invoice / (1 + sum(tax.amount for tax in taxes_ids)) if taxes_ids else total_amount_tax_invoice,
                         'name': product_with_tax.name,
                         'account_id': income_account_tax.id,
                         'tax_ids': [(6, 0, taxes_ids)] if taxes_ids else []
@@ -224,7 +224,7 @@ class AccountInvoice(models.Model):
                     (0, 0, {
                         'product_id': product_with_tax_sales.id,
                         'quantity': 1.0,
-                        'price_unit': total_amount_tax_bill,
+                        'price_unit': total_amount_tax_bill / (1 + sum(tax.amount for tax in supplier_taxes_ids)) if supplier_taxes_ids else total_amount_tax_bill,
                         'name': product_with_tax_sales.name,
                         'account_id': expense_account_tax.id,
                         'tax_ids': [(6, 0, supplier_taxes_ids)] if supplier_taxes_ids else []
