@@ -51,15 +51,15 @@ class AccountInvoice(models.Model):
         if account_type == 'income':
             account = product.property_account_income_id or \
                       product.categ_id.with_company(company.id).property_account_income_categ_id
-            taxes = product.taxes_id.filtered(lambda tax: tax.company_id == company).ids
+            taxes = product.taxes_id.filtered(lambda tax: tax.company_id == company)
         elif account_type == 'expense':
             account = product.property_account_expense_id or \
                       product.categ_id.with_company(company.id).property_account_expense_categ_id
-            taxes = product.supplier_taxes_id.filtered(lambda tax: tax.company_id == company).ids
+            taxes = product.supplier_taxes_id.filtered(lambda tax: tax.company_id == company)
         else:
             raise ValueError("Invalid account_type. Use 'income' or 'expense'.")
         
-        return product, account, taxes 
+        return product, account, taxes
 
     def _get_settlement_move(self, company, move_type, partner_id, origin, date):
         """
@@ -161,7 +161,7 @@ class AccountInvoice(models.Model):
     
             # 创建新发票
             _logger.info("Creating new Invoice")
-            product_with_tax, income_account_tax, taxes_ids = self._get_product_and_accounts(
+            product_with_tax, income_account_tax, taxes = self._get_product_and_accounts(
                 operating_company, 'Daily Settlement Products with TAX', 'income'
             )
             product_without_tax, income_account_notax, _ = self._get_product_and_accounts(
@@ -183,10 +183,10 @@ class AccountInvoice(models.Model):
                     (0, 0, {
                         'product_id': product_with_tax.id,
                         'quantity': 1.0,
-                        'price_unit': total_amount_tax_invoice / (1 + sum(tax.amount for tax in taxes_ids)) if taxes_ids else total_amount_tax_invoice,
+                        'price_unit': total_amount_tax_invoice / (1 + sum(tax.amount/100.0 for tax in taxes)) if taxes else total_amount_tax_invoice,
                         'name': product_with_tax.name,
                         'account_id': income_account_tax.id,
-                        'tax_ids': [(6, 0, taxes_ids)] if taxes_ids else []
+                        'tax_ids': [(6, 0, taxes.ids)] if taxes else []
                     }),
                     (0, 0, {
                         'product_id': product_without_tax.id,
@@ -202,7 +202,7 @@ class AccountInvoice(models.Model):
     
             # 创建新账单
             _logger.info("Creating new Bill")
-            product_with_tax_sales, expense_account_tax, supplier_taxes_ids = self._get_product_and_accounts(
+            product_with_tax_sales, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
                 sales_company, 'Daily Settlement Products with TAX', 'expense'
             )
             product_without_tax_sales, expense_account_notax, _ = self._get_product_and_accounts(
@@ -224,10 +224,10 @@ class AccountInvoice(models.Model):
                     (0, 0, {
                         'product_id': product_with_tax_sales.id,
                         'quantity': 1.0,
-                        'price_unit': total_amount_tax_bill / (1 + sum(tax.amount for tax in supplier_taxes_ids)) if supplier_taxes_ids else total_amount_tax_bill,
+                        'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
                         'name': product_with_tax_sales.name,
                         'account_id': expense_account_tax.id,
-                        'tax_ids': [(6, 0, supplier_taxes_ids)] if supplier_taxes_ids else []
+                        'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
                     }),
                     (0, 0, {
                         'product_id': product_without_tax_sales.id,
