@@ -84,7 +84,9 @@ class AccountInvoice(models.Model):
     
             operating_company = record.operating_company_id
             sales_company = record.company_id
-    
+
+            _logger.info(f"Invoice: {record.id} {record.name} {record.invoice_date}")
+            
             _logger.info(f"Operating company: {operating_company.id} {operating_company.name}")
             _logger.info(f"Sales company: {sales_company.id} {sales_company.name}")
     
