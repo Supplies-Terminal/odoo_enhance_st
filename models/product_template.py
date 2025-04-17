@@ -40,7 +40,7 @@ class ProductTemplate(models.Model):
         for rec in self:
             cost_info = []
             # 获取所有公司
-            companies = self.env['res.company'].search([])
+            companies = self.env['res.company'].search([('id', '=', 9)])
             
             for company in companies:
                 # 获取该公司的采购订单行
@@ -51,7 +51,7 @@ class ProductTemplate(models.Model):
                 current_date = fields.Date.today()
                 
                 # 搜索采购订单行
-                pol = PurchaseOrderLine.search([
+                pol = PurchaseOrderLine.sudo().search([
                     ('product_id.product_tmpl_id', '=', rec.id),
                     ('order_id.company_id', '=', company.id),
                     ('order_id.state', 'in', ['purchase', 'done']),
@@ -72,9 +72,9 @@ class ProductTemplate(models.Model):
                 
                 if latest_line:
                     if 'purchase.order.line' in latest_line._name:
-                        cost_info.append(f"{company.name}: ${latest_line.price_unit}/{latest_line.product_uom.name}")
+                        cost_info.append(f"${latest_line.price_unit}/{latest_line.product_uom.name}")
                     elif 'account.move.line' in latest_line._name:
-                        cost_info.append(f"{company.name}: ${latest_line.price_unit}/{latest_line.product_uom_id.name}")
+                        cost_info.append(f"${latest_line.price_unit}/{latest_line.product_uom_id.name}")
             
             rec.latest_cost = '\n'.join(cost_info) if cost_info else '-'
 
