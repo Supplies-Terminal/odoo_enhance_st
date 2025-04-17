@@ -12,7 +12,7 @@
         </field>
     </record>
     <!-- 创建一个链接到方法的动作 -->
-    <record id="action_cross_company_transfer" model="ir.actions.server">
+    <!-- <record id="action_cross_company_transfer" model="ir.actions.server">
         <field name="name">Cross Company Transfer</field>
         <field name="model_id" ref="model_stock_warehouse_orderpoint"/>
         <field name="binding_model_id" ref="model_stock_warehouse_orderpoint"/>
@@ -20,5 +20,5 @@
         <field name="code">
             action = records.action_cross_company_transfer()
         </field>
-    </record>
+    </record> -->
 </odoo>

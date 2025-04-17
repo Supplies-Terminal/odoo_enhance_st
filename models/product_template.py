@@ -2,6 +2,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields, api
+from datetime import datetime
 
 
 class ProductTemplate(models.Model):
@@ -24,6 +25,8 @@ class ProductTemplate(models.Model):
 
     pack_supported = fields.Boolean("Support packaging", default=False)
 
+    latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=False)
+
     @api.depends('secondary_uom_enabled', 'uom_id', 'secondary_uom_id', 'secondary_uom_rate')
     def _compute_secondary_uom_desc(self):
         for rec in self:
@@ -31,6 +34,49 @@ class ProductTemplate(models.Model):
                 rec.secondary_uom_desc = "1%s = %s%s" % (rec.secondary_uom_id.name, rec.secondary_uom_rate, rec.uom_id.name)
             else:
                 rec.secondary_uom_desc = ""
+
+    @api.depends('product_variant_ids')
+    def _compute_latest_cost(self):
+        for rec in self:
+            cost_info = []
+            # 获取所有公司
+            companies = self.env['res.company'].search([])
+            
+            for company in companies:
+                # 获取该公司的采购订单行
+                PurchaseOrderLine = self.env['purchase.order.line'].sudo()
+                BillLine = self.env['account.move.line'].sudo()
+                
+                # 获取当前日期
+                current_date = fields.Date.today()
+                
+                # 搜索采购订单行
+                pol = PurchaseOrderLine.search([
+                    ('product_id.product_tmpl_id', '=', rec.id),
+                    ('order_id.company_id', '=', company.id),
+                    ('order_id.state', 'in', ['purchase', 'done']),
+                    ('create_date', '<=', current_date)
+                ], limit=1, order='create_date desc')
+                
+                # 搜索供应商账单行
+                bill = BillLine.search([
+                    ('product_id.product_tmpl_id', '=', rec.id),
+                    ('move_id.company_id', '=', company.id),
+                    ('move_id.state', '=', 'posted'),
+                    ('move_id.move_type', '=', 'in_invoice'),
+                    ('create_date', '<=', current_date)
+                ], limit=1, order='create_date desc')
+                
+                # 确定最近的采购或账单
+                latest_line = max(pol, bill, key=lambda x: x.create_date if x else datetime.min)
+                
+                if latest_line:
+                    if 'purchase.order.line' in latest_line._name:
+                        cost_info.append(f"{company.name}: ${latest_line.price_unit}/{latest_line.product_uom.name}")
+                    elif 'account.move.line' in latest_line._name:
+                        cost_info.append(f"{company.name}: ${latest_line.price_unit}/{latest_line.product_uom_id.name}")
+            
+            rec.latest_cost = '\n'.join(cost_info) if cost_info else '-'
 
     # def action_open_sh_quants(self):
     #     if self:
