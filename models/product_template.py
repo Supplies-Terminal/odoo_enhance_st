@@ -89,6 +89,48 @@ class ProductTemplate(models.Model):
 
     combined_name = fields.Char(string='Full Name', compute='_compute_combined_name', store=True)
 
+    last_vendor_id = fields.Many2one('res.partner', string='Last Vendor', 
+        compute='_compute_last_vendor_id', store=True, 
+        help="The last vendor who supplied this product in the current company")
+
+    @api.depends('product_variant_ids', 'product_variant_ids.purchase_order_line_ids.order_id.state')
+    def _compute_last_vendor_id(self):
+        for rec in self:
+            # 获取当前公司的采购订单行
+            PurchaseOrderLine = self.env['purchase.order.line'].sudo()
+            BillLine = self.env['account.move.line'].sudo()
+            
+            # 获取当前日期
+            current_date = fields.Date.today()
+            
+            # 搜索采购订单行
+            pol = PurchaseOrderLine.sudo().search([
+                ('product_id.product_tmpl_id', '=', rec.id),
+                ('order_id.company_id', '=', self.env.company.id),
+                ('order_id.state', 'in', ['purchase', 'done']),
+                ('create_date', '<=', current_date)
+            ], limit=1, order='create_date desc')
+            
+            # 搜索供应商账单行
+            bill = BillLine.search([
+                ('product_id.product_tmpl_id', '=', rec.id),
+                ('move_id.company_id', '=', self.env.company.id),
+                ('move_id.state', '=', 'posted'),
+                ('move_id.move_type', '=', 'in_invoice'),
+                ('create_date', '<=', current_date)
+            ], limit=1, order='create_date desc')
+            
+            # 确定最近的采购或账单
+            latest_line = max(pol, bill, key=lambda x: x.create_date if x else datetime.min)
+            
+            if latest_line:
+                if 'purchase.order.line' in latest_line._name:
+                    rec.last_vendor_id = latest_line.order_id.partner_id
+                elif 'account.move.line' in latest_line._name:
+                    rec.last_vendor_id = latest_line.move_id.partner_id
+            else:
+                rec.last_vendor_id = False
+
     @api.depends('name')
     def _compute_combined_name(self):
         for product in self:

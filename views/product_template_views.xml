@@ -35,6 +35,10 @@
             <xpath expr="//field[@name='name']" position="attributes">
                 <attribute name="filter_domain">['|', '|', '|', '|', ('default_code', 'ilike', self), ('product_variant_ids.default_code', 'ilike', self), ('name', 'ilike', self), ('barcode', 'ilike', self), ('combined_name', 'ilike', self)]</attribute>
             </xpath>
+            <xpath expr="//filter[@name='consumable']" position="after">
+                <field name="last_vendor_id"/>
+                <filter string="Last Vendor" name="last_vendor" domain="[]" context="{'group_by': 'last_vendor_id'}"/>
+            </xpath>
         </field>
     </record>
 

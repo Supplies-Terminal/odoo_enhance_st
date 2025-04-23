@@ -313,6 +313,27 @@ class PurchaseOrder(models.Model):
         picking.action_assign()
         return picking
         
+    def write(self, vals):
+        res = super(PurchaseOrder, self).write(vals)
+        if 'state' in vals and vals['state'] in ['purchase', 'done']:
+            # 当采购订单状态变为purchase或done时，更新相关产品的最后供应商
+            for order in self:
+                for line in order.order_line:
+                    if line.product_id:
+                        # 触发产品模板的最后供应商重新计算
+                        line.product_id.product_tmpl_id._compute_last_vendor_id()
+        return res
+
+    def button_confirm(self):
+        res = super(PurchaseOrder, self).button_confirm()
+        # 当采购订单确认时，更新相关产品的最后供应商
+        for order in self:
+            for line in order.order_line:
+                if line.product_id:
+                    # 触发产品模板的最后供应商重新计算
+                    line.product_id.product_tmpl_id._compute_last_vendor_id()
+        return res
+
 class ReportPurchaseOrderAllocation(models.AbstractModel):
     _name = 'report.odoo_enhance_st.report_purchase_order_allocation'
 
