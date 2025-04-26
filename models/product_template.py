@@ -96,6 +96,8 @@ class ProductTemplate(models.Model):
     @api.depends('product_variant_ids', 'product_variant_ids.purchase_order_line_ids.order_id.state')
     def _compute_last_vendor_id(self):
         for rec in self:
+            # 只支持单一的公司（因为需要搜索和排序，只能是storable字段，存储单一的值）
+            company_id = 9
             # 获取当前公司的采购订单行
             PurchaseOrderLine = self.env['purchase.order.line'].sudo()
             BillLine = self.env['account.move.line'].sudo()
@@ -106,7 +108,7 @@ class ProductTemplate(models.Model):
             # 搜索采购订单行
             pol = PurchaseOrderLine.sudo().search([
                 ('product_id.product_tmpl_id', '=', rec.id),
-                ('order_id.company_id', '=', self.env.company.id),
+                ('order_id.company_id', '=', company_id),
                 ('order_id.state', 'in', ['purchase', 'done']),
                 ('create_date', '<=', current_date)
             ], limit=1, order='create_date desc')
@@ -114,7 +116,7 @@ class ProductTemplate(models.Model):
             # 搜索供应商账单行
             bill = BillLine.search([
                 ('product_id.product_tmpl_id', '=', rec.id),
-                ('move_id.company_id', '=', self.env.company.id),
+                ('move_id.company_id', '=', company_id),
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),
                 ('create_date', '<=', current_date)
