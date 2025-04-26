@@ -27,7 +27,7 @@ This module is for enhancing the user experiences based on the business operatio
 env = self.env
 
 # 指定公司ID
-company_id = 1
+company_id = 9
 company = env['res.company'].browse(company_id)
 print(f"{company.name}")
 
