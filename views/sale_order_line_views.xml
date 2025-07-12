@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!-- 继承销售订单表单视图，在订单行中添加skip_it字段 -->
+    <record id="view_sale_order_form_with_skip_it" model="ir.ui.view">
+        <field name="name">sale.order.form.with.skip.it</field>
+        <field name="model">sale.order</field>
+        <field name="inherit_id" ref="sale.view_order_form"/>
+        <field name="arch" type="xml">
+            <!-- 在订单行表格中添加skip_it列 -->
+            <xpath expr="//field[@name='order_line']/tree//field[@name='product_uom_qty']" position="after">
+                <field name="skip_it" widget="boolean_toggle"/>
+            </xpath>
+        </field>
+    </record>
+</odoo> 

@@ -44,6 +44,7 @@
         'views/product_template_views.xml',
         'views/purchase_order_views.xml',
         'views/sale_order_views.xml',
+        'views/sale_order_line_views.xml',
         'views/product_template_views.xml',
         'views/stock_orderpoint_views.xml',
         'wizard/stock_orderpoint_replace_views.xml',

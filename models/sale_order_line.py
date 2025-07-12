@@ -28,6 +28,7 @@ class SaleOrderLine(models.Model):
     latest_price = fields.Char(string='Latest Price', compute='_compute_latest_price', store=False)
     latest_vendor = fields.Char(string='Latest Vendor Name', compute='_compute_latest_vendor', store=False)
     latest_vendor_id = fields.Integer(string='Latest Vendor', compute='_compute_latest_vendor_id', store=False)
+    skip_it = fields.Boolean(string='Skip It', default=False, help='Mark this line to be skipped')
 
     @api.depends('order_id')
     def _compute_order_date(self):
