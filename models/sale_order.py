@@ -73,7 +73,7 @@ class SaleOrder(models.Model):
         for rec in self:
             results = []
             for line in rec.order_line:
-                if line.product_qty>0:
+                if line.product_qty>0 and not line.skip_it:
                     if line.secondary_uom_enabled:
                         fres = list(filter(lambda x: x['uom_name'].lower()==line.secondary_uom_name.lower(), results))
                         if fres:
