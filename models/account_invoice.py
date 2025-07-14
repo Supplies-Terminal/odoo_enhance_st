@@ -118,8 +118,16 @@ class AccountInvoice(models.Model):
             all_invoice_lines = all_invoices.mapped('invoice_line_ids')
 
             # 计算含税和不含税的总金额
-            total_amount_tax = sum(line.price_subtotal for line in all_invoice_lines if line.tax_ids)
-            total_amount_notax = sum(line.price_subtotal for line in all_invoice_lines if not line.tax_ids)
+            total_amount_tax = sum(
+                line.price_total
+                for line in all_invoice_lines
+                if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids)
+            )
+            total_amount_notax = sum(
+                line.price_total
+                for line in all_invoice_lines
+                if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
+            )
     
             _logger.info(f"Total Amount with Tax: {total_amount_tax}, Total Amount without Tax: {total_amount_notax}")
     
