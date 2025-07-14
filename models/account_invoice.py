@@ -105,6 +105,8 @@ class AccountInvoice(models.Model):
                     for line in settlement_invoice.line_ids:
                         if line.reconciled:
                             line.remove_move_reconcile()
+                    if settlement_invoice.name != '/':
+                        settlement_invoice.name = '/'
                     settlement_invoice.button_draft()
                     settlement_invoice.unlink()
             if settlement_bill:
@@ -113,6 +115,8 @@ class AccountInvoice(models.Model):
                     for line in settlement_bill.line_ids:
                         if line.reconciled:
                             line.remove_move_reconcile()
+                    if settlement_bill.name != '/':
+                        settlement_bill.name = '/'
                     settlement_bill.button_draft()
                     settlement_bill.unlink()
     
