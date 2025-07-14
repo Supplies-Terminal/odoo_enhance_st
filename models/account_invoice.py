@@ -101,10 +101,20 @@ class AccountInvoice(models.Model):
             # 如果存在草稿状态的发票或账单，先删除
             if settlement_invoice:
                 _logger.info(f"Deleting existing Invoice: {settlement_invoice.id}")
-                settlement_invoice.unlink()
+                if settlement_invoice:
+                    for line in settlement_invoice.line_ids:
+                        if line.reconciled:
+                            line.remove_move_reconcile()
+                    settlement_invoice.button_draft()
+                    settlement_invoice.unlink()
             if settlement_bill:
                 _logger.info(f"Deleting existing Bill: {settlement_bill.id}")
-                settlement_bill.unlink()
+                if settlement_bill:
+                    for line in settlement_bill.line_ids:
+                        if line.reconciled:
+                            line.remove_move_reconcile()
+                    settlement_bill.button_draft()
+                    settlement_bill.unlink()
     
             # 获取所有相关的发票行，而不是全局的 move lines
             all_invoices = self.env['account.move'].search([
