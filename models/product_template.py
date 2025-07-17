@@ -55,8 +55,8 @@ class ProductTemplate(models.Model):
                     ('product_id.product_tmpl_id', '=', rec.id),
                     ('order_id.company_id', '=', company.id),
                     ('order_id.state', 'in', ['purchase', 'done']),
-                    ('create_date', '<=', current_date)
-                ], limit=1, order='create_date desc')
+                    ('date_approve', '<=', current_date)
+                ], limit=1, order='date_approve desc')
                 
                 # 搜索供应商账单行
                 bill = BillLine.search([
@@ -64,12 +64,20 @@ class ProductTemplate(models.Model):
                     ('move_id.company_id', '=', company.id),
                     ('move_id.state', '=', 'posted'),
                     ('move_id.move_type', '=', 'in_invoice'),
-                    ('create_date', '<=', current_date)
-                ], limit=1, order='create_date desc')
+                    ('invoice_date', '<=', current_date)
+                ], limit=1, order='invoice_date desc')
                 
                 # 确定最近的采购或账单
-                latest_line = max(pol, bill, key=lambda x: x.create_date if x else datetime.min)
-                
+                pol_date = pol.date_approve if pol and pol.date_approve else datetime.min
+                bill_date = bill.invoice_date if bill and bill.invoice_date else datetime.min
+
+                if pol_date >= bill_date and pol:
+                    latest_line = pol
+                elif bill:
+                    latest_line = bill
+                else:
+                    latest_line = None
+                    
                 if latest_line:
                     if 'purchase.order.line' in latest_line._name:
                         cost_info.append(f"${latest_line.price_unit}/{latest_line.product_uom.name}")
