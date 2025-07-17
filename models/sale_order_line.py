@@ -60,8 +60,8 @@ class SaleOrderLine(models.Model):
                 ('product_id', '=', rec.product_id.id),
                 ('order_id.company_id', '=', rec.order_id.company_id.id),
                 ('order_id.state', 'in', ['purchase', 'done']),
-                ('create_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='create_date desc')
+                ('date_approve', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='date_approve desc')
 
             # Search for vendor bill lines
             bill = BillLine.search([
@@ -69,11 +69,19 @@ class SaleOrderLine(models.Model):
                 ('move_id.company_id', '=', rec.order_id.company_id.id),
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
-                ('create_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='create_date desc')
+                ('invoice_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='invoice_date desc')
 
-            # Determine the most recent purchase or bill
-            latest_line = max(pol, bill, key=lambda x: x.create_date if x else datetime.min)
+            # 确定最近的采购或账单
+            pol_date = pol.date_approve if pol and pol.date_approve else datetime.min
+            bill_date = bill.invoice_date if bill and bill.invoice_date else datetime.min
+
+            if pol_date >= bill_date and pol:
+                latest_line = pol
+            elif bill:
+                latest_line = bill
+            else:
+                latest_line = None
 
             if latest_line:
                 if 'purchase.order.line' in latest_line._name:
@@ -98,8 +106,8 @@ class SaleOrderLine(models.Model):
                 ('product_id', '=', rec.product_id.id),
                 ('order_id.company_id', '=', rec.order_id.company_id.id),
                 ('order_id.state', 'in', ['purchase', 'done']),
-                ('create_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='create_date desc')
+                ('date_approve', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='date_approve desc')
 
             # Search for vendor bill lines
             bill = BillLine.search([
@@ -107,11 +115,19 @@ class SaleOrderLine(models.Model):
                 ('move_id.company_id', '=', rec.order_id.company_id.id),
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
-                ('create_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='create_date desc')
+                ('invoice_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='invoice_date desc')
 
-            # Determine the most recent purchase or bill
-            latest_line = max(pol, bill, key=lambda x: x.create_date if x else datetime.min)
+            # 确定最近的采购或账单
+            pol_date = pol.date_approve if pol and pol.date_approve else datetime.min
+            bill_date = bill.invoice_date if bill and bill.invoice_date else datetime.min
+
+            if pol_date >= bill_date and pol:
+                latest_line = pol
+            elif bill:
+                latest_line = bill
+            else:
+                latest_line = None
 
             if latest_line:
                 if 'purchase.order.line' in latest_line._name:
