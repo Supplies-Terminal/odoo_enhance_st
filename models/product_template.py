@@ -55,8 +55,8 @@ class ProductTemplate(models.Model):
                     ('product_id.product_tmpl_id', '=', rec.id),
                     ('order_id.company_id', '=', company.id),
                     ('order_id.state', 'in', ['purchase', 'done']),
-                    ('date_approve', '<=', current_date)
-                ], limit=1, order='date_approve desc')
+                    ('order_id.date_approve', '<=', current_date)
+                ], limit=1, order='order_id.date_approve desc')
                 
                 # 搜索供应商账单行
                 bill = BillLine.search([
@@ -64,12 +64,12 @@ class ProductTemplate(models.Model):
                     ('move_id.company_id', '=', company.id),
                     ('move_id.state', '=', 'posted'),
                     ('move_id.move_type', '=', 'in_invoice'),
-                    ('invoice_date', '<=', current_date)
-                ], limit=1, order='invoice_date desc')
+                    ('move_id.date', '<=', current_date)
+                ], limit=1, order='move_id.date desc')
                 
                 # 确定最近的采购或账单
-                pol_date = pol.date_approve if pol and pol.date_approve else datetime.min
-                bill_date = bill.invoice_date if bill and bill.invoice_date else datetime.min
+                pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
+                bill_date = bill.move_id.date if bill and bill.move_id.date else datetime.min
 
                 if pol_date >= bill_date and pol:
                     latest_line = pol

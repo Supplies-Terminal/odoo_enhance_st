@@ -97,26 +97,26 @@ class SaleOrderLine(models.Model):
             if rec.order_id.date_order:
                 date_order = rec.order_id.date_order.date()
             
-            # Accessing Purchase Order Line with elevated privileges
-            PurchaseOrderLine = self.env['purchase.order.line'].sudo()
-            BillLine = self.env['account.move.line'].sudo()
-
-            # Search for purchase order lines
-            pol = PurchaseOrderLine.search([
-                ('product_id', '=', rec.product_id.id),
-                ('order_id.company_id', '=', rec.order_id.company_id.id),
+            # 搜索采购订单行
+            pol = PurchaseOrderLine.sudo().search([
+                ('product_id.product_tmpl_id', '=', rec.id),
+                ('order_id.company_id', '=', company.id),
                 ('order_id.state', 'in', ['purchase', 'done']),
-                ('date_approve', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='date_approve desc')
-
-            # Search for vendor bill lines
+                ('order_id.date_approve', '<=', current_date)
+            ], limit=1, order='order_id.date_approve desc')
+            
+            # 搜索供应商账单行
             bill = BillLine.search([
-                ('product_id', '=', rec.product_id.id),
-                ('move_id.company_id', '=', rec.order_id.company_id.id),
+                ('product_id.product_tmpl_id', '=', rec.id),
+                ('move_id.company_id', '=', company.id),
                 ('move_id.state', '=', 'posted'),
-                ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
-                ('invoice_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='invoice_date desc')
+                ('move_id.move_type', '=', 'in_invoice'),
+                ('move_id.date', '<=', current_date)
+            ], limit=1, order='move_id.date desc')
+            
+            # 确定最近的采购或账单
+            pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
+            bill_date = bill.move_id.date if bill and bill.move_id.date else datetime.min
 
             # 确定最近的采购或账单
             pol_date = pol.date_approve if pol and pol.date_approve else datetime.min
