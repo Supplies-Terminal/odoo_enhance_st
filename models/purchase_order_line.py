@@ -35,9 +35,18 @@ class PurchaseOrderLine(models.Model):
         for rec in self:
             rec.latest_cost = '-'
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.partner_id', '=', rec.order_id.partner_id.id), ('order_id.state', 'in', ['purchase', 'done'])], limit=1, order='id desc')
+            pol = PurchaseOrderLineSudo.search([
+                ('product_id', '=', rec.product_id.id), 
+                ('order_id.company_id', '=', rec.order_id.company_id.id), 
+                ('order_id.partner_id', '=', rec.order_id.partner_id.id), 
+                ('order_id.state', 'in', ['purchase', 'done'])
+            ])
+            # 手动排序并取第一条
             if pol:
-                rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)  
+                pol = sorted(pol, key=lambda x: x.order_id.date_approve or datetime.min, reverse=True)
+                pol = pol[0] if pol else None
+                if pol:
+                    rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)
 
     so_ids = fields.One2many('purchase.order.line.so', 'purchase_order_line_id', string='Sale Order Lines')
     mo_ids = fields.One2many('purchase.order.line.mo', 'purchase_order_line_id', string='Manufacturing Order Lines')
