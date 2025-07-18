@@ -59,7 +59,8 @@ class ProductTemplate(models.Model):
                 ])
                 # 手动排序并取第一条
                 if pol:
-                    pol = pol.sorted('order_id.date_approve', reverse=True)[:1]
+                    pol = sorted(pol, key=lambda x: x.order_id.date_approve or datetime.min, reverse=True)
+                    pol = pol[0] if pol else None
                 
                 # 搜索供应商账单行
                 bill = BillLine.search([
@@ -71,7 +72,8 @@ class ProductTemplate(models.Model):
                 ])
                 # 手动排序并取第一条
                 if bill:
-                    bill = bill.sorted('move_id.invoice_date', reverse=True)[:1]
+                    bill = sorted(bill, key=lambda x: x.move_id.invoice_date or datetime.min, reverse=True)
+                    bill = bill[0] if bill else None
                 
                 # 确定最近的采购或账单
                 pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
@@ -128,7 +130,8 @@ class ProductTemplate(models.Model):
             ])
             # 手动排序并取第一条
             if pol:
-                pol = pol.sorted('order_id.date_approve', reverse=True)[:1]
+                pol = sorted(pol, key=lambda x: x.order_id.date_approve or datetime.min, reverse=True)
+                pol = pol[0] if pol else None
             
             # 搜索供应商账单行
             bill = BillLine.search([
@@ -140,7 +143,8 @@ class ProductTemplate(models.Model):
             ])
             # 手动排序并取第一条
             if bill:
-                bill = bill.sorted('move_id.invoice_date', reverse=True)[:1]
+                bill = sorted(bill, key=lambda x: x.move_id.invoice_date or datetime.min, reverse=True)
+                bill = bill[0] if bill else None
             
             # 确定最近的采购或账单
             pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min

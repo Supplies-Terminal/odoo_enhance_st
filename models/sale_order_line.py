@@ -64,7 +64,8 @@ class SaleOrderLine(models.Model):
             ])
             # 手动排序并取第一条
             if pol:
-                pol = pol.sorted('order_id.date_approve', reverse=True)[:1]
+                pol = sorted(pol, key=lambda x: x.order_id.date_approve or datetime.min, reverse=True)
+                pol = pol[0] if pol else None
 
             # Search for vendor bill lines
             bill = BillLine.search([
@@ -76,7 +77,8 @@ class SaleOrderLine(models.Model):
             ])
             # 手动排序并取第一条
             if bill:
-                bill = bill.sorted('move_id.invoice_date', reverse=True)[:1]
+                bill = sorted(bill, key=lambda x: x.move_id.invoice_date or datetime.min, reverse=True)
+                bill = bill[0] if bill else None
 
             # 确定最近的采购或账单
             pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
@@ -116,7 +118,8 @@ class SaleOrderLine(models.Model):
             ])
             # 手动排序并取第一条
             if pol:
-                pol = pol.sorted('order_id.date_approve', reverse=True)[:1]
+                pol = sorted(pol, key=lambda x: x.order_id.date_approve or datetime.min, reverse=True)
+                pol = pol[0] if pol else None
 
             # Search for vendor bill lines
             bill = BillLine.search([
@@ -128,7 +131,8 @@ class SaleOrderLine(models.Model):
             ])
             # 手动排序并取第一条
             if bill:
-                bill = bill.sorted('move_id.invoice_date', reverse=True)[:1]
+                bill = sorted(bill, key=lambda x: x.move_id.invoice_date or datetime.min, reverse=True)
+                bill = bill[0] if bill else None
 
             # 确定最近的采购或账单
             pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
@@ -145,7 +149,7 @@ class SaleOrderLine(models.Model):
                 if 'purchase.order.line' in latest_line._name:
                     rec.latest_cost = "${}/{}".format(latest_line.price_unit, latest_line.product_uom.name)  
                 elif 'account.move.line' in latest_line._name:
-                    rec.latest_cost = "${}/{}".format(latest_line.price_unit, latest_line.product_uom_id.name)  
+                    rec.latest_cost = "${}/{}".format(latest_line.price_unit, latest_line.product_uom_id.name)
 
     @api.depends('product_id')
     def _compute_latest_vendor(self):
