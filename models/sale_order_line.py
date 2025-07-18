@@ -61,7 +61,10 @@ class SaleOrderLine(models.Model):
                 ('order_id.company_id', '=', rec.order_id.company_id.id),
                 ('order_id.state', 'in', ['purchase', 'done']),
                 ('order_id.date_approve', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='order_id.date_approve desc')
+            ])
+            # 手动排序并取第一条
+            if pol:
+                pol = pol.sorted('order_id.date_approve', reverse=True)[:1]
 
             # Search for vendor bill lines
             bill = BillLine.search([
@@ -70,7 +73,10 @@ class SaleOrderLine(models.Model):
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
                 ('move_id.invoice_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='move_id.invoice_date desc')
+            ])
+            # 手动排序并取第一条
+            if bill:
+                bill = bill.sorted('move_id.invoice_date', reverse=True)[:1]
 
             # 确定最近的采购或账单
             pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
@@ -107,7 +113,10 @@ class SaleOrderLine(models.Model):
                 ('order_id.company_id', '=', rec.order_id.company_id.id),
                 ('order_id.state', 'in', ['purchase', 'done']),
                 ('order_id.date_approve', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='order_id.date_approve desc')
+            ])
+            # 手动排序并取第一条
+            if pol:
+                pol = pol.sorted('order_id.date_approve', reverse=True)[:1]
 
             # Search for vendor bill lines
             bill = BillLine.search([
@@ -116,7 +125,10 @@ class SaleOrderLine(models.Model):
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
                 ('move_id.invoice_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='move_id.invoice_date desc')
+            ])
+            # 手动排序并取第一条
+            if bill:
+                bill = bill.sorted('move_id.invoice_date', reverse=True)[:1]
 
             # 确定最近的采购或账单
             pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
