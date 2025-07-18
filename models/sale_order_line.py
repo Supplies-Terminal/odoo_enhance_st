@@ -60,8 +60,8 @@ class SaleOrderLine(models.Model):
                 ('product_id', '=', rec.product_id.id),
                 ('order_id.company_id', '=', rec.order_id.company_id.id),
                 ('order_id.state', 'in', ['purchase', 'done']),
-                ('date_approve', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='date_approve desc')
+                ('order_id.date_approve', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='order_id.date_approve desc')
 
             # Search for vendor bill lines
             bill = BillLine.search([
@@ -69,12 +69,12 @@ class SaleOrderLine(models.Model):
                 ('move_id.company_id', '=', rec.order_id.company_id.id),
                 ('move_id.state', '=', 'posted'),
                 ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
-                ('invoice_date', '<=', date_order + timedelta(days=1))
-            ], limit=1, order='invoice_date desc')
+                ('move_id.invoice_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='move_id.invoice_date desc')
 
             # 确定最近的采购或账单
-            pol_date = pol.date_approve if pol and pol.date_approve else datetime.min
-            bill_date = bill.invoice_date if bill and bill.invoice_date else datetime.min
+            pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
+            bill_date = bill.move_id.invoice_date if bill and bill.move_id.invoice_date else datetime.min
 
             if pol_date >= bill_date and pol:
                 latest_line = pol
@@ -97,30 +97,30 @@ class SaleOrderLine(models.Model):
             if rec.order_id.date_order:
                 date_order = rec.order_id.date_order.date()
             
-            # 搜索采购订单行
-            pol = PurchaseOrderLine.sudo().search([
-                ('product_id.product_tmpl_id', '=', rec.id),
-                ('order_id.company_id', '=', company.id),
+            # Accessing Purchase Order Line with elevated privileges
+            PurchaseOrderLine = self.env['purchase.order.line'].sudo()
+            BillLine = self.env['account.move.line'].sudo()
+
+            # Search for purchase order lines
+            pol = PurchaseOrderLine.search([
+                ('product_id', '=', rec.product_id.id),
+                ('order_id.company_id', '=', rec.order_id.company_id.id),
                 ('order_id.state', 'in', ['purchase', 'done']),
-                ('order_id.date_approve', '<=', current_date)
+                ('order_id.date_approve', '<=', date_order + timedelta(days=1))
             ], limit=1, order='order_id.date_approve desc')
-            
-            # 搜索供应商账单行
+
+            # Search for vendor bill lines
             bill = BillLine.search([
-                ('product_id.product_tmpl_id', '=', rec.id),
-                ('move_id.company_id', '=', company.id),
+                ('product_id', '=', rec.product_id.id),
+                ('move_id.company_id', '=', rec.order_id.company_id.id),
                 ('move_id.state', '=', 'posted'),
-                ('move_id.move_type', '=', 'in_invoice'),
-                ('move_id.date', '<=', current_date)
-            ], limit=1, order='move_id.date desc')
-            
-            # 确定最近的采购或账单
-            pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
-            bill_date = bill.move_id.date if bill and bill.move_id.date else datetime.min
+                ('move_id.move_type', '=', 'in_invoice'),  # Ensure it's a vendor bill
+                ('move_id.invoice_date', '<=', date_order + timedelta(days=1))
+            ], limit=1, order='move_id.invoice_date desc')
 
             # 确定最近的采购或账单
-            pol_date = pol.date_approve if pol and pol.date_approve else datetime.min
-            bill_date = bill.invoice_date if bill and bill.invoice_date else datetime.min
+            pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
+            bill_date = bill.move_id.invoice_date if bill and bill.move_id.invoice_date else datetime.min
 
             if pol_date >= bill_date and pol:
                 latest_line = pol
@@ -148,7 +148,12 @@ class SaleOrderLine(models.Model):
             previous_date = current_date #- timedelta(days=1)
 
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', previous_date)], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([
+                ('product_id', '=', rec.product_id.id), 
+                ('order_id.company_id', '=', rec.order_id.company_id.id), 
+                ('order_id.state', 'in', ['purchase', 'done']), 
+                ('order_id.date_approve', '<=', previous_date)
+            ], limit=1, order='order_id.date_approve desc')
             if pol:
                 rec.latest_vendor = pol.order_id.partner_id.name 
 
@@ -164,7 +169,12 @@ class SaleOrderLine(models.Model):
             previous_date = current_date #- timedelta(days=1)
 
             PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([('product_id', '=', rec.product_id.id), ('order_id.company_id', '=', rec.order_id.company_id.id), ('order_id.state', 'in', ['purchase', 'done']), ('create_date', '<=', previous_date)], limit=1, order='create_date desc')
+            pol = PurchaseOrderLineSudo.search([
+                ('product_id', '=', rec.product_id.id), 
+                ('order_id.company_id', '=', rec.order_id.company_id.id), 
+                ('order_id.state', 'in', ['purchase', 'done']), 
+                ('order_id.date_approve', '<=', previous_date)
+            ], limit=1, order='order_id.date_approve desc')
             if pol:
                 rec.latest_vendor_id = pol.order_id.partner_id.id
 
