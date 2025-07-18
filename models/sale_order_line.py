@@ -2,7 +2,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields, api
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT
 import pytz
 
@@ -85,9 +85,9 @@ class SaleOrderLine(models.Model):
             bill_date = bill.move_id.invoice_date if bill and bill.move_id.invoice_date else datetime.min
             
             # 确保日期类型一致，都转换为 datetime 对象
-            if isinstance(pol_date, datetime.date):
+            if isinstance(pol_date, date):
                 pol_date = datetime.combine(pol_date, datetime.min.time())
-            if isinstance(bill_date, datetime.date):
+            if isinstance(bill_date, date):
                 bill_date = datetime.combine(bill_date, datetime.min.time())
 
             if pol_date >= bill_date and pol:
@@ -145,9 +145,9 @@ class SaleOrderLine(models.Model):
             bill_date = bill.move_id.invoice_date if bill and bill.move_id.invoice_date else datetime.min
             
             # 确保日期类型一致，都转换为 datetime 对象
-            if isinstance(pol_date, datetime.date):
+            if isinstance(pol_date, date):
                 pol_date = datetime.combine(pol_date, datetime.min.time())
-            if isinstance(bill_date, datetime.date):
+            if isinstance(bill_date, date):
                 bill_date = datetime.combine(bill_date, datetime.min.time())
 
             if pol_date >= bill_date and pol:
