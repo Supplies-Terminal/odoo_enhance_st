@@ -12,6 +12,14 @@ class Partner(models.Model):
     website_ids = fields.Many2many('website', string='App Websites')
 
     full_name = fields.Char(compute='_compute_full_name', store=True)
+    
+    # 添加计算字段来标识客户是否属于当前公司
+    is_my_customer = fields.Boolean(
+        string='Is My Customer',
+        compute='_compute_is_my_customer',
+        search='_search_is_my_customer',
+        help='标识该客户是否属于当前公司的客户（基于发票记录）'
+    )
 
     @api.depends('name', 'ref')
     def _compute_full_name(self):
@@ -21,6 +29,44 @@ class Partner(models.Model):
                 name = "%s (%s)" % (rec.name, rec.ref)
                 
             rec.full_name = name
+
+    @api.depends('invoice_ids')
+    def _compute_is_my_customer(self):
+        """计算客户是否属于当前公司的客户"""
+        current_company = self.env.company
+        for partner in self:
+            # 检查该客户是否有当前公司的发票记录
+            has_invoices = self.env['account.move'].search_count([
+                ('partner_id', '=', partner.id),
+                ('company_id', '=', current_company.id),
+                ('move_type', 'in', ['out_invoice', 'out_refund'])
+            ]) > 0
+            partner.is_my_customer = has_invoices
+
+    def _search_is_my_customer(self, operator, value):
+        """搜索方法：根据客户是否属于当前公司进行过滤"""
+        current_company = self.env.company
+        
+        # 获取所有有当前公司发票的客户ID
+        customer_ids = self.env['account.move'].search([
+            ('company_id', '=', current_company.id),
+            ('move_type', 'in', ['out_invoice', 'out_refund'])
+        ]).mapped('partner_id').ids
+        
+        if operator == '=' and value:
+            # 搜索属于当前公司的客户
+            return [('id', 'in', customer_ids)]
+        elif operator == '=' and not value:
+            # 搜索不属于当前公司的客户
+            return [('id', 'not in', customer_ids)]
+        elif operator == '!=' and value:
+            # 搜索不属于当前公司的客户
+            return [('id', 'not in', customer_ids)]
+        elif operator == '!=' and not value:
+            # 搜索属于当前公司的客户
+            return [('id', 'in', customer_ids)]
+        
+        return []
 
     def name_get(self):
         recs = []

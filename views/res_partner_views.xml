@@ -10,4 +10,35 @@
             </xpath>
         </field>
     </record>
+
+    <!-- 继承客户搜索视图，添加公司客户过滤器 -->
+    <record id="view_res_partner_filter_inherit_st" model="ir.ui.view">
+        <field name="name">res.partner.filter.st.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_res_partner_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='type_company']" position="after">
+                <filter string="Current Company Customers" 
+                        name="current_company_customers" 
+                        domain="[('is_my_customer', '=', True)]"
+                        help="显示当前公司的客户（基于发票记录）"/>
+                <filter string="Not Current Company Customers" 
+                        name="not_current_company_customers" 
+                        domain="[('is_my_customer', '=', False)]"
+                        help="显示不属于当前公司的客户"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- 继承客户树视图，添加公司客户字段 -->
+    <record id="view_partner_tree_inherit_st" model="ir.ui.view">
+        <field name="name">res.partner.tree.st.inherit</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='phone']" position="after">
+                <field name="is_my_customer" optional="show" readonly="1"/>
+            </xpath>
+        </field>
+    </record>
 </odoo>
