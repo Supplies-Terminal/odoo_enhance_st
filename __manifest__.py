@@ -57,6 +57,7 @@
         'views/res_company_views.xml',
         'views/rma_views.xml',
         'views/account_move_views.xml',
+        'views/customer_billing_mapping_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

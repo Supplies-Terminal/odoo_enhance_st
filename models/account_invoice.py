@@ -24,19 +24,29 @@ class AccountInvoice(models.Model):
             else:
                 order.is_sales_company = False
 
-    # @api.model
-    # def create(self, vals):
-    #     move = super(AccountInvoice, self).create(vals)
-    #     if move.operating_company_id:
-    #         move._update_daily_settlement()
-    #     return move
+    @api.model
+    def create(self, vals):
+        move = super(AccountInvoice, self).create(vals)
+        if move.operating_company_id:
+            move._update_daily_settlement()
+        # 检查是否需要更新客户账单
+        move._update_customer_billing()
+        return move
 
     def write(self, vals):
         res = super(AccountInvoice, self).write(vals)
         for record in self:
             if record.operating_company_id:
                 record._update_daily_settlement()
+            # 检查是否需要更新客户账单
+            record._update_customer_billing()
         return res
+
+    def unlink(self):
+        # 在删除前检查是否需要更新客户账单
+        for record in self:
+            record._update_customer_billing()
+        return super(AccountInvoice, self).unlink()
 
     def _get_product_and_accounts(self, company, product_name, account_type):
         """
@@ -264,6 +274,254 @@ class AccountInvoice(models.Model):
                 ]
             }
             settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
+
+    def _update_customer_billing(self):
+        """更新客户账单"""
+        _logger.info("-----更新客户账单--------")
+        for record in self:
+            # 只处理已过账的销售发票
+            if record.move_type != 'out_invoice' or record.state != 'posted':
+                continue
+                
+            # 检查是否存在客户账单映射关系
+            mapping = self.env['customer.billing.mapping'].search([
+                ('company_id', '=', record.company_id.id),
+                ('partner_id', '=', record.partner_id.id),
+                ('active', '=', True)
+            ], limit=1)
+            
+            if not mapping:
+                continue
+                
+            billing_company = mapping.billing_company_id
+            invoice_date = record.invoice_date
+            
+            if not invoice_date:
+                continue
+                
+            _logger.info(f"Customer Invoice: {record.id} {record.name} {invoice_date}")
+            _logger.info(f"Billing Company: {billing_company.id} {billing_company.name}")
+            
+            # 查询或创建客户账单
+            customer_bill = self._get_customer_billing_bill(
+                billing_company, record.partner_id.id, 'Customer Billing', invoice_date
+            )
+            
+            # 如果账单已付款，创建调整单
+            if customer_bill and customer_bill.payment_state == 'paid':
+                self._create_customer_billing_adjustment(billing_company, record, mapping)
+            else:
+                # 更新现有账单或创建新账单
+                self._update_customer_billing_bill(billing_company, record, mapping, customer_bill)
+
+    def _get_customer_billing_bill(self, company, partner_id, origin, date):
+        """查询客户账单"""
+        return self.env['account.move'].sudo().search([
+            ('company_id', '=', company.id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '=', date),
+            ('partner_id', '=', partner_id),
+            ('invoice_origin', '=', origin),
+            ('state', '=', 'draft'),
+        ], limit=1)
+
+    def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill):
+        """更新客户账单"""
+        invoice_date = invoice.invoice_date
+        
+        # 获取所有相关的发票行
+        all_invoices = self.env['account.move'].search([
+            ('company_id', '=', invoice.company_id.id),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', invoice.partner_id.id),
+            ('state', '=', 'posted'),
+            ('move_type', '=', 'out_invoice'),
+        ])
+        
+        all_invoice_lines = all_invoices.mapped('invoice_line_ids')
+        
+        # 计算含税和不含税的总金额
+        total_amount_tax = sum(
+            line.price_total
+            for line in all_invoice_lines
+            if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids)
+        )
+        total_amount_notax = sum(
+            line.price_total
+            for line in all_invoice_lines
+            if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
+        )
+        
+        # 扣减已过账的账单部分
+        posted_bills = self.env['account.move'].search([
+            ('company_id', '=', billing_company.id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', invoice.partner_id.id),
+            ('invoice_origin', '=', 'Customer Billing'),
+            ('state', '=', 'posted'),
+        ])
+        
+        posted_amount_tax_bill = sum(
+            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if line.tax_ids
+        )
+        posted_amount_notax_bill = sum(
+            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if not line.tax_ids
+        )
+        
+        total_amount_tax_bill = total_amount_tax - posted_amount_tax_bill
+        total_amount_notax_bill = total_amount_notax - posted_amount_notax_bill
+        
+        # 如果存在草稿状态的账单，先删除
+        if existing_bill:
+            _logger.info(f"Deleting existing Customer Bill: {existing_bill.id}")
+            for line in existing_bill.line_ids:
+                if line.reconciled:
+                    line.remove_move_reconcile()
+            if existing_bill.name != '/':
+                existing_bill.name = '/'
+            existing_bill.button_draft()
+            existing_bill.unlink()
+        
+        # 创建新账单
+        _logger.info("Creating new Customer Bill")
+        product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+            billing_company, 'Customer Billing Products with TAX', 'expense'
+        )
+        product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
+            billing_company, 'Customer Billing Products without TAX', 'expense'
+        )
+        
+        sales_journal = self.env['account.journal'].sudo().search([
+            ('type', '=', 'purchase'),
+            ('company_id', '=', billing_company.id)
+        ], limit=1)
+        
+        bill_vals = {
+            'move_type': 'in_invoice',
+            'partner_id': invoice.partner_id.id,
+            'company_id': billing_company.id,
+            'journal_id': sales_journal.id,
+            'invoice_date': invoice_date,
+            'invoice_origin': 'Customer Billing',
+            'invoice_line_ids': [
+                (0, 0, {
+                    'product_id': product_with_tax.id,
+                    'quantity': 1.0,
+                    'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
+                    'name': product_with_tax.name,
+                    'account_id': expense_account_tax.id,
+                    'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+                }),
+                (0, 0, {
+                    'product_id': product_without_tax.id,
+                    'quantity': 1.0,
+                    'price_unit': total_amount_notax_bill,
+                    'name': product_without_tax.name,
+                    'account_id': expense_account_notax.id,
+                    'tax_ids': []
+                })
+            ]
+        }
+        
+        customer_bill = self.env['account.move'].with_company(billing_company.id).create(bill_vals)
+        _logger.info(f"Created Customer Bill: {customer_bill.id}")
+
+    def _create_customer_billing_adjustment(self, billing_company, invoice, mapping):
+        """创建客户账单调整单"""
+        invoice_date = invoice.invoice_date
+        
+        # 获取所有相关的发票行
+        all_invoices = self.env['account.move'].search([
+            ('company_id', '=', invoice.company_id.id),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', invoice.partner_id.id),
+            ('state', '=', 'posted'),
+            ('move_type', '=', 'out_invoice'),
+        ])
+        
+        all_invoice_lines = all_invoices.mapped('invoice_line_ids')
+        
+        # 计算含税和不含税的总金额
+        total_amount_tax = sum(
+            line.price_total
+            for line in all_invoice_lines
+            if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids)
+        )
+        total_amount_notax = sum(
+            line.price_total
+            for line in all_invoice_lines
+            if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
+        )
+        
+        # 获取已过账的账单总额
+        posted_bills = self.env['account.move'].search([
+            ('company_id', '=', billing_company.id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', invoice.partner_id.id),
+            ('invoice_origin', '=', 'Customer Billing'),
+            ('state', '=', 'posted'),
+        ])
+        
+        posted_amount_tax_bill = sum(
+            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if line.tax_ids
+        )
+        posted_amount_notax_bill = sum(
+            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if not line.tax_ids
+        )
+        
+        # 计算调整金额
+        adjustment_tax = total_amount_tax - posted_amount_tax_bill
+        adjustment_notax = total_amount_notax - posted_amount_notax_bill
+        
+        # 创建调整单
+        if adjustment_tax != 0 or adjustment_notax != 0:
+            _logger.info("Creating Customer Billing Adjustment")
+            product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+                billing_company, 'Customer Billing Products with TAX', 'expense'
+            )
+            product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
+                billing_company, 'Customer Billing Products without TAX', 'expense'
+            )
+            
+            sales_journal = self.env['account.journal'].sudo().search([
+                ('type', '=', 'purchase'),
+                ('company_id', '=', billing_company.id)
+            ], limit=1)
+            
+            adjustment_vals = {
+                'move_type': 'in_invoice',
+                'partner_id': invoice.partner_id.id,
+                'company_id': billing_company.id,
+                'journal_id': sales_journal.id,
+                'invoice_date': invoice_date,
+                'invoice_origin': 'Customer Billing Adjustment',
+                'invoice_line_ids': []
+            }
+            
+            if adjustment_tax != 0:
+                adjustment_vals['invoice_line_ids'].append((0, 0, {
+                    'product_id': product_with_tax.id,
+                    'quantity': 1.0,
+                    'price_unit': adjustment_tax / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else adjustment_tax,
+                    'name': f"{product_with_tax.name} - Adjustment",
+                    'account_id': expense_account_tax.id,
+                    'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+                }))
+            
+            if adjustment_notax != 0:
+                adjustment_vals['invoice_line_ids'].append((0, 0, {
+                    'product_id': product_without_tax.id,
+                    'quantity': 1.0,
+                    'price_unit': adjustment_notax,
+                    'name': f"{product_without_tax.name} - Adjustment",
+                    'account_id': expense_account_notax.id,
+                    'tax_ids': []
+                }))
+            
+            adjustment_bill = self.env['account.move'].with_company(billing_company.id).create(adjustment_vals)
+            _logger.info(f"Created Customer Billing Adjustment: {adjustment_bill.id}")
                 
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':

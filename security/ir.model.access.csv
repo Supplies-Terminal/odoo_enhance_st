@@ -12,3 +12,4 @@ access_daily_stock_report,daily.stock.report,model_daily_stock_report,stock.grou
 "access_stock_daily_report_wizard","access.stock.daily.report.wizard","model_daily_stock_report_wizard",,1,1,1,0
 purchase_order_line_so,purchase.order.line.so,model_purchase_order_line_so,,1,1,1,1
 purchase_order_line_mo,purchase.order.line.mo,model_purchase_order_line_mo,,1,1,1,1
+access_customer_billing_mapping,customer.billing.mapping,model_customer_billing_mapping,account.group_account_user,1,1,1,1
