@@ -58,6 +58,7 @@
         <field name="res_model">customer.billing.mapping</field>
         <field name="view_mode">tree,form</field>
         <field name="context">{'search_default_current_company': 1}</field>
+        <field name="target">current</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
                 Create your first customer billing mapping
@@ -73,5 +74,14 @@
               name="Customer Billing Mapping"
               parent="account.menu_finance_configuration"
               action="action_customer_billing_mapping"
-              sequence="20"/>
+              sequence="20"
+              groups="account.group_account_user"/>
+    
+    <!-- Alternative Menu Item - try different parent menu -->
+    <menuitem id="menu_customer_billing_mapping_alt"
+              name="Customer Billing Mapping"
+              parent="account.menu_account_configuration"
+              action="action_customer_billing_mapping"
+              sequence="20"
+              groups="account.group_account_user"/>
 </odoo>
