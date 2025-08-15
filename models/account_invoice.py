@@ -302,9 +302,12 @@ class AccountInvoice(models.Model):
             _logger.info(f"Customer Invoice: {record.id} {record.name} {invoice_date}")
             _logger.info(f"Billing Company: {billing_company.id} {billing_company.name}")
             
+            # 使用映射中的billing_partner_id作为供应商ID
+            vendor_partner_id = mapping.billing_partner_id.id
+            
             # 查询或创建客户账单
             customer_bill = self._get_customer_billing_bill(
-                billing_company, record.partner_id.id, 'Customer Billing', invoice_date
+                billing_company, vendor_partner_id, 'Customer Billing', invoice_date
             )
             
             # 如果账单已付款，创建调整单
@@ -386,10 +389,10 @@ class AccountInvoice(models.Model):
         # 创建新账单
         _logger.info("Creating new Customer Bill")
         product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
-            billing_company, 'Customer Billing Products with TAX', 'expense'
+            billing_company, 'Daily Settlement Products without with TAX', 'expense'
         )
         product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
-            billing_company, 'Customer Billing Products without TAX', 'expense'
+            billing_company, 'Daily Settlement Products without without TAX', 'expense'
         )
         
         sales_journal = self.env['account.journal'].sudo().search([
@@ -397,9 +400,12 @@ class AccountInvoice(models.Model):
             ('company_id', '=', billing_company.id)
         ], limit=1)
         
+        # 使用映射中的billing_partner_id作为供应商
+        vendor_partner_id = mapping.billing_partner_id.id
+        
         bill_vals = {
             'move_type': 'in_invoice',
-            'partner_id': invoice.partner_id.id,
+            'partner_id': vendor_partner_id,
             'company_id': billing_company.id,
             'journal_id': sales_journal.id,
             'invoice_date': invoice_date,
@@ -454,12 +460,15 @@ class AccountInvoice(models.Model):
             if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
         )
         
+        # 使用映射中的billing_partner_id作为供应商ID
+        vendor_partner_id = mapping.billing_partner_id.id
+        
         # 获取已过账的账单总额
         posted_bills = self.env['account.move'].search([
             ('company_id', '=', billing_company.id),
             ('move_type', '=', 'in_invoice'),
             ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', invoice.partner_id.id),
+            ('partner_id', '=', vendor_partner_id),
             ('invoice_origin', '=', 'Customer Billing'),
             ('state', '=', 'posted'),
         ])
@@ -479,10 +488,10 @@ class AccountInvoice(models.Model):
         if adjustment_tax != 0 or adjustment_notax != 0:
             _logger.info("Creating Customer Billing Adjustment")
             product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
-                billing_company, 'Customer Billing Products with TAX', 'expense'
+                billing_company, 'Daily Settlement Products without with TAX', 'expense'
             )
             product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
-                billing_company, 'Customer Billing Products without TAX', 'expense'
+                billing_company, 'Daily Settlement Products without without TAX', 'expense'
             )
             
             sales_journal = self.env['account.journal'].sudo().search([
@@ -490,9 +499,12 @@ class AccountInvoice(models.Model):
                 ('company_id', '=', billing_company.id)
             ], limit=1)
             
+            # 使用映射中的billing_partner_id作为供应商
+            vendor_partner_id = mapping.billing_partner_id.id
+            
             adjustment_vals = {
                 'move_type': 'in_invoice',
-                'partner_id': invoice.partner_id.id,
+                'partner_id': vendor_partner_id,
                 'company_id': billing_company.id,
                 'journal_id': sales_journal.id,
                 'invoice_date': invoice_date,

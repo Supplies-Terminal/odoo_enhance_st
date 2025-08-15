@@ -9,6 +9,7 @@
                 <field name="company_id"/>
                 <field name="partner_id"/>
                 <field name="billing_company_id"/>
+                <field name="billing_partner_id"/>
                 <field name="active"/>
             </tree>
         </field>
@@ -28,6 +29,8 @@
                         </group>
                         <group>
                             <field name="billing_company_id"/>
+                            <field name="billing_partner_id" 
+                                   domain="[('is_company', '=', True), ('company_id', '=', billing_company_id)]"/>
                             <field name="active"/>
                         </group>
                     </group>
@@ -45,7 +48,8 @@
                 <field name="company_id"/>
                 <field name="partner_id"/>
                 <field name="billing_company_id"/>
-                <filter string="Current Company" name="current_company" domain="[('company_id', '=', context_today().company_id.id)]"/>
+                <field name="billing_partner_id"/>
+                <filter string="My Company" name="my_company" domain="[('company_id', '=', uid.company_id.id)]"/>
                 <filter string="Active" name="active" domain="[('active', '=', True)]"/>
                 <filter string="Inactive" name="inactive" domain="[('active', '=', False)]"/>
             </search>
@@ -57,7 +61,6 @@
         <field name="name">Customer Billing Mapping</field>
         <field name="res_model">customer.billing.mapping</field>
         <field name="view_mode">tree,form</field>
-        <field name="context">{'search_default_current_company': 1}</field>
         <field name="target">current</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
@@ -70,18 +73,6 @@
     </record>
 
     <!-- Menu Item -->
-    <menuitem id="menu_customer_billing_mapping"
-              name="Customer Billing Mapping"
-              parent="account.menu_finance_configuration"
-              action="action_customer_billing_mapping"
-              sequence="20"
-              groups="account.group_account_user"/>
-    
-    <!-- Alternative Menu Item - try different parent menu -->
-    <menuitem id="menu_customer_billing_mapping_alt"
-              name="Customer Billing Mapping"
-              parent="account.menu_account_configuration"
-              action="action_customer_billing_mapping"
-              sequence="20"
-              groups="account.group_account_user"/>
+    <menuitem id="menu_customer_billing_mapping" name="Customer Billing Mapping" parent="website.menu_st_settings" action="action_customer_billing_mapping" sequence="20"/>
+
 </odoo>
