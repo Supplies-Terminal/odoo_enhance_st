@@ -279,8 +279,8 @@ class AccountInvoice(models.Model):
         """更新客户账单"""
         _logger.info("-----更新客户账单--------")
         for record in self:
-            # 只处理已过账的销售发票
-            if record.move_type != 'out_invoice' or record.state != 'posted':
+            # 只处理销售发票，不限制状态
+            if record.move_type != 'out_invoice':
                 continue
                 
             # 检查是否存在客户账单映射关系
@@ -299,7 +299,7 @@ class AccountInvoice(models.Model):
             if not invoice_date:
                 continue
                 
-            _logger.info(f"Customer Invoice: {record.id} {record.name} {invoice_date}")
+            _logger.info(f"Customer Invoice: {record.id} {record.name} {invoice_date} State: {record.state}")
             _logger.info(f"Billing Company: {billing_company.id} {billing_company.name}")
             
             # 使用映射中的billing_partner_id作为供应商ID
@@ -316,6 +316,53 @@ class AccountInvoice(models.Model):
             else:
                 # 更新现有账单或创建新账单
                 self._update_customer_billing_bill(billing_company, record, mapping, customer_bill)
+                
+        # 特殊处理：如果发票被重置为草稿，需要重新计算所有相关账单
+        self._handle_draft_invoices_update()
+
+    def _handle_draft_invoices_update(self):
+        """处理发票被重置为草稿的情况，重新计算相关账单"""
+        for record in self:
+            if record.move_type == 'out_invoice' and record.state == 'draft':
+                # 检查是否存在客户账单映射关系
+                mapping = self.env['customer.billing.mapping'].search([
+                    ('company_id', '=', record.company_id.id),
+                    ('partner_id', '=', record.partner_id.id),
+                    ('active', '=', True)
+                ], limit=1)
+                
+                if mapping and record.invoice_date:
+                    _logger.info(f"Handling draft invoice: {record.id} {record.name}")
+                    # 强制更新相关账单
+                    self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
+
+    def _force_update_customer_billing_bill(self, billing_company, invoice, mapping):
+        """强制更新客户账单，用于处理发票状态变化"""
+        invoice_date = invoice.invoice_date
+        vendor_partner_id = mapping.billing_partner_id.id
+        
+        # 删除现有的草稿账单
+        existing_bills = self.env['account.move'].search([
+            ('company_id', '=', billing_company.id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', vendor_partner_id),
+            ('invoice_origin', '=', 'Customer Billing'),
+            ('state', 'in', ['draft', 'posted']),
+        ])
+        
+        for bill in existing_bills:
+            _logger.info(f"Deleting existing bill due to invoice state change: {bill.id}")
+            if bill.state == 'posted':
+                # 如果账单已过账，需要先取消过账
+                for line in bill.line_ids:
+                    if line.reconciled:
+                        line.remove_move_reconcile()
+                bill.button_draft()
+            bill.unlink()
+        
+        # 重新计算并创建账单
+        self._update_customer_billing_bill(billing_company, invoice, mapping, False)
 
     def _get_customer_billing_bill(self, company, partner_id, origin, date):
         """查询客户账单"""
@@ -332,16 +379,17 @@ class AccountInvoice(models.Model):
         """更新客户账单"""
         invoice_date = invoice.invoice_date
         
-        # 获取所有相关的发票行
+        # 获取所有相关的发票行，包括所有状态
         all_invoices = self.env['account.move'].search([
             ('company_id', '=', invoice.company_id.id),
             ('invoice_date', '=', invoice_date),
             ('partner_id', '=', invoice.partner_id.id),
-            ('state', '=', 'posted'),
             ('move_type', '=', 'out_invoice'),
         ])
         
-        all_invoice_lines = all_invoices.mapped('invoice_line_ids')
+        # 只计算已过账发票的金额
+        posted_invoices = all_invoices.filtered(lambda inv: inv.state == 'posted')
+        all_invoice_lines = posted_invoices.mapped('invoice_line_ids')
         
         # 计算含税和不含税的总金额
         total_amount_tax = sum(
@@ -355,12 +403,15 @@ class AccountInvoice(models.Model):
             if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
         )
         
+        # 使用映射中的billing_partner_id作为供应商ID
+        vendor_partner_id = mapping.billing_partner_id.id
+        
         # 扣减已过账的账单部分
         posted_bills = self.env['account.move'].search([
             ('company_id', '=', billing_company.id),
             ('move_type', '=', 'in_invoice'),
             ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', invoice.partner_id.id),
+            ('partner_id', '=', vendor_partner_id),
             ('invoice_origin', '=', 'Customer Billing'),
             ('state', '=', 'posted'),
         ])
@@ -437,16 +488,17 @@ class AccountInvoice(models.Model):
         """创建客户账单调整单"""
         invoice_date = invoice.invoice_date
         
-        # 获取所有相关的发票行
+        # 获取所有相关的发票行，包括所有状态
         all_invoices = self.env['account.move'].search([
             ('company_id', '=', invoice.company_id.id),
             ('invoice_date', '=', invoice_date),
             ('partner_id', '=', invoice.partner_id.id),
-            ('state', '=', 'posted'),
             ('move_type', '=', 'out_invoice'),
         ])
         
-        all_invoice_lines = all_invoices.mapped('invoice_line_ids')
+        # 只计算已过账发票的金额
+        posted_invoices = all_invoices.filtered(lambda inv: inv.state == 'posted')
+        all_invoice_lines = posted_invoices.mapped('invoice_line_ids')
         
         # 计算含税和不含税的总金额
         total_amount_tax = sum(
