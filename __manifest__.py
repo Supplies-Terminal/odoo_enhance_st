@@ -53,6 +53,7 @@
         'wizard/wishlist_wizard_views.xml',
         'wizard/wishlist_wizard_product_views.xml',
         'wizard/stock_daily_report_wizard.xml',
+        'wizard/customer_billing_update_wizard_views.xml',
         'views/daily_stock_report_views.xml',
         'views/res_company_views.xml',
         'views/rma_views.xml',

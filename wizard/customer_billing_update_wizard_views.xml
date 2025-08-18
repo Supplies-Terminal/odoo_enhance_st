@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Customer Billing Update Wizard Form View -->
+    <record id="view_customer_billing_update_wizard_form" model="ir.ui.view">
+        <field name="name">customer.billing.update.wizard.form</field>
+        <field name="model">customer.billing.update.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Customer Billing Update Wizard">
+                <sheet>
+                    <div class="oe_title">
+                        <h1>Customer Billing Update Wizard</h1>
+                        <p>This wizard allows you to manually trigger billing updates for historical invoices.</p>
+                    </div>
+                    
+                    <group>
+                        <group string="Company Configuration">
+                            <field name="company_id"/>
+                            <field name="partner_id"/>
+                        </group>
+                        <group string="Billing Configuration">
+                            <field name="billing_company_id"/>
+                            <field name="billing_partner_id"/>
+                        </group>
+                    </group>
+                    
+                    <group>
+                        <group string="Update Configuration">
+                            <field name="update_type"/>
+                            <field name="specific_month" attrs="{'invisible': [('update_type', '!=', 'specific_month')]}"/>
+                            <field name="start_date" attrs="{'invisible': [('update_type', '=', 'specific_month')]}"/>
+                            <field name="end_date" attrs="{'invisible': [('update_type', '=', 'specific_month')]}"/>
+                        </group>
+                        <group string="Processing Options">
+                            <field name="force_recreate"/>
+                            <field name="dry_run"/>
+                        </group>
+                    </group>
+                    
+                    <group string="Results" attrs="{'invisible': [('result_summary', '=', False)]}">
+                        <field name="result_summary" nolabel="1" readonly="1"/>
+                    </group>
+                </sheet>
+                
+                <footer>
+                    <button name="action_preview" 
+                            string="Preview" 
+                            type="object" 
+                            class="btn-primary"
+                            attrs="{'invisible': [('dry_run', '=', False)]}"/>
+                    <button name="action_process" 
+                            string="Process" 
+                            type="object" 
+                            class="btn-primary"
+                            attrs="{'invisible': [('dry_run', '=', True)]}"/>
+                    <button string="Cancel" 
+                            class="btn-secondary" 
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <!-- Customer Billing Update Wizard Action -->
+    <record id="action_customer_billing_update_wizard" model="ir.actions.act_window">
+        <field name="name">Customer Billing Update</field>
+        <field name="res_model">customer.billing.update.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Configure the billing update parameters
+            </p>
+            <p>
+                Select the company, customer, and date range to process historical invoices and generate corresponding bills.
+            </p>
+        </field>
+    </record>
+
+    <!-- Menu Item -->
+    <menuitem id="menu_customer_billing_update_wizard"
+              name="Customer Billing Update Wizard"
+              parent="website.menu_st_settings"
+              action="action_customer_billing_update_wizard"
+              sequence="25"/>
+</odoo>
