@@ -38,8 +38,13 @@ class AccountInvoice(models.Model):
         for record in self:
             if record.operating_company_id:
                 record._update_daily_settlement()
+            
             # 检查是否需要更新客户账单
-            record._update_customer_billing()
+            # 如果状态变为草稿，使用特殊处理逻辑
+            if 'state' in vals and vals['state'] == 'draft':
+                record._handle_draft_invoices_update()
+            else:
+                record._update_customer_billing()
         return res
 
     def unlink(self):
@@ -316,14 +321,20 @@ class AccountInvoice(models.Model):
             else:
                 # 更新现有账单或创建新账单
                 self._update_customer_billing_bill(billing_company, record, mapping, customer_bill)
-                
-        # 特殊处理：如果发票被重置为草稿，需要重新计算所有相关账单
-        self._handle_draft_invoices_update()
 
     def _handle_draft_invoices_update(self):
         """处理发票被重置为草稿的情况，重新计算相关账单"""
+        # 使用集合来避免重复处理
+        processed_invoices = set()
+        
         for record in self:
             if record.move_type == 'out_invoice' and record.state == 'draft':
+                # 检查是否已经处理过这个发票
+                invoice_key = (record.id, record.invoice_date)
+                if invoice_key in processed_invoices:
+                    _logger.info(f"Skipping already processed invoice: {record.id} {record.name}")
+                    continue
+                
                 # 检查是否存在客户账单映射关系
                 mapping = self.env['customer.billing.mapping'].search([
                     ('company_id', '=', record.company_id.id),
@@ -335,11 +346,17 @@ class AccountInvoice(models.Model):
                     _logger.info(f"Handling draft invoice: {record.id} {record.name}")
                     # 强制更新相关账单
                     self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
+                    _logger.info(f"Completed handling draft invoice: {record.id} {record.name}")
+                    
+                    # 标记为已处理
+                    processed_invoices.add(invoice_key)
 
     def _force_update_customer_billing_bill(self, billing_company, invoice, mapping):
         """强制更新客户账单，用于处理发票状态变化"""
         invoice_date = invoice.invoice_date
         vendor_partner_id = mapping.billing_partner_id.id
+        
+        _logger.info(f"Force updating bills for date {invoice_date} and vendor {vendor_partner_id}")
         
         # 删除现有的草稿账单
         existing_bills = self.env['account.move'].search([
@@ -350,6 +367,8 @@ class AccountInvoice(models.Model):
             ('invoice_origin', '=', 'Customer Billing'),
             ('state', 'in', ['draft', 'posted']),
         ])
+        
+        _logger.info(f"Found {len(existing_bills)} existing bills to delete")
         
         for bill in existing_bills:
             _logger.info(f"Deleting existing bill due to invoice state change: {bill.id}")
@@ -362,7 +381,9 @@ class AccountInvoice(models.Model):
             bill.unlink()
         
         # 重新计算并创建账单
+        _logger.info(f"Creating new bill after deleting existing ones")
         self._update_customer_billing_bill(billing_company, invoice, mapping, False)
+        _logger.info(f"Completed force update for date {invoice_date}")
 
     def _get_customer_billing_bill(self, company, partner_id, origin, date):
         """查询客户账单"""
@@ -436,6 +457,21 @@ class AccountInvoice(models.Model):
                 existing_bill.name = '/'
             existing_bill.button_draft()
             existing_bill.unlink()
+        
+        # 再次检查是否还有其他草稿账单（防止重复）
+        remaining_draft_bills = self.env['account.move'].search([
+            ('company_id', '=', billing_company.id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', vendor_partner_id),
+            ('invoice_origin', '=', 'Customer Billing'),
+            ('state', '=', 'draft'),
+        ])
+        
+        if remaining_draft_bills:
+            _logger.warning(f"Found {len(remaining_draft_bills)} remaining draft bills, deleting them to prevent duplicates")
+            for bill in remaining_draft_bills:
+                bill.unlink()
         
         # 创建新账单
         _logger.info("Creating new Customer Bill")
