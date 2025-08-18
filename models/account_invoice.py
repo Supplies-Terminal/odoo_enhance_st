@@ -389,10 +389,10 @@ class AccountInvoice(models.Model):
         # 创建新账单
         _logger.info("Creating new Customer Bill")
         product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
-            billing_company, 'Daily Settlement Products without with TAX', 'expense'
+            billing_company, 'Daily Settlement Products with TAX', 'expense'
         )
         product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
-            billing_company, 'Daily Settlement Products without without TAX', 'expense'
+            billing_company, 'Daily Settlement Products without TAX', 'expense'
         )
         
         sales_journal = self.env['account.journal'].sudo().search([
@@ -488,10 +488,10 @@ class AccountInvoice(models.Model):
         if adjustment_tax != 0 or adjustment_notax != 0:
             _logger.info("Creating Customer Billing Adjustment")
             product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
-                billing_company, 'Daily Settlement Products without with TAX', 'expense'
+                billing_company, 'Daily Settlement Products with TAX', 'expense'
             )
             product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
-                billing_company, 'Daily Settlement Products without without TAX', 'expense'
+                billing_company, 'Daily Settlement Products without TAX', 'expense'
             )
             
             sales_journal = self.env['account.journal'].sudo().search([

@@ -13,4 +13,3 @@ access_daily_stock_report,daily.stock.report,model_daily_stock_report,stock.grou
 purchase_order_line_so,purchase.order.line.so,model_purchase_order_line_so,,1,1,1,1
 purchase_order_line_mo,purchase.order.line.mo,model_purchase_order_line_mo,,1,1,1,1
 access_customer_billing_mapping,customer.billing.mapping,model_customer_billing_mapping,account.group_account_user,1,1,1,1
-access_customer_billing_mapping_menu,customer.billing.mapping.menu,ir.ui.menu,account.group_account_user,1,0,0,0
