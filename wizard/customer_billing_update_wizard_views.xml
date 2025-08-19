@@ -13,45 +13,22 @@
                     </div>
                     
                     <group>
-                        <group string="Company Configuration">
+                        <group string="Configuration">
                             <field name="company_id"/>
                             <field name="partner_id"/>
                         </group>
-                        <group string="Billing Configuration">
-                            <field name="billing_company_id"/>
-                            <field name="billing_partner_id"/>
+                        <group string="Date Range">
+                            <field name="start_date"/>
+                            <field name="end_date"/>
                         </group>
-                    </group>
-                    
-                    <group>
-                        <group string="Update Configuration">
-                            <field name="update_type"/>
-                            <field name="specific_month" attrs="{'invisible': [('update_type', '!=', 'specific_month')]}"/>
-                            <field name="start_date" attrs="{'invisible': [('update_type', '=', 'specific_month')]}"/>
-                            <field name="end_date" attrs="{'invisible': [('update_type', '=', 'specific_month')]}"/>
-                        </group>
-                        <group string="Processing Options">
-                            <field name="force_recreate"/>
-                            <field name="dry_run"/>
-                        </group>
-                    </group>
-                    
-                    <group string="Results" attrs="{'invisible': [('result_summary', '=', False)]}">
-                        <field name="result_summary" nolabel="1" readonly="1"/>
                     </group>
                 </sheet>
                 
                 <footer>
-                    <button name="action_preview" 
-                            string="Preview" 
-                            type="object" 
-                            class="btn-primary"
-                            attrs="{'invisible': [('dry_run', '=', False)]}"/>
                     <button name="action_process" 
                             string="Process" 
                             type="object" 
-                            class="btn-primary"
-                            attrs="{'invisible': [('dry_run', '=', True)]}"/>
+                            class="btn-primary"/>
                     <button string="Cancel" 
                             class="btn-secondary" 
                             special="cancel"/>
