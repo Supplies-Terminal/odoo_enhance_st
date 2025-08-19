@@ -5,10 +5,10 @@
         <field name="name">customer.billing.update.wizard.form</field>
         <field name="model">customer.billing.update.wizard</field>
         <field name="arch" type="xml">
-            <form string="Customer Billing Update Wizard">
+            <form string="Cross Company Billing Batch Wizard">
                 <sheet>
                     <div class="oe_title">
-                        <h1>Customer Billing Update Wizard</h1>
+                        <h1>Cross Company Billing Batch Wizard</h1>
                         <p>This wizard allows you to manually trigger billing updates for historical invoices.</p>
                     </div>
                     
@@ -39,7 +39,7 @@
 
     <!-- Customer Billing Update Wizard Action -->
     <record id="action_customer_billing_update_wizard" model="ir.actions.act_window">
-        <field name="name">Customer Billing Update</field>
+        <field name="name">Cross Company Billing Batch Wizard</field>
         <field name="res_model">customer.billing.update.wizard</field>
         <field name="view_mode">form</field>
         <field name="target">new</field>
@@ -55,7 +55,7 @@
 
     <!-- Menu Item -->
     <menuitem id="menu_customer_billing_update_wizard"
-              name="Customer Billing Update Wizard"
+              name="Cross Company Billing Batch Wizard"
               parent="website.menu_st_settings"
               action="action_customer_billing_update_wizard"
               sequence="25"/>

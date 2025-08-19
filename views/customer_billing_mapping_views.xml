@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <!-- Customer Billing Mapping Tree View -->
+    <!-- Cross Company Billing Mapping Tree View -->
     <record id="view_customer_billing_mapping_tree" model="ir.ui.view">
         <field name="name">customer.billing.mapping.tree</field>
         <field name="model">customer.billing.mapping</field>
         <field name="arch" type="xml">
-            <tree string="Customer Billing Mapping">
+            <tree string="Cross Company Billing Mapping">
                 <field name="company_id"/>
                 <field name="partner_id"/>
                 <field name="billing_company_id"/>
@@ -15,12 +15,12 @@
         </field>
     </record>
 
-    <!-- Customer Billing Mapping Form View -->
+    <!-- Cross Company Billing Mapping Form View -->
     <record id="view_customer_billing_mapping_form" model="ir.ui.view">
         <field name="name">customer.billing.mapping.form</field>
         <field name="model">customer.billing.mapping</field>
         <field name="arch" type="xml">
-            <form string="Customer Billing Mapping">
+            <form string="Cross Company Billing Mapping">
                 <sheet>
                     <group>
                         <group>
@@ -39,12 +39,12 @@
         </field>
     </record>
 
-    <!-- Customer Billing Mapping Search View -->
+    <!-- Cross Company Billing Mapping Search View -->
     <record id="view_customer_billing_mapping_search" model="ir.ui.view">
         <field name="name">customer.billing.mapping.search</field>
         <field name="model">customer.billing.mapping</field>
         <field name="arch" type="xml">
-            <search string="Customer Billing Mapping">
+            <search string="Cross Company Billing Mapping">
                 <field name="company_id"/>
                 <field name="partner_id"/>
                 <field name="billing_company_id"/>
@@ -56,15 +56,15 @@
         </field>
     </record>
 
-    <!-- Customer Billing Mapping Action -->
+    <!-- Cross Company Billing Mapping Action -->
     <record id="action_customer_billing_mapping" model="ir.actions.act_window">
-        <field name="name">Customer Billing Mapping</field>
+        <field name="name">Cross Company Billing Mapping</field>
         <field name="res_model">customer.billing.mapping</field>
         <field name="view_mode">tree,form</field>
         <field name="target">current</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">
-                Create your first customer billing mapping
+                Create your first Cross Company Billing mapping
             </p>
             <p>
                 Configure the relationship between customers and corresponding companies here. The system will automatically generate daily bills for these customers.
@@ -73,6 +73,6 @@
     </record>
 
     <!-- Menu Item -->
-    <menuitem id="menu_customer_billing_mapping" name="Customer Billing Mapping" parent="website.menu_st_settings" action="action_customer_billing_mapping" sequence="20"/>
+    <menuitem id="menu_customer_billing_mapping" name="Cross Company Billing Mapping" parent="website.menu_st_settings" action="action_customer_billing_mapping" sequence="20"/>
 
 </odoo>
