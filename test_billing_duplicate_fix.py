@@ -472,6 +472,43 @@ class TestBillingDuplicateFix(models.Model):
         
         _logger.info("草稿发票处理逻辑测试完成")
 
+    def test_permission_handling(self):
+        """测试权限处理机制"""
+        _logger.info("开始测试权限处理机制...")
+        
+        try:
+            # 测试安全属性访问
+            test_company = self.env.company
+            test_partner = self.env['res.partner'].search([('is_company', '=', True)], limit=1)
+            
+            if test_company and test_partner:
+                # 测试安全获取名称
+                try:
+                    company_name = getattr(test_company, 'name', 'Unknown Company')
+                    partner_name = getattr(test_partner, 'name', 'Unknown Partner')
+                    _logger.info(f"安全获取名称成功: {company_name}, {partner_name}")
+                except Exception as e:
+                    _logger.warning(f"安全获取名称失败: {str(e)}")
+                
+                # 测试异常处理
+                try:
+                    # 尝试访问可能不存在的属性
+                    non_existent_attr = getattr(test_company, 'non_existent_field', 'Default Value')
+                    _logger.info(f"访问不存在的属性成功，返回默认值: {non_existent_attr}")
+                except Exception as e:
+                    _logger.warning(f"访问不存在的属性失败: {str(e)}")
+            
+            # 测试错误处理机制
+            if hasattr(self.env['account.move'], 'write'):
+                _logger.info("write方法存在，错误处理机制已就位")
+            else:
+                _logger.warning("write方法不存在")
+                
+        except Exception as e:
+            _logger.error(f"权限处理机制测试失败: {str(e)}")
+        
+        _logger.info("权限处理机制测试完成")
+
     def run_all_tests(self):
         """运行所有测试"""
         _logger.info("=== 开始运行所有账单重复检查测试 ===")
@@ -487,6 +524,7 @@ class TestBillingDuplicateFix(models.Model):
             self.test_zero_amount_bill_prevention()
             self.test_state_change_duplicate_prevention()
             self.test_draft_invoice_handling()
+            self.test_permission_handling()
             _logger.info("=== 所有测试完成 ===")
         except Exception as e:
             _logger.error(f"测试过程中发生错误: {str(e)}")

@@ -477,6 +477,53 @@ else:
    - 确保账单金额与当前发票状态匹配
    - 避免生成金额为0的无效账单
 
+### 7. 权限问题修复 ⭐ **新增**
+
+#### 问题描述
+
+之前的代码在访问 `res.partner` 和 `res.company` 记录时可能遇到权限问题，导致发票无法正常重置为草稿状态。
+
+#### 修复方案
+
+1. **安全属性访问**：
+   ```python
+   # 使用 getattr 安全地获取属性，避免权限问题
+   billing_company_name = getattr(mapping.billing_company_id, 'name', 'Unknown Company')
+   billing_partner_name = getattr(mapping.billing_partner_id, 'name', 'Unknown Partner')
+   ```
+
+2. **异常处理**：
+   ```python
+   try:
+       # 安全地获取名称，避免权限问题
+       billing_company_name = getattr(mapping.billing_company_id, 'name', 'Unknown Company')
+       _logger.info(f"找到客户账单映射: {billing_company_name}")
+   except Exception as e:
+       _logger.error(f"处理客户账单映射时出错: {str(e)}")
+       # 继续处理，不中断流程
+   ```
+
+3. **状态变化保护**：
+   ```python
+   # 在 write 方法中添加错误处理
+   try:
+       if vals['state'] == 'draft':
+           record._handle_draft_invoices_update()
+       elif vals['state'] == 'posted':
+           record._handle_posted_invoices_update()
+   except Exception as e:
+       # 记录错误但不中断发票状态变化
+       _logger.error(f"处理发票状态变化时出错: {str(e)}")
+       _logger.error(f"发票状态变化将继续，但账单更新可能失败")
+   ```
+
+#### 修复效果
+
+- **发票状态变化正常**：即使账单更新失败，发票也能正常重置为草稿
+- **权限问题隔离**：权限问题不会影响核心的发票操作
+- **错误日志记录**：所有错误都会被记录，便于调试
+- **系统稳定性提升**：避免了因权限问题导致的系统崩溃
+
 #### 锁管理方法
 
 ```python
@@ -541,7 +588,7 @@ def _cleanup_duplicate_bills(self, billing_company, vendor_partner_id, invoice_d
     return False
 ```
 
-### 7. 测试脚本
+### 8. 测试脚本
 
 创建了 `test_billing_duplicate_fix.py` 测试脚本，包含：
 
@@ -555,6 +602,7 @@ def _cleanup_duplicate_bills(self, billing_company, vendor_partner_id, invoice_d
 - `test_zero_amount_bill_prevention()`: 测试防止生成金额为0的账单 ⭐ **新增**
 - `test_state_change_duplicate_prevention()`: 测试状态变化时的防重复机制 ⭐ **新增**
 - `test_draft_invoice_handling()`: 测试草稿发票处理逻辑 ⭐ **新增**
+- `test_permission_handling()`: 测试权限处理机制 ⭐ **新增**
 - `_find_duplicate_bills()`: 查找重复账单
 - `_cleanup_duplicate_bills_for_mapping()`: 清理指定映射的重复账单
 

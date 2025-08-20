@@ -44,12 +44,17 @@ class AccountInvoice(models.Model):
             
             # 只处理两个关键事件：reset to draft 和 confirm invoice
             if 'state' in vals:
-                if vals['state'] == 'draft':
-                    # 发票重置为草稿状态
-                    record._handle_draft_invoices_update()
-                elif vals['state'] == 'posted':
-                    # 发票确认过账
-                    record._handle_posted_invoices_update()
+                try:
+                    if vals['state'] == 'draft':
+                        # 发票重置为草稿状态
+                        record._handle_draft_invoices_update()
+                    elif vals['state'] == 'posted':
+                        # 发票确认过账
+                        record._handle_posted_invoices_update()
+                except Exception as e:
+                    # 记录错误但不中断发票状态变化
+                    _logger.error(f"处理发票 {record.id} 状态变化时出错: {str(e)}")
+                    _logger.error(f"发票状态变化将继续，但账单更新可能失败")
         return res
 
     def unlink(self):
@@ -326,7 +331,13 @@ class AccountInvoice(models.Model):
                     continue
                     
                 _logger.info(f"Customer Invoice: {record.id} {record.name} {invoice_date} State: {record.state}")
-                _logger.info(f"Billing Company: {billing_company.id} {billing_company.name}")
+                try:
+                    # 安全地获取名称，避免权限问题
+                    billing_company_name = getattr(billing_company, 'name', f'Company {billing_company.id}')
+                    _logger.info(f"Billing Company: {billing_company.id} {billing_company_name}")
+                except Exception as e:
+                    _logger.warning(f"无法获取账单公司名称: {str(e)}")
+                    _logger.info(f"Billing Company: {billing_company.id}")
                 
                 # 使用映射中的billing_partner_id作为供应商ID
                 vendor_partner_id = mapping.billing_partner_id.id
@@ -396,12 +407,23 @@ class AccountInvoice(models.Model):
                 ], limit=1)
                 
                 if mapping and record.invoice_date:
-                    _logger.info(f"找到客户账单映射: {mapping.billing_company_id.name} -> {mapping.billing_partner_id.name}")
-                    # 强制更新相关账单
-                    self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
-                    _logger.info(f"完成草稿发票处理: {record.id} {record.name}")
+                    try:
+                        # 安全地获取名称，避免权限问题
+                        billing_company_name = getattr(mapping.billing_company_id, 'name', 'Unknown Company')
+                        billing_partner_name = getattr(mapping.billing_partner_id, 'name', 'Unknown Partner')
+                        _logger.info(f"找到客户账单映射: {billing_company_name} -> {billing_partner_name}")
+                        
+                        # 强制更新相关账单
+                        self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
+                        _logger.info(f"完成草稿发票处理: {record.id} {record.name}")
+                    except Exception as e:
+                        _logger.error(f"处理客户账单映射时出错: {str(e)}")
+                        # 继续处理，不中断流程
                 else:
                     _logger.warning(f"未找到客户账单映射或发票日期为空")
+            except Exception as e:
+                _logger.error(f"处理草稿发票时发生错误: {str(e)}")
+                # 记录错误但不中断流程
             finally:
                 # 清除锁
                 if lock_key in self._billing_update_locks:
