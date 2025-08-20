@@ -285,12 +285,12 @@ class AccountInvoice(models.Model):
 
     def _update_customer_billing(self):
         """更新客户账单"""
-        _logger.info("-----更新客户账单--------")
         for record in self:
             # 只处理销售发票，不限制状态
             if record.move_type != 'out_invoice':
                 continue
             
+            _logger.info("-----更新客户账单--------")
             # 使用类级别的锁防止重复触发
             lock_key = f"{record.id}_{record.invoice_date}"
             if lock_key in self._billing_update_locks:
