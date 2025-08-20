@@ -310,7 +310,52 @@ with self.env.cr.savepoint():
         return
 ```
 
-### 3. 事务保护
+### 3. 金额检查逻辑 ⭐ **新增**
+
+为了防止生成金额为0的账单，添加了严格的金额检查：
+
+```python
+# 准备账单行，只包含金额大于0的行
+invoice_line_ids = []
+
+# 只有当含税金额大于0时才添加含税行
+if total_amount_tax_bill > 0:
+    invoice_line_ids.append((0, 0, {
+        'product_id': product_with_tax.id,
+        'quantity': 1.0,
+        'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
+        'name': product_with_tax.name,
+        'account_id': expense_account_tax.id,
+        'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+    }))
+    _logger.info(f"Adding tax line with amount: {total_amount_tax_bill}")
+
+# 只有当不含税金额大于0时才添加不含税行
+if total_amount_notax_bill > 0:
+    invoice_line_ids.append((0, 0, {
+        'product_id': product_without_tax.id,
+        'quantity': 1.0,
+        'price_unit': total_amount_notax_bill,
+        'name': product_without_tax.name,
+        'account_id': expense_account_notax.id,
+        'tax_ids': []
+    }))
+    _logger.info(f"Adding non-tax line with amount: {total_amount_notax_bill}")
+
+# 如果没有有效的账单行，则不创建账单
+if not invoice_line_ids:
+    _logger.info(f"No valid invoice lines to create bill for date {invoice_date}, skipping bill creation")
+    return
+```
+
+#### 金额检查的好处：
+
+1. **避免无效账单**：不会生成金额为0的账单行
+2. **减少数据冗余**：只创建有实际金额的账单
+3. **提高系统性能**：减少不必要的数据库记录
+4. **改善用户体验**：避免显示无意义的0金额账单
+
+### 4. 事务保护
 
 使用 `savepoint` 确保操作的原子性：
 
@@ -320,7 +365,7 @@ with self.env.cr.savepoint():
     # 如果出现错误，可以回滚到保存点
 ```
 
-### 4. 防重复触发机制
+### 5. 防重复触发机制
 
 #### 类级别锁机制
 
@@ -353,6 +398,48 @@ class AccountInvoice(models.Model):
                     del self._billing_update_locks[lock_key]
 ```
 
+#### 状态变化防重复机制 ⭐ **新增**
+
+为了防止发票状态变化时重复生成账单，添加了智能的关系检查：
+
+```python
+def _check_invoice_bill_relationship(self, billing_company, vendor_partner_id, invoice_date, invoice_id):
+    """检查发票和账单的关系，防止重复生成"""
+    # 查找是否已经为这个发票创建过账单
+    existing_bills = self.env['account.move'].search([
+        ('company_id', '=', billing_company.id),
+        ('move_type', '=', 'in_invoice'),
+        ('invoice_date', '=', invoice_date),
+        ('partner_id', '=', vendor_partner_id),
+        ('invoice_origin', '=', 'Customer Billing'),
+        ('state', 'in', ['draft', 'posted']),
+    ])
+    
+    if existing_bills:
+        if len(existing_bills) == 1:
+            # 如果存在账单，检查是否需要更新而不是创建新的
+            existing_bill = existing_bills[0]
+            return existing_bill, 'update'
+        else:
+            # 发现多个账单，需要清理重复
+            return None, 'cleanup'
+    
+    return None, 'create'
+```
+
+#### 智能处理逻辑
+
+根据检查结果，系统会智能选择处理方式：
+
+1. **'update'** - 更新现有账单，不创建新的
+2. **'cleanup'** - 清理重复账单，然后重新创建
+3. **'create'** - 创建新账单
+
+这样可以确保：
+- **draft → posted** 时，如果已存在账单则更新，否则创建
+- **posted → draft** 时，不会重复创建账单
+- 同一发票在同一天只生成一张账单
+
 #### 锁管理方法
 
 ```python
@@ -367,7 +454,7 @@ def get_billing_locks_status(self):
     # 返回当前锁的数量和键值
 ```
 
-### 5. 新增的辅助方法
+### 6. 新增的辅助方法
 
 #### `_check_and_prevent_duplicate_bills`
 
@@ -417,7 +504,7 @@ def _cleanup_duplicate_bills(self, billing_company, vendor_partner_id, invoice_d
     return False
 ```
 
-### 6. 测试脚本
+### 7. 测试脚本
 
 创建了 `test_billing_duplicate_fix.py` 测试脚本，包含：
 
@@ -428,6 +515,8 @@ def _cleanup_duplicate_bills(self, billing_company, vendor_partner_id, invoice_d
 - `test_event_driven_logic()`: 测试事件驱动的账单更新逻辑 ⭐ **新增**
 - `test_method_compatibility()`: 测试方法兼容性 ⭐ **新增**
 - `test_wizard_integration()`: 测试向导集成 ⭐ **新增**
+- `test_zero_amount_bill_prevention()`: 测试防止生成金额为0的账单 ⭐ **新增**
+- `test_state_change_duplicate_prevention()`: 测试状态变化时的防重复机制 ⭐ **新增**
 - `_find_duplicate_bills()`: 查找重复账单
 - `_cleanup_duplicate_bills_for_mapping()`: 清理指定映射的重复账单
 

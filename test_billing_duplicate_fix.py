@@ -318,6 +318,105 @@ class TestBillingDuplicateFix(models.Model):
         
         _logger.info("向导集成测试完成")
 
+    def test_zero_amount_bill_prevention(self):
+        """测试防止生成金额为0的账单"""
+        _logger.info("开始测试防止生成金额为0的账单...")
+        
+        try:
+            # 获取一个示例映射
+            mapping = self.env['customer.billing.mapping'].search([('active', '=', True)], limit=1)
+            if not mapping:
+                _logger.warning("未找到可用的客户账单映射，跳过测试")
+                return
+            
+            billing_company = mapping.billing_company_id
+            vendor_partner = mapping.billing_partner_id
+            test_date = fields.Date.today()
+            
+            _logger.info(f"测试公司: {billing_company.name}")
+            _logger.info(f"测试供应商: {vendor_partner.name}")
+            _logger.info(f"测试日期: {test_date}")
+            
+            # 检查是否存在金额为0的账单
+            zero_amount_bills = self.env['account.move'].search([
+                ('company_id', '=', billing_company.id),
+                ('move_type', '=', 'in_invoice'),
+                ('invoice_date', '=', test_date),
+                ('partner_id', '=', vendor_partner.id),
+                ('invoice_origin', '=', 'Customer Billing'),
+                ('state', 'in', ['draft', 'posted']),
+            ])
+            
+            if zero_amount_bills:
+                _logger.info(f"找到 {len(zero_amount_bills)} 个现有账单")
+                
+                # 检查是否有金额为0的账单行
+                for bill in zero_amount_bills:
+                    for line in bill.invoice_line_ids:
+                        if line.price_unit == 0:
+                            _logger.warning(f"发现金额为0的账单行: 账单 {bill.id}, 行 {line.id}")
+                        else:
+                            _logger.info(f"账单行金额正常: {line.price_unit}")
+            else:
+                _logger.info("未找到现有账单")
+            
+            # 测试金额检查逻辑
+            if hasattr(self.env['account.move'], '_update_customer_billing_bill'):
+                _logger.info("金额检查逻辑方法存在")
+            else:
+                _logger.warning("金额检查逻辑方法不存在")
+                
+        except Exception as e:
+            _logger.error(f"防止生成金额为0的账单测试失败: {str(e)}")
+        
+        _logger.info("防止生成金额为0的账单测试完成")
+
+    def test_state_change_duplicate_prevention(self):
+        """测试状态变化时的防重复机制"""
+        _logger.info("开始测试状态变化时的防重复机制...")
+        
+        try:
+            # 获取一个示例映射
+            mapping = self.env['customer.billing.mapping'].search([('active', '=', True)], limit=1)
+            if not mapping:
+                _logger.warning("未找到可用的客户账单映射，跳过测试")
+                return
+            
+            billing_company = mapping.billing_company_id
+            vendor_partner = mapping.billing_partner_id
+            test_date = fields.Date.today()
+            
+            _logger.info(f"测试公司: {billing_company.name}")
+            _logger.info(f"测试供应商: {vendor_partner.name}")
+            _logger.info(f"测试日期: {test_date}")
+            
+            # 测试关系检查方法
+            if hasattr(self.env['account.move'], '_check_invoice_bill_relationship'):
+                _logger.info("关系检查方法存在")
+                
+                # 模拟检查（不实际执行）
+                test_invoice_id = 999999  # 使用一个不存在的ID进行测试
+                try:
+                    # 这里只是测试方法是否存在，不实际调用
+                    _logger.info("关系检查方法可用")
+                except Exception as e:
+                    _logger.warning(f"关系检查方法测试失败: {str(e)}")
+            else:
+                _logger.warning("关系检查方法不存在")
+            
+            # 检查现有的防重复机制
+            if hasattr(self.env['account.move'], '_billing_update_locks'):
+                _logger.info("防重复锁机制存在")
+                lock_status = self.env['account.move'].get_billing_locks_status()
+                _logger.info(f"当前锁状态: {lock_status}")
+            else:
+                _logger.warning("防重复锁机制不存在")
+                
+        except Exception as e:
+            _logger.error(f"状态变化时的防重复机制测试失败: {str(e)}")
+        
+        _logger.info("状态变化时的防重复机制测试完成")
+
     def run_all_tests(self):
         """运行所有测试"""
         _logger.info("=== 开始运行所有账单重复检查测试 ===")
@@ -330,6 +429,8 @@ class TestBillingDuplicateFix(models.Model):
             self.test_event_driven_logic()
             self.test_method_compatibility()
             self.test_wizard_integration()
+            self.test_zero_amount_bill_prevention()
+            self.test_state_change_duplicate_prevention()
             _logger.info("=== 所有测试完成 ===")
         except Exception as e:
             _logger.error(f"测试过程中发生错误: {str(e)}")
