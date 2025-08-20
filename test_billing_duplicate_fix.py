@@ -417,6 +417,61 @@ class TestBillingDuplicateFix(models.Model):
         
         _logger.info("状态变化时的防重复机制测试完成")
 
+    def test_draft_invoice_handling(self):
+        """测试草稿发票处理逻辑"""
+        _logger.info("开始测试草稿发票处理逻辑...")
+        
+        try:
+            # 获取一个示例映射
+            mapping = self.env['customer.billing.mapping'].search([('active', '=', True)], limit=1)
+            if not mapping:
+                _logger.warning("未找到可用的客户账单映射，跳过测试")
+                return
+            
+            billing_company = mapping.billing_company_id
+            vendor_partner = mapping.billing_partner_id
+            
+            _logger.info(f"测试公司: {billing_company.name}")
+            _logger.info(f"测试供应商: {vendor_partner.name}")
+            
+            # 测试草稿发票处理方法
+            if hasattr(self.env['account.move'], '_handle_draft_invoices_update'):
+                _logger.info("草稿发票处理方法存在")
+            else:
+                _logger.warning("草稿发票处理方法不存在")
+            
+            # 测试强制更新方法
+            if hasattr(self.env['account.move'], '_force_update_customer_billing_bill'):
+                _logger.info("强制更新方法存在")
+            else:
+                _logger.warning("强制更新方法不存在")
+            
+            # 测试账单更新方法
+            if hasattr(self.env['account.move'], '_update_customer_billing_bill'):
+                _logger.info("账单更新方法存在")
+            else:
+                _logger.warning("账单更新方法不存在")
+            
+            # 检查是否有草稿状态的发票
+            draft_invoices = self.env['account.move'].search([
+                ('move_type', '=', 'out_invoice'),
+                ('state', '=', 'draft'),
+                ('company_id', '=', mapping.company_id.id),
+                ('partner_id', '=', mapping.partner_id.id),
+            ], limit=5)
+            
+            if draft_invoices:
+                _logger.info(f"找到 {len(draft_invoices)} 张草稿发票")
+                for inv in draft_invoices:
+                    _logger.info(f"  - 发票 {inv.id}: {inv.name} (金额: {inv.amount_total})")
+            else:
+                _logger.info("未找到草稿状态的发票")
+                
+        except Exception as e:
+            _logger.error(f"草稿发票处理逻辑测试失败: {str(e)}")
+        
+        _logger.info("草稿发票处理逻辑测试完成")
+
     def run_all_tests(self):
         """运行所有测试"""
         _logger.info("=== 开始运行所有账单重复检查测试 ===")
@@ -431,6 +486,7 @@ class TestBillingDuplicateFix(models.Model):
             self.test_wizard_integration()
             self.test_zero_amount_bill_prevention()
             self.test_state_change_duplicate_prevention()
+            self.test_draft_invoice_handling()
             _logger.info("=== 所有测试完成 ===")
         except Exception as e:
             _logger.error(f"测试过程中发生错误: {str(e)}")

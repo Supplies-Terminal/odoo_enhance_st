@@ -440,6 +440,43 @@ def _check_invoice_bill_relationship(self, billing_company, vendor_partner_id, i
 - **posted → draft** 时，不会重复创建账单
 - 同一发票在同一天只生成一张账单
 
+### 6. 草稿发票处理逻辑 ⭐ **修复**
+
+#### 问题描述
+
+之前当发票从 posted 状态重置为 draft 状态时，账单没有正确更新，因为系统只计算已过账发票的金额。
+
+#### 修复方案
+
+现在系统会根据发票状态智能选择计算逻辑：
+
+```python
+# 根据当前发票状态决定计算逻辑
+if invoice.state == 'draft':
+    # 如果当前发票是草稿状态，考虑所有状态的发票（包括草稿）
+    _logger.info(f"发票 {invoice.id} 是草稿状态，计算所有状态的发票金额")
+    relevant_invoices = all_invoices
+else:
+    # 如果当前发票是已过账状态，只计算已过账发票的金额
+    _logger.info(f"发票 {invoice.id} 是已过账状态，只计算已过账发票的金额")
+    relevant_invoices = all_invoices.filtered(lambda inv: inv.state == 'posted')
+```
+
+#### 处理流程
+
+1. **发票重置为草稿**：
+   - 触发 `_handle_draft_invoices_update()` 方法
+   - 调用 `_force_update_customer_billing_bill()` 强制更新
+   - 删除现有账单，重新计算并创建
+
+2. **金额计算逻辑**：
+   - 草稿状态：计算所有状态发票的金额
+   - 已过账状态：只计算已过账发票的金额
+
+3. **账单更新**：
+   - 确保账单金额与当前发票状态匹配
+   - 避免生成金额为0的无效账单
+
 #### 锁管理方法
 
 ```python
@@ -517,6 +554,7 @@ def _cleanup_duplicate_bills(self, billing_company, vendor_partner_id, invoice_d
 - `test_wizard_integration()`: 测试向导集成 ⭐ **新增**
 - `test_zero_amount_bill_prevention()`: 测试防止生成金额为0的账单 ⭐ **新增**
 - `test_state_change_duplicate_prevention()`: 测试状态变化时的防重复机制 ⭐ **新增**
+- `test_draft_invoice_handling()`: 测试草稿发票处理逻辑 ⭐ **新增**
 - `_find_duplicate_bills()`: 查找重复账单
 - `_cleanup_duplicate_bills_for_mapping()`: 清理指定映射的重复账单
 

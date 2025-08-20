@@ -381,7 +381,12 @@ class AccountInvoice(models.Model):
             self._billing_update_locks[lock_key] = True
             
             try:
-                _logger.info(f"处理发票重置为草稿事件: {record.id} {record.name} {record.invoice_date}")
+                _logger.info(f"=== 开始处理发票重置为草稿事件 ===")
+                _logger.info(f"发票ID: {record.id}")
+                _logger.info(f"发票名称: {record.name}")
+                _logger.info(f"发票日期: {record.invoice_date}")
+                _logger.info(f"发票状态: {record.state}")
+                _logger.info(f"发票金额: {record.amount_total}")
                 
                 # 检查是否存在客户账单映射关系
                 mapping = self.env['customer.billing.mapping'].search([
@@ -391,9 +396,12 @@ class AccountInvoice(models.Model):
                 ], limit=1)
                 
                 if mapping and record.invoice_date:
+                    _logger.info(f"找到客户账单映射: {mapping.billing_company_id.name} -> {mapping.billing_partner_id.name}")
                     # 强制更新相关账单
                     self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
                     _logger.info(f"完成草稿发票处理: {record.id} {record.name}")
+                else:
+                    _logger.warning(f"未找到客户账单映射或发票日期为空")
             finally:
                 # 清除锁
                 if lock_key in self._billing_update_locks:
@@ -514,9 +522,17 @@ class AccountInvoice(models.Model):
             ('move_type', '=', 'out_invoice'),
         ])
         
-        # 只计算已过账发票的金额
-        posted_invoices = all_invoices.filtered(lambda inv: inv.state == 'posted')
-        all_invoice_lines = posted_invoices.mapped('invoice_line_ids')
+        # 根据当前发票状态决定计算逻辑
+        if invoice.state == 'draft':
+            # 如果当前发票是草稿状态，考虑所有状态的发票（包括草稿）
+            _logger.info(f"发票 {invoice.id} 是草稿状态，计算所有状态的发票金额")
+            relevant_invoices = all_invoices
+        else:
+            # 如果当前发票是已过账状态，只计算已过账发票的金额
+            _logger.info(f"发票 {invoice.id} 是已过账状态，只计算已过账发票的金额")
+            relevant_invoices = all_invoices.filtered(lambda inv: inv.state == 'posted')
+        
+        all_invoice_lines = relevant_invoices.mapped('invoice_line_ids')
         
         # 计算含税和不含税的总金额
         total_amount_tax = sum(
@@ -529,6 +545,8 @@ class AccountInvoice(models.Model):
             for line in all_invoice_lines
             if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
         )
+        
+        _logger.info(f"计算得到含税金额: {total_amount_tax}, 不含税金额: {total_amount_notax}")
         
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
@@ -552,6 +570,8 @@ class AccountInvoice(models.Model):
         
         total_amount_tax_bill = total_amount_tax - posted_amount_tax_bill
         total_amount_notax_bill = total_amount_notax - posted_amount_notax_bill
+        
+        _logger.info(f"最终账单金额 - 含税: {total_amount_tax_bill}, 不含税: {total_amount_notax_bill}")
         
         # 使用锁机制防止并发创建重复账单
         with self.env.cr.savepoint():
