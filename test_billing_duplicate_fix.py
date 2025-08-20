@@ -203,6 +203,121 @@ class TestBillingDuplicateFix(models.Model):
         
         _logger.info("重复触发防护机制测试完成")
 
+    def test_event_driven_logic(self):
+        """测试事件驱动的账单更新逻辑"""
+        _logger.info("开始测试事件驱动的账单更新逻辑...")
+        
+        # 获取一个示例发票
+        test_invoice = self.env['account.move'].search([
+            ('move_type', '=', 'out_invoice'),
+            ('state', 'in', ['draft', 'posted'])
+        ], limit=1)
+        
+        if not test_invoice:
+            _logger.error("未找到可用的测试发票")
+            return
+        
+        _logger.info(f"测试发票: {test_invoice.id} {test_invoice.name} (当前状态: {test_invoice.state})")
+        
+        # 测试草稿状态锁
+        draft_lock_key = f"draft_{test_invoice.id}_{test_invoice.invoice_date}"
+        posted_lock_key = f"posted_{test_invoice.id}_{test_invoice.invoice_date}"
+        
+        if hasattr(self.env['account.move'], '_billing_update_locks'):
+            # 测试草稿锁
+            self.env['account.move']._billing_update_locks[draft_lock_key] = True
+            _logger.info(f"设置草稿锁: {draft_lock_key}")
+            
+            # 测试过账锁
+            self.env['account.move']._billing_update_locks[posted_lock_key] = True
+            _logger.info(f"设置过账锁: {posted_lock_key}")
+            
+            # 检查锁状态
+            lock_status = self.env['account.move'].get_billing_locks_status()
+            _logger.info(f"锁状态: {lock_status}")
+            
+            # 清理测试锁
+            if draft_lock_key in self.env['account.move']._billing_update_locks:
+                del self.env['account.move']._billing_update_locks[draft_lock_key]
+            if posted_lock_key in self.env['account.move']._billing_update_locks:
+                del self.env['account.move']._billing_update_locks[posted_lock_key]
+            
+            _logger.info("已清理测试锁")
+        else:
+            _logger.warning("锁机制未初始化")
+        
+        _logger.info("事件驱动的账单更新逻辑测试完成")
+
+    def test_method_compatibility(self):
+        """测试方法兼容性"""
+        _logger.info("开始测试方法兼容性...")
+        
+        # 测试废弃的方法
+        try:
+            # 调用废弃的方法（应该只显示警告，不执行实际逻辑）
+            self.env['account.move']._update_customer_billing()
+            _logger.info("废弃方法调用成功，符合预期")
+        except Exception as e:
+            _logger.error(f"废弃方法调用失败: {str(e)}")
+        
+        # 测试新的事件驱动方法
+        try:
+            # 测试草稿处理方法（不传参数，应该正常处理）
+            self.env['account.move']._handle_draft_invoices_update()
+            _logger.info("草稿处理方法调用成功")
+        except Exception as e:
+            _logger.error(f"草稿处理方法调用失败: {str(e)}")
+        
+        try:
+            # 测试过账处理方法（不传参数，应该正常处理）
+            self.env['account.move']._handle_posted_invoices_update()
+            _logger.info("过账处理方法调用成功")
+        except Exception as e:
+            _logger.error(f"过账处理方法调用失败: {str(e)}")
+        
+        _logger.info("方法兼容性测试完成")
+
+    def test_wizard_integration(self):
+        """测试向导集成"""
+        _logger.info("开始测试向导集成...")
+        
+        try:
+            # 检查向导模型是否存在
+            if 'customer.billing.update.wizard' in self.env:
+                wizard_model = self.env['customer.billing.update.wizard']
+                _logger.info("向导模型存在")
+                
+                # 测试创建向导
+                wizard = wizard_model.create({
+                    'company_id': self.env.company.id,
+                    'partner_id': self.env['res.partner'].search([('is_company', '=', True)], limit=1).id,
+                    'start_date': fields.Date.today(),
+                    'end_date': fields.Date.today(),
+                })
+                _logger.info(f"成功创建向导: {wizard.id}")
+                
+                # 测试获取发票方法
+                invoices = wizard._get_invoices_for_period()
+                _logger.info(f"获取到 {len(invoices)} 张发票")
+                
+                # 测试处理逻辑（不实际执行，只检查方法是否存在）
+                if hasattr(wizard, 'action_process'):
+                    _logger.info("向导的action_process方法存在")
+                else:
+                    _logger.warning("向导的action_process方法不存在")
+                
+                # 清理测试数据
+                wizard.unlink()
+                _logger.info("已清理测试向导")
+                
+            else:
+                _logger.warning("向导模型不存在，可能未安装相关模块")
+                
+        except Exception as e:
+            _logger.error(f"向导集成测试失败: {str(e)}")
+        
+        _logger.info("向导集成测试完成")
+
     def run_all_tests(self):
         """运行所有测试"""
         _logger.info("=== 开始运行所有账单重复检查测试 ===")
@@ -212,6 +327,9 @@ class TestBillingDuplicateFix(models.Model):
             self.test_billing_creation_logic()
             self.test_billing_locks()
             self.test_duplicate_trigger_prevention()
+            self.test_event_driven_logic()
+            self.test_method_compatibility()
+            self.test_wizard_integration()
             _logger.info("=== 所有测试完成 ===")
         except Exception as e:
             _logger.error(f"测试过程中发生错误: {str(e)}")

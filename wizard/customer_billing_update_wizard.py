@@ -11,6 +11,15 @@ _logger = logging.getLogger(__name__)
 
 
 class CustomerBillingUpdateWizard(models.TransientModel):
+    """
+    客户账单更新向导
+    
+    使用新的事件驱动逻辑处理发票：
+    - 草稿状态：使用 _handle_draft_invoices_update() 方法
+    - 已过账状态：使用 _handle_posted_invoices_update() 方法
+    
+    这样可以避免重复触发，提高处理效率。
+    """
     _name = 'customer.billing.update.wizard'
     _description = 'Customer Billing Update Wizard'
 
@@ -58,7 +67,16 @@ class CustomerBillingUpdateWizard(models.TransientModel):
         return date(today.year, today.month, last_day)
 
     def action_process(self):
-        """执行账单更新处理"""
+        """
+        执行账单更新处理
+        
+        使用新的事件驱动逻辑：
+        1. 草稿发票：调用 _handle_draft_invoices_update()
+        2. 已过账发票：调用 _handle_posted_invoices_update()
+        3. 其他状态：跳过处理
+        
+        这样可以避免重复触发，提高处理效率。
+        """
         self.ensure_one()
         
         try:
@@ -68,13 +86,25 @@ class CustomerBillingUpdateWizard(models.TransientModel):
             if not invoices:
                 raise UserError(_('No invoices found for the specified period and criteria'))
             
-            # 逐一执行_update_customer_billing
+            # 使用新的事件驱动逻辑处理发票
             processed_count = 0
             for invoice in invoices:
                 try:
-                    invoice._update_customer_billing()
+                    # 根据发票状态使用相应的事件处理方法
+                    if invoice.state == 'draft':
+                        # 草稿状态：使用草稿事件处理
+                        invoice._handle_draft_invoices_update()
+                        _logger.info(f"Successfully processed draft invoice: {invoice.name}")
+                    elif invoice.state == 'posted':
+                        # 已过账状态：使用过账事件处理
+                        invoice._handle_posted_invoices_update()
+                        _logger.info(f"Successfully processed posted invoice: {invoice.name}")
+                    else:
+                        # 其他状态：跳过
+                        _logger.info(f"Skipping invoice {invoice.name} with state: {invoice.state}")
+                        continue
+                    
                     processed_count += 1
-                    _logger.info(f"Successfully processed invoice: {invoice.name}")
                 except Exception as e:
                     _logger.error(f"Error processing invoice {invoice.name}: {str(e)}")
                     continue
@@ -98,16 +128,28 @@ class CustomerBillingUpdateWizard(models.TransientModel):
             raise UserError(_('Error processing billing updates: %s') % str(e))
 
     def _get_invoices_for_period(self):
-        """获取指定期间内的发票"""
+        """
+        获取指定期间内的发票
+        
+        只获取草稿和已过账状态的发票，因为只有这两种状态需要处理。
+        """
         domain = [
             ('company_id', '=', self.company_id.id),
             ('partner_id', '=', self.partner_id.id),
             ('move_type', '=', 'out_invoice'),
             ('invoice_date', '>=', self.start_date),
             ('invoice_date', '<=', self.end_date),
+            ('state', 'in', ['draft', 'posted']),  # 只处理草稿和已过账状态
         ]
         
         invoices = self.env['account.move'].search(domain, order='invoice_date')
+        
+        # 按状态分组统计
+        draft_count = len(invoices.filtered(lambda inv: inv.state == 'draft'))
+        posted_count = len(invoices.filtered(lambda inv: inv.state == 'posted'))
+        
         _logger.info(f"Found {len(invoices)} invoices for period {self.start_date} to {self.end_date}")
+        _logger.info(f"  - Draft invoices: {draft_count}")
+        _logger.info(f"  - Posted invoices: {posted_count}")
         
         return invoices

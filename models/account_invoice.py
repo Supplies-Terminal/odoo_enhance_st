@@ -42,12 +42,14 @@ class AccountInvoice(models.Model):
             if record.operating_company_id:
                 record._update_daily_settlement()
             
-            # 检查是否需要更新客户账单
-            # 如果状态变为草稿，使用特殊处理逻辑
-            if 'state' in vals and vals['state'] == 'draft':
-                record._handle_draft_invoices_update()
-            else:
-                record._update_customer_billing()
+            # 只处理两个关键事件：reset to draft 和 confirm invoice
+            if 'state' in vals:
+                if vals['state'] == 'draft':
+                    # 发票重置为草稿状态
+                    record._handle_draft_invoices_update()
+                elif vals['state'] == 'posted':
+                    # 发票确认过账
+                    record._handle_posted_invoices_update()
         return res
 
     def unlink(self):
@@ -284,23 +286,29 @@ class AccountInvoice(models.Model):
             settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
 
     def _update_customer_billing(self):
-        """更新客户账单"""
+        """更新客户账单 - 已废弃，保留用于兼容性"""
+        _logger.warning("_update_customer_billing 方法已废弃，请使用 _handle_posted_invoices_update")
+        pass
+
+    def _handle_posted_invoices_update(self):
+        """处理发票确认过账事件"""
         for record in self:
-            # 只处理销售发票，不限制状态
+            # 只处理销售发票
             if record.move_type != 'out_invoice':
                 continue
             
-            _logger.info("-----更新客户账单--------")
             # 使用类级别的锁防止重复触发
-            lock_key = f"{record.id}_{record.invoice_date}"
+            lock_key = f"posted_{record.id}_{record.invoice_date}"
             if lock_key in self._billing_update_locks:
-                _logger.info(f"跳过重复的账单更新: {record.id} {record.name} (锁已存在)")
+                _logger.info(f"跳过重复的过账账单更新: {record.id} {record.name} (锁已存在)")
                 continue
             
             # 设置锁
             self._billing_update_locks[lock_key] = True
             
             try:
+                _logger.info(f"处理发票过账事件: {record.id} {record.name} {record.invoice_date}")
+                
                 # 检查是否存在客户账单映射关系
                 mapping = self.env['customer.billing.mapping'].search([
                     ('company_id', '=', record.company_id.id),
@@ -340,48 +348,39 @@ class AccountInvoice(models.Model):
                     del self._billing_update_locks[lock_key]
 
     def _handle_draft_invoices_update(self):
-        """处理发票被重置为草稿的情况，重新计算相关账单"""
-        # 使用集合来避免重复处理
-        processed_invoices = set()
-        
+        """处理发票重置为草稿状态事件"""
         for record in self:
-            if record.move_type == 'out_invoice' and record.state == 'draft':
-                # 检查是否已经处理过这个发票
-                invoice_key = (record.id, record.invoice_date)
-                if invoice_key in processed_invoices:
-                    _logger.info(f"Skipping already processed invoice: {record.id} {record.name}")
-                    continue
+            # 只处理销售发票
+            if record.move_type != 'out_invoice':
+                continue
+            
+            # 使用类级别的锁防止重复触发
+            lock_key = f"draft_{record.id}_{record.invoice_date}"
+            if lock_key in self._billing_update_locks:
+                _logger.info(f"跳过重复的草稿更新: {record.id} {record.name} (锁已存在)")
+                continue
+            
+            # 设置锁
+            self._billing_update_locks[lock_key] = True
+            
+            try:
+                _logger.info(f"处理发票重置为草稿事件: {record.id} {record.name} {record.invoice_date}")
                 
-                # 使用类级别的锁防止重复触发
-                lock_key = f"draft_{record.id}_{record.invoice_date}"
+                # 检查是否存在客户账单映射关系
+                mapping = self.env['customer.billing.mapping'].search([
+                    ('company_id', '=', record.company_id.id),
+                    ('partner_id', '=', record.partner_id.id),
+                    ('active', '=', True)
+                ], limit=1)
+                
+                if mapping and record.invoice_date:
+                    # 强制更新相关账单
+                    self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
+                    _logger.info(f"完成草稿发票处理: {record.id} {record.name}")
+            finally:
+                # 清除锁
                 if lock_key in self._billing_update_locks:
-                    _logger.info(f"跳过重复的草稿更新: {record.id} {record.name} (锁已存在)")
-                    continue
-                
-                # 设置锁
-                self._billing_update_locks[lock_key] = True
-                
-                try:
-                    # 检查是否存在客户账单映射关系
-                    mapping = self.env['customer.billing.mapping'].search([
-                        ('company_id', '=', record.company_id.id),
-                        ('partner_id', '=', record.partner_id.id),
-                        ('active', '=', True)
-                    ], limit=1)
-                    
-                    if mapping and record.invoice_date:
-                        _logger.info(f"Handling draft invoice: {record.id} {record.name}")
-                        
-                        # 强制更新相关账单
-                        self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
-                        _logger.info(f"Completed handling draft invoice: {record.id} {record.name}")
-                        
-                        # 标记为已处理
-                        processed_invoices.add(invoice_key)
-                finally:
-                    # 清除锁
-                    if lock_key in self._billing_update_locks:
-                        del self._billing_update_locks[lock_key]
+                    del self._billing_update_locks[lock_key]
 
     def _force_update_customer_billing_bill(self, billing_company, invoice, mapping):
         """强制更新客户账单，用于处理发票状态变化"""

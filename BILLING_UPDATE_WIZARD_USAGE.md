@@ -197,7 +197,85 @@ Update Type: Monthly Update
 
 ## 解决方案
 
-### 1. 增强的重复检查逻辑
+### 1. 事件驱动的账单更新逻辑 ⭐ **重构**
+
+由于发票在 `posted` 状态下不能修改，账单更新只需要处理两个关键事件：
+
+#### 1.1 Reset to Draft 事件
+
+```python
+def _handle_draft_invoices_update(self):
+    """处理发票重置为草稿状态事件"""
+    for record in self:
+        # 只处理销售发票
+        if record.move_type != 'out_invoice':
+            continue
+        
+        # 使用类级别的锁防止重复触发
+        lock_key = f"draft_{record.id}_{record.invoice_date}"
+        if lock_key in self._billing_update_locks:
+            _logger.info(f"跳过重复的草稿更新: {record.id} {record.name} (锁已存在)")
+            continue
+        
+        # 设置锁并处理
+        self._billing_update_locks[lock_key] = True
+        try:
+            # 强制更新相关账单
+            self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
+        finally:
+            # 清除锁
+            if lock_key in self._billing_update_locks:
+                del self._billing_update_locks[lock_key]
+```
+
+#### 1.2 Confirm Invoice 事件
+
+```python
+def _handle_posted_invoices_update(self):
+    """处理发票确认过账事件"""
+    for record in self:
+        # 只处理销售发票
+        if record.move_type != 'out_invoice':
+            continue
+        
+        # 使用类级别的锁防止重复触发
+        lock_key = f"posted_{record.id}_{record.invoice_date}"
+        if lock_key in self._billing_update_locks:
+            _logger.info(f"跳过重复的过账账单更新: {record.id} {record.name} (锁已存在)")
+            continue
+        
+        # 设置锁并处理
+        self._billing_update_locks[lock_key] = True
+        try:
+            # 更新或创建客户账单
+            self._update_customer_billing_bill(billing_company, record, mapping, customer_bill)
+        finally:
+            # 清除锁
+            if lock_key in self._billing_update_locks:
+                del self._billing_update_locks[lock_key]
+```
+
+#### 1.3 事件触发逻辑
+
+```python
+def write(self, vals):
+    res = super(AccountInvoice, self).write(vals)
+    for record in self:
+        if record.operating_company_id:
+            record._update_daily_settlement()
+        
+        # 只处理两个关键事件：reset to draft 和 confirm invoice
+        if 'state' in vals:
+            if vals['state'] == 'draft':
+                # 发票重置为草稿状态
+                record._handle_draft_invoices_update()
+            elif vals['state'] == 'posted':
+                # 发票确认过账
+                record._handle_posted_invoices_update()
+    return res
+```
+
+### 2. 增强的重复检查逻辑
 
 在 `_update_customer_billing_bill` 方法中添加了多层重复检查：
 
@@ -232,7 +310,7 @@ with self.env.cr.savepoint():
         return
 ```
 
-### 2. 事务保护
+### 3. 事务保护
 
 使用 `savepoint` 确保操作的原子性：
 
@@ -242,7 +320,7 @@ with self.env.cr.savepoint():
     # 如果出现错误，可以回滚到保存点
 ```
 
-### 3. 防重复触发机制 ⭐ **新增**
+### 4. 防重复触发机制
 
 #### 类级别锁机制
 
@@ -255,12 +333,12 @@ class AccountInvoice(models.Model):
     # 类级别的防重复锁
     _billing_update_locks = {}
     
-    def _update_customer_billing(self):
+    def _handle_posted_invoices_update(self):
         for record in self:
             # 使用类级别的锁防止重复触发
-            lock_key = f"{record.id}_{record.invoice_date}"
+            lock_key = f"posted_{record.id}_{record.invoice_date}"
             if lock_key in self._billing_update_locks:
-                _logger.info(f"跳过重复的账单更新: {record.id} {record.name} (锁已存在)")
+                _logger.info(f"跳过重复的过账账单更新: {record.id} {record.name} (锁已存在)")
                 continue
             
             # 设置锁
@@ -289,7 +367,7 @@ def get_billing_locks_status(self):
     # 返回当前锁的数量和键值
 ```
 
-### 4. 新增的辅助方法
+### 5. 新增的辅助方法
 
 #### `_check_and_prevent_duplicate_bills`
 
@@ -339,14 +417,17 @@ def _cleanup_duplicate_bills(self, billing_company, vendor_partner_id, invoice_d
     return False
 ```
 
-### 5. 测试脚本
+### 6. 测试脚本
 
 创建了 `test_billing_duplicate_fix.py` 测试脚本，包含：
 
 - `test_duplicate_check()`: 检查所有映射的重复账单
 - `test_billing_creation_logic()`: 测试账单创建逻辑
-- `test_billing_locks()`: 测试账单更新锁机制 ⭐ **新增**
-- `test_duplicate_trigger_prevention()`: 测试重复触发防护机制 ⭐ **新增**
+- `test_billing_locks()`: 测试账单更新锁机制
+- `test_duplicate_trigger_prevention()`: 测试重复触发防护机制
+- `test_event_driven_logic()`: 测试事件驱动的账单更新逻辑 ⭐ **新增**
+- `test_method_compatibility()`: 测试方法兼容性 ⭐ **新增**
+- `test_wizard_integration()`: 测试向导集成 ⭐ **新增**
 - `_find_duplicate_bills()`: 查找重复账单
 - `_cleanup_duplicate_bills_for_mapping()`: 清理指定映射的重复账单
 
@@ -382,7 +463,7 @@ has_duplicates = env['account.move']._check_and_prevent_duplicate_bills(
 )
 ```
 
-### 4. 管理账单更新锁 ⭐ **新增**
+### 4. 管理账单更新锁
 
 ```python
 # 查看当前锁状态
@@ -397,32 +478,89 @@ lock_status_after = env['account.move'].get_billing_locks_status()
 print(f"清理后锁数量: {lock_status_after['lock_count']}")
 ```
 
+### 5. 测试事件驱动逻辑 ⭐ **新增**
+
+```python
+# 测试草稿事件处理
+env['account.move']._handle_draft_invoices_update()
+
+# 测试过账事件处理
+env['account.move']._handle_posted_invoices_update()
+
+# 检查锁状态
+lock_status = env['account.move'].get_billing_locks_status()
+print(f"当前锁: {lock_status}")
+```
+
+### 6. 向导集成更新 ⭐ **新增**
+
+向导 `customer.billing.update.wizard` 已更新为使用新的事件驱动逻辑：
+
+```python
+# 向导现在根据发票状态使用相应的方法
+if invoice.state == 'draft':
+    # 草稿状态：使用草稿事件处理
+    invoice._handle_draft_invoices_update()
+elif invoice.state == 'posted':
+    # 已过账状态：使用过账事件处理
+    invoice._handle_posted_invoices_update()
+else:
+    # 其他状态：跳过
+    continue
+```
+
+#### 向导的主要改进：
+
+1. **状态感知处理**：根据发票状态选择合适的事件处理方法
+2. **性能优化**：只处理草稿和已过账状态的发票
+3. **详细日志**：记录每种状态的发票处理数量
+4. **错误处理**：单个发票处理失败不影响其他发票
+
+#### 使用向导：
+
+```python
+# 创建向导实例
+wizard = env['customer.billing.update.wizard'].create({
+    'company_id': company_id,
+    'partner_id': partner_id,
+    'start_date': start_date,
+    'end_date': end_date,
+})
+
+# 执行处理
+result = wizard.action_process()
+```
+
 ## 改进效果
 
-1. **防止并发重复**：使用事务锁和保存点机制
-2. **防止重复触发**：使用类级别锁机制 ⭐ **新增**
-3. **全面状态检查**：检查草稿和已过账状态
-4. **多层验证**：创建前多次检查，确保无重复
-5. **详细日志**：记录所有操作，便于调试
-6. **自动清理**：提供自动清理重复账单的方法
-7. **锁管理**：防止内存泄漏和锁状态监控 ⭐ **新增**
+1. **事件驱动架构**：只处理必要的状态变化事件 ⭐ **重构**
+2. **防止并发重复**：使用事务锁和保存点机制
+3. **防止重复触发**：使用类级别锁机制
+4. **全面状态检查**：检查草稿和已过账状态
+5. **多层验证**：创建前多次检查，确保无重复
+6. **详细日志**：记录所有操作，便于调试
+7. **自动清理**：提供自动清理重复账单的方法
+8. **锁管理**：防止内存泄漏和锁状态监控
+9. **向后兼容**：废弃的方法仍然可用，但会显示警告
 
 ## 注意事项
 
-1. **性能影响**：增加了额外的数据库查询和锁检查，可能影响性能
+1. **性能影响**：减少了不必要的调用，提高了性能 ⭐ **改进**
 2. **内存管理**：类级别锁会占用内存，建议定期清理
 3. **日志级别**：建议在生产环境中调整日志级别
 4. **权限要求**：清理已过账账单需要相应权限
 5. **数据一致性**：建议在维护窗口期间运行清理操作
+6. **向后兼容**：旧的方法仍然可用，但建议迁移到新的事件驱动方法
 
 ## 监控建议
 
 1. 定期运行测试脚本检查重复账单
-2. 监控日志中的重复账单警告和锁状态
+2. 监控日志中的事件处理信息
 3. 定期清理账单更新锁，防止内存泄漏
 4. 设置告警机制，当发现重复时及时通知
 5. 监控锁的数量，如果过多可能表示存在问题
 6. 定期审查账单创建逻辑的执行情况
+7. 关注废弃方法的调用，及时迁移到新方法
 
 ## 故障排除
 
@@ -445,3 +583,38 @@ env['account.move']._billing_update_locks.clear()
 2. 查看日志中的锁状态信息
 3. 确认锁的键值生成逻辑是否正确
 4. 检查是否有异步任务在后台执行
+5. 确认是否使用了新的事件驱动方法
+
+### 方法兼容性问题
+
+如果遇到方法兼容性问题：
+
+```python
+# 检查方法是否存在
+if hasattr(env['account.move'], '_handle_posted_invoices_update'):
+    # 使用新方法
+    env['account.move']._handle_posted_invoices_update()
+else:
+    # 回退到旧方法
+    env['account.move']._update_customer_billing()
+```
+
+## 迁移指南
+
+### 从旧版本迁移
+
+1. **更新方法调用**：
+   - 将 `_update_customer_billing()` 替换为 `_handle_posted_invoices_update()`
+   - 将草稿处理逻辑替换为 `_handle_draft_invoices_update()`
+
+2. **测试新逻辑**：
+   - 运行完整的测试套件
+   - 在测试环境中验证事件驱动逻辑
+
+3. **监控日志**：
+   - 关注废弃方法的警告信息
+   - 确认新的事件处理日志正常
+
+4. **清理旧代码**：
+   - 确认新逻辑稳定后，可以移除旧的方法调用
+   - 更新相关的文档和注释
