@@ -32,8 +32,6 @@ class AccountInvoice(models.Model):
         move = super(AccountInvoice, self).create(vals)
         if move.operating_company_id:
             move._update_daily_settlement()
-        # 检查是否需要更新客户账单
-        move._update_customer_billing()
         return move
 
     def write(self, vals):
@@ -45,12 +43,9 @@ class AccountInvoice(models.Model):
             # 只处理两个关键事件：reset to draft 和 confirm invoice
             if 'state' in vals:
                 try:
-                    if vals['state'] == 'draft':
-                        # 发票重置为草稿状态
-                        record._handle_draft_invoices_update()
-                    elif vals['state'] == 'posted':
-                        # 发票确认过账
-                        record._handle_posted_invoices_update()
+                    if vals['state'] in ['draft', 'posted']:
+                        # 统一处理发票状态变化
+                        record._handle_invoice_state_change()
                 except Exception as e:
                     # 记录错误但不中断发票状态变化
                     _logger.error(f"处理发票 {record.id} 状态变化时出错: {str(e)}")
@@ -58,9 +53,6 @@ class AccountInvoice(models.Model):
         return res
 
     def unlink(self):
-        # 在删除前检查是否需要更新客户账单
-        for record in self:
-            record._update_customer_billing()
         return super(AccountInvoice, self).unlink()
 
     def _get_product_and_accounts(self, company, product_name, account_type):
@@ -290,30 +282,25 @@ class AccountInvoice(models.Model):
             }
             settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
 
-    def _update_customer_billing(self):
-        """更新客户账单 - 已废弃，保留用于兼容性"""
-        _logger.warning("_update_customer_billing 方法已废弃，请使用 _handle_posted_invoices_update")
-        pass
-
-    def _handle_posted_invoices_update(self):
-        """处理发票确认过账事件"""
+    def _handle_invoice_state_change(self):
+        """统一处理发票状态变化"""
         for record in self:
-            # 只处理销售发票
-            if record.move_type != 'out_invoice':
+            # 处理销售发票和贷项通知单
+            if record.move_type not in ['out_invoice', 'out_refund']:
                 continue
             
+            _logger.info(f"_handle_invoice_state_change处理发票状态变化: {record.id} {record.name} {record.invoice_date}")
+            
             # 使用类级别的锁防止重复触发
-            lock_key = f"posted_{record.id}_{record.invoice_date}"
+            lock_key = f"invoice_state_{record.id}_{record.invoice_date}"
             if lock_key in self._billing_update_locks:
-                _logger.info(f"跳过重复的过账账单更新: {record.id} {record.name} (锁已存在)")
+                _logger.info(f"跳过重复的发票状态变化处理: {record.id} {record.name} (锁已存在)")
                 continue
             
             # 设置锁
             self._billing_update_locks[lock_key] = True
             
             try:
-                _logger.info(f"处理发票过账事件: {record.id} {record.name} {record.invoice_date}")
-                
                 # 检查是否存在客户账单映射关系
                 mapping = self.env['customer.billing.mapping'].search([
                     ('company_id', '=', record.company_id.id),
@@ -323,163 +310,62 @@ class AccountInvoice(models.Model):
                 
                 if not mapping:
                     continue
-                    
+
+                _logger.info(f"  更新billing")
                 billing_company = mapping.billing_company_id
                 invoice_date = record.invoice_date
                 
                 if not invoice_date:
+                    _logger.info(f"  更新billing失败，没有invoice_date")
                     continue
-                    
-                _logger.info(f"Customer Invoice: {record.id} {record.name} {invoice_date} State: {record.state}")
-                try:
-                    # 安全地获取名称，避免权限问题
-                    billing_company_name = getattr(billing_company, 'name', f'Company {billing_company.id}')
-                    _logger.info(f"Billing Company: {billing_company.id} {billing_company_name}")
-                except Exception as e:
-                    _logger.warning(f"无法获取账单公司名称: {str(e)}")
-                    _logger.info(f"Billing Company: {billing_company.id}")
                 
                 # 使用映射中的billing_partner_id作为供应商ID
                 vendor_partner_id = mapping.billing_partner_id.id
                 
-                # 检查发票和账单的关系，防止重复生成
-                bill_relationship, action = self._check_invoice_bill_relationship(
-                    billing_company, vendor_partner_id, invoice_date, record.id
-                )
+                # 参考_update_daily_settlement的逻辑：直接更新现有账单
+                _logger.info(f"更新现有账单")
                 
-                if action == 'cleanup':
-                    # 需要清理重复账单
-                    _logger.info(f"清理重复账单，然后重新创建")
-                    self._force_update_customer_billing_bill(billing_company, record, mapping)
-                    continue
-                elif action == 'update' and bill_relationship:
-                    # 更新现有账单
-                    _logger.info(f"更新现有账单 {bill_relationship.id}")
-                    self._update_customer_billing_bill(billing_company, record, mapping, bill_relationship)
-                    continue
-                elif action == 'create':
-                    # 创建新账单
-                    _logger.info(f"创建新账单")
-                    customer_bill = self._get_customer_billing_bill(
-                        billing_company, vendor_partner_id, 'Customer Billing', invoice_date
-                    )
+                # 查找现有的账单
+                existing_bills = self.env['account.move'].search([
+                    ('company_id', '=', billing_company.id),
+                    ('move_type', '=', 'in_invoice'),
+                    ('invoice_date', '=', invoice_date),
+                    ('partner_id', '=', vendor_partner_id),
+                    ('invoice_origin', '=', 'Customer Billing'),
+                    ('state', 'in', ['draft', 'posted']),
+                ])
+                
+                if existing_bills:
+                    _logger.info(f"Found {len(existing_bills)} existing bills to update")
+                    # 如果有多个账单，只保留第一个，删除其他的
+                    if len(existing_bills) > 1:
+                        _logger.info(f"Multiple bills found, keeping first one and deleting others")
+                        for bill in existing_bills[1:]:
+                            if bill.state == 'posted':
+                                for line in bill.line_ids:
+                                    if line.reconciled:
+                                        line.remove_move_reconcile()
+                                bill.button_draft()
+                            bill.unlink()
                     
-                    # 如果账单已付款，创建调整单
-                    if customer_bill and customer_bill.payment_state == 'paid':
-                        self._create_customer_billing_adjustment(billing_company, record, mapping)
-                    else:
-                        # 更新现有账单或创建新账单
-                        self._update_customer_billing_bill(billing_company, record, mapping, customer_bill)
-            finally:
-                # 清除锁
-                if lock_key in self._billing_update_locks:
-                    del self._billing_update_locks[lock_key]
-
-    def _handle_draft_invoices_update(self):
-        """处理发票重置为草稿状态事件"""
-        for record in self:
-            # 只处理销售发票
-            if record.move_type != 'out_invoice':
-                continue
-            
-            # 使用类级别的锁防止重复触发
-            lock_key = f"draft_{record.id}_{record.invoice_date}"
-            if lock_key in self._billing_update_locks:
-                _logger.info(f"跳过重复的草稿更新: {record.id} {record.name} (锁已存在)")
-                continue
-            
-            # 设置锁
-            self._billing_update_locks[lock_key] = True
-            
-            try:
-                _logger.info(f"=== 开始处理发票重置为草稿事件 ===")
-                _logger.info(f"发票ID: {record.id}")
-                _logger.info(f"发票名称: {record.name}")
-                _logger.info(f"发票日期: {record.invoice_date}")
-                _logger.info(f"发票状态: {record.state}")
-                _logger.info(f"发票金额: {record.amount_total}")
-                
-                # 检查是否存在客户账单映射关系
-                mapping = self.env['customer.billing.mapping'].search([
-                    ('company_id', '=', record.company_id.id),
-                    ('partner_id', '=', record.partner_id.id),
-                    ('active', '=', True)
-                ], limit=1)
-                
-                if mapping and record.invoice_date:
-                    try:
-                        # 安全地获取名称，避免权限问题
-                        billing_company_name = getattr(mapping.billing_company_id, 'name', 'Unknown Company')
-                        billing_partner_name = getattr(mapping.billing_partner_id, 'name', 'Unknown Partner')
-                        _logger.info(f"找到客户账单映射: {billing_company_name} -> {billing_partner_name}")
-                        
-                        # 强制更新相关账单
-                        self._force_update_customer_billing_bill(mapping.billing_company_id, record, mapping)
-                        _logger.info(f"完成草稿发票处理: {record.id} {record.name}")
-                    except Exception as e:
-                        _logger.error(f"处理客户账单映射时出错: {str(e)}")
-                        # 继续处理，不中断流程
+                    # 更新第一个账单
+                    existing_bill = existing_bills[0]
+                    _logger.info(f"Updating existing bill: {existing_bill.id}")
+                    self._update_customer_billing_bill(billing_company, record, mapping, existing_bill)
                 else:
-                    _logger.warning(f"未找到客户账单映射或发票日期为空")
+                    # 如果没有现有账单，创建新的
+                    _logger.info(f"No existing bills found, creating new one")
+                    self._update_customer_billing_bill(billing_company, record, mapping, False)
+                
+                _logger.info(f"Completed billing update for date {invoice_date}")
+                
             except Exception as e:
-                _logger.error(f"处理草稿发票时发生错误: {str(e)}")
+                _logger.error(f"处理发票状态变化时发生错误: {str(e)}")
                 # 记录错误但不中断流程
             finally:
                 # 清除锁
                 if lock_key in self._billing_update_locks:
                     del self._billing_update_locks[lock_key]
-
-    def _force_update_customer_billing_bill(self, billing_company, invoice, mapping):
-        """强制更新客户账单，用于处理发票状态变化"""
-        invoice_date = invoice.invoice_date
-        vendor_partner_id = mapping.billing_partner_id.id
-        
-        _logger.info(f"Force updating bills for date {invoice_date} and vendor {vendor_partner_id}")
-        
-        # 使用锁机制防止并发创建重复账单
-        with self.env.cr.savepoint():
-            # 删除现有的草稿账单
-            existing_bills = self.env['account.move'].search([
-                ('company_id', '=', billing_company.id),
-                ('move_type', '=', 'in_invoice'),
-                ('invoice_date', '=', invoice_date),
-                ('partner_id', '=', vendor_partner_id),
-                ('invoice_origin', '=', 'Customer Billing'),
-                ('state', 'in', ['draft', 'posted']),
-            ])
-            
-            _logger.info(f"Found {len(existing_bills)} existing bills to delete")
-            
-            for bill in existing_bills:
-                _logger.info(f"Deleting existing bill due to invoice state change: {bill.id}")
-                if bill.state == 'posted':
-                    # 如果账单已过账，需要先取消过账
-                    for line in bill.line_ids:
-                        if line.reconciled:
-                            line.remove_move_reconcile()
-                    bill.button_draft()
-                bill.unlink()
-            
-            # 最终检查是否还有其他账单（防止重复）
-            final_check = self.env['account.move'].search([
-                ('company_id', '=', billing_company.id),
-                ('move_type', '=', 'in_invoice'),
-                ('invoice_date', '=', invoice_date),
-                ('partner_id', '=', vendor_partner_id),
-                ('invoice_origin', '=', 'Customer Billing'),
-                ('state', 'in', ['draft', 'posted']),
-            ])
-            
-            if final_check:
-                _logger.error(f"Still found {len(final_check)} bills after deletion, skipping creation to prevent duplicates")
-                for bill in final_check:
-                    _logger.error(f"Remaining bill: {bill.id} (State: {bill.state})")
-                return
-            
-            # 重新计算并创建账单
-            _logger.info(f"Creating new bill after deleting existing ones")
-            self._update_customer_billing_bill(billing_company, invoice, mapping, False)
-            _logger.info(f"Completed force update for date {invoice_date}")
 
     def _get_customer_billing_bill(self, company, partner_id, origin, date):
         """查询客户账单"""
@@ -492,83 +378,33 @@ class AccountInvoice(models.Model):
             ('state', '=', 'draft'),
         ], limit=1)
 
-    def _get_customer_billing_bill_for_invoice(self, company, partner_id, origin, date, invoice_id):
-        """查询客户账单，并排除指定发票ID"""
-        return self.env['account.move'].sudo().search([
-            ('company_id', '=', company.id),
-            ('move_type', '=', 'in_invoice'),
-            ('invoice_date', '=', date),
-            ('partner_id', '=', partner_id),
-            ('invoice_origin', '=', origin),
-            ('state', '=', 'draft'),
-            ('id', '!=', invoice_id), # 排除当前发票ID
-        ], limit=1)
-
-    def _check_invoice_bill_relationship(self, billing_company, vendor_partner_id, invoice_date, invoice_id):
-        """检查发票和账单的关系，防止重复生成"""
-        # 查找是否已经为这个发票创建过账单
-        existing_bills = self.env['account.move'].search([
-            ('company_id', '=', billing_company.id),
-            ('move_type', '=', 'in_invoice'),
-            ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', vendor_partner_id),
-            ('invoice_origin', '=', 'Customer Billing'),
-            ('state', 'in', ['draft', 'posted']),
-        ])
-        
-        if existing_bills:
-            _logger.info(f"日期 {invoice_date} 已存在 {len(existing_bills)} 个账单")
-            for bill in existing_bills:
-                _logger.info(f"  - 账单 {bill.id} (状态: {bill.state})")
-            
-            # 如果存在账单，检查是否需要更新而不是创建新的
-            if len(existing_bills) == 1:
-                existing_bill = existing_bills[0]
-                _logger.info(f"找到现有账单 {existing_bill.id}，将更新而不是创建新的")
-                return existing_bill, 'update'
-            else:
-                _logger.warning(f"发现多个账单，需要清理重复")
-                return None, 'cleanup'
-        
-        return None, 'create'
-
     def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill):
         """更新客户账单"""
         invoice_date = invoice.invoice_date
         
-        # 获取所有相关的发票行，包括所有状态
-        all_invoices = self.env['account.move'].search([
+        # 获取所有相关的已过账发票
+        _logger.info(f"发票 {invoice.id} 状态: {invoice.state}，只计算已过账发票的金额")
+        posted_invoices = self.env['account.move'].search([
             ('company_id', '=', invoice.company_id.id),
             ('invoice_date', '=', invoice_date),
             ('partner_id', '=', invoice.partner_id.id),
-            ('move_type', '=', 'out_invoice'),
+            ('move_type', 'in', ['out_invoice', 'out_refund']),  # 包含销售发票和贷项通知单
+            ('state', '=', 'posted'),  # 只查询已过账的发票
         ])
         
-        # 根据当前发票状态决定计算逻辑
-        if invoice.state == 'draft':
-            # 如果当前发票是草稿状态，考虑所有状态的发票（包括草稿）
-            _logger.info(f"发票 {invoice.id} 是草稿状态，计算所有状态的发票金额")
-            relevant_invoices = all_invoices
-        else:
-            # 如果当前发票是已过账状态，只计算已过账发票的金额
-            _logger.info(f"发票 {invoice.id} 是已过账状态，只计算已过账发票的金额")
-            relevant_invoices = all_invoices.filtered(lambda inv: inv.state == 'posted')
-        
-        all_invoice_lines = relevant_invoices.mapped('invoice_line_ids')
-        
         # 计算含税和不含税的总金额
-        total_amount_tax = sum(
-            line.price_total
-            for line in all_invoice_lines
-            if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids)
-        )
-        total_amount_notax = sum(
-            line.price_total
-            for line in all_invoice_lines
-            if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
-        )
+        total_amount_tax = 0
+        total_amount_notax = 0
+        
+        for invoice in posted_invoices:
+            for line in invoice.invoice_line_ids:
+                if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
+                    total_amount_tax += line.price_total
+                else:
+                    total_amount_notax += line.price_total
         
         _logger.info(f"计算得到含税金额: {total_amount_tax}, 不含税金额: {total_amount_notax}")
+        _logger.info(f"包含 {len(posted_invoices)} 张已过账发票（销售发票: {len(posted_invoices.filtered(lambda inv: inv.move_type == 'out_invoice'))}, 贷项通知单: {len(posted_invoices.filtered(lambda inv: inv.move_type == 'out_refund'))}）")
         
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
@@ -597,56 +433,54 @@ class AccountInvoice(models.Model):
         
         # 使用锁机制防止并发创建重复账单
         with self.env.cr.savepoint():
-            # 再次检查是否已存在账单（防止并发问题）
-            current_bills = self.env['account.move'].search([
-                ('company_id', '=', billing_company.id),
-                ('move_type', '=', 'in_invoice'),
-                ('invoice_date', '=', invoice_date),
-                ('partner_id', '=', vendor_partner_id),
-                ('invoice_origin', '=', 'Customer Billing'),
-                ('state', 'in', ['draft', 'posted']),
-            ])
-            
-            if current_bills:
-                _logger.info(f"Found {len(current_bills)} existing bills, deleting them to prevent duplicates")
-                for bill in current_bills:
-                    _logger.info(f"Deleting existing bill: {bill.id} (State: {bill.state})")
-                    if bill.state == 'posted':
-                        # 如果账单已过账，需要先取消过账
-                        for line in bill.line_ids:
-                            if line.reconciled:
-                                line.remove_move_reconcile()
-                        bill.button_draft()
-                    bill.unlink()
-            
-            # 如果存在草稿状态的账单，先删除
+            # 如果存在现有账单，直接更新它
             if existing_bill:
-                _logger.info(f"Deleting existing Customer Bill: {existing_bill.id}")
-                for line in existing_bill.line_ids:
-                    if line.reconciled:
-                        line.remove_move_reconcile()
-                if existing_bill.name != '/':
-                    existing_bill.name = '/'
-                existing_bill.button_draft()
-                existing_bill.unlink()
-            
-            # 最终检查是否还有其他账单（防止重复）
-            final_check = self.env['account.move'].search([
-                ('company_id', '=', billing_company.id),
-                ('move_type', '=', 'in_invoice'),
-                ('invoice_date', '=', invoice_date),
-                ('partner_id', '=', vendor_partner_id),
-                ('invoice_origin', '=', 'Customer Billing'),
-                ('state', 'in', ['draft', 'posted']),
-            ])
-            
-            if final_check:
-                _logger.error(f"Still found {len(final_check)} bills after deletion, skipping creation to prevent duplicates")
-                for bill in final_check:
-                    _logger.error(f"Remaining bill: {bill.id} (State: {bill.state})")
+                _logger.info(f"Updating existing Customer Bill: {existing_bill.id}")
+                
+                # 清除现有账单行
+                existing_bill.invoice_line_ids.unlink()
+                
+                # 准备新的账单行
+                invoice_line_ids = []
+                
+                # 只有当含税金额大于0时才添加含税行
+                if total_amount_tax_bill > 0:
+                    invoice_line_ids.append((0, 0, {
+                        'product_id': product_with_tax.id,
+                        'quantity': 1.0,
+                        'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
+                        'name': product_with_tax.name,
+                        'account_id': expense_account_tax.id,
+                        'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+                    }))
+                    _logger.info(f"Adding tax line with amount: {total_amount_tax_bill}")
+                
+                # 只有当不含税金额大于0时才添加不含税行
+                if total_amount_notax_bill > 0:
+                    invoice_line_ids.append((0, 0, {
+                        'product_id': product_without_tax.id,
+                        'quantity': 1.0,
+                        'price_unit': total_amount_notax_bill,
+                        'name': product_without_tax.name,
+                        'account_id': expense_account_notax.id,
+                        'tax_ids': []
+                    }))
+                    _logger.info(f"Adding non-tax line with amount: {total_amount_notax_bill}")
+                
+                # 如果没有有效的账单行，则删除账单
+                if not invoice_line_ids:
+                    _logger.info(f"No valid invoice lines, deleting existing bill: {existing_bill.id}")
+                    existing_bill.unlink()
+                    return
+                
+                # 更新现有账单
+                existing_bill.write({
+                    'invoice_line_ids': invoice_line_ids
+                })
+                _logger.info(f"Updated existing Customer Bill: {existing_bill.id} with {len(invoice_line_ids)} lines")
                 return
             
-            # 创建新账单
+            # 如果没有现有账单，创建新的
             _logger.info("Creating new Customer Bill")
             product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
                 billing_company, 'Daily Settlement Products with TAX', 'expense'
@@ -708,189 +542,7 @@ class AccountInvoice(models.Model):
             customer_bill = self.env['account.move'].with_company(billing_company.id).create(bill_vals)
             _logger.info(f"Created Customer Bill: {customer_bill.id} with {len(invoice_line_ids)} lines")
 
-    def _check_and_prevent_duplicate_bills(self, billing_company, vendor_partner_id, invoice_date):
-        """检查并防止重复账单的辅助方法"""
-        # 检查是否已存在相同条件的账单
-        existing_bills = self.env['account.move'].search([
-            ('company_id', '=', billing_company.id),
-            ('move_type', '=', 'in_invoice'),
-            ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', vendor_partner_id),
-            ('invoice_origin', '=', 'Customer Billing'),
-            ('state', 'in', ['draft', 'posted']),
-        ])
-        
-        if existing_bills:
-            _logger.warning(f"Found {len(existing_bills)} existing bills for {invoice_date}, preventing duplicate creation")
-            for bill in existing_bills:
-                _logger.warning(f"Existing bill: {bill.id} (State: {bill.state})")
-            return True  # 表示存在重复
-        
-        return False  # 表示不存在重复
 
-    def _cleanup_duplicate_bills(self, billing_company, vendor_partner_id, invoice_date):
-        """清理重复账单的辅助方法"""
-        duplicate_bills = self.env['account.move'].search([
-            ('company_id', '=', billing_company.id),
-            ('move_type', '=', 'in_invoice'),
-            ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', vendor_partner_id),
-            ('invoice_origin', '=', 'Customer Billing'),
-            ('state', 'in', ['draft', 'posted']),
-        ])
-        
-        if len(duplicate_bills) > 1:
-            _logger.warning(f"Found {len(duplicate_bills)} duplicate bills, keeping only the first one")
-            # 保留第一个，删除其余的
-            bills_to_delete = duplicate_bills[1:]
-            for bill in bills_to_delete:
-                _logger.info(f"Deleting duplicate bill: {bill.id}")
-                if bill.state == 'posted':
-                    for line in bill.line_ids:
-                        if line.reconciled:
-                            line.remove_move_reconcile()
-                    bill.button_draft()
-                bill.unlink()
-            return True
-        
-        return False
-
-    @api.model
-    def cleanup_billing_locks(self):
-        """清理过期的账单更新锁"""
-        current_time = fields.Datetime.now()
-        if not hasattr(self, '_billing_update_locks'):
-            return
-        
-        # 清理超过1小时的锁
-        locks_to_remove = []
-        for lock_key in self._billing_update_locks.keys():
-            # 这里可以添加时间戳检查逻辑
-            # 暂时简单清理所有锁
-            locks_to_remove.append(lock_key)
-        
-        for lock_key in locks_to_remove:
-            del self._billing_update_locks[lock_key]
-        
-        _logger.info(f"清理了 {len(locks_to_remove)} 个账单更新锁")
-
-    @api.model
-    def get_billing_locks_status(self):
-        """获取当前账单更新锁的状态"""
-        if not hasattr(self, '_billing_update_locks'):
-            return "未初始化"
-        
-        lock_count = len(self._billing_update_locks)
-        lock_keys = list(self._billing_update_locks.keys())
-        
-        return {
-            'lock_count': lock_count,
-            'lock_keys': lock_keys
-        }
-
-    def _create_customer_billing_adjustment(self, billing_company, invoice, mapping):
-        """创建客户账单调整单"""
-        invoice_date = invoice.invoice_date
-        
-        # 获取所有相关的发票行，包括所有状态
-        all_invoices = self.env['account.move'].search([
-            ('company_id', '=', invoice.company_id.id),
-            ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', invoice.partner_id.id),
-            ('move_type', '=', 'out_invoice'),
-        ])
-        
-        # 只计算已过账发票的金额
-        posted_invoices = all_invoices.filtered(lambda inv: inv.state == 'posted')
-        all_invoice_lines = posted_invoices.mapped('invoice_line_ids')
-        
-        # 计算含税和不含税的总金额
-        total_amount_tax = sum(
-            line.price_total
-            for line in all_invoice_lines
-            if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids)
-        )
-        total_amount_notax = sum(
-            line.price_total
-            for line in all_invoice_lines
-            if not line.tax_ids or all(tax.amount == 0 for tax in line.tax_ids)
-        )
-        
-        # 使用映射中的billing_partner_id作为供应商ID
-        vendor_partner_id = mapping.billing_partner_id.id
-        
-        # 获取已过账的账单总额
-        posted_bills = self.env['account.move'].search([
-            ('company_id', '=', billing_company.id),
-            ('move_type', '=', 'in_invoice'),
-            ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', vendor_partner_id),
-            ('invoice_origin', '=', 'Customer Billing'),
-            ('state', '=', 'posted'),
-        ])
-        
-        posted_amount_tax_bill = sum(
-            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if line.tax_ids
-        )
-        posted_amount_notax_bill = sum(
-            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if not line.tax_ids
-        )
-        
-        # 计算调整金额
-        adjustment_tax = total_amount_tax - posted_amount_tax_bill
-        adjustment_notax = total_amount_notax - posted_amount_notax_bill
-        
-        # 创建调整单
-        if adjustment_tax != 0 or adjustment_notax != 0:
-            _logger.info("Creating Customer Billing Adjustment")
-            product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
-                billing_company, 'Daily Settlement Products with TAX', 'expense'
-            )
-            product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
-                billing_company, 'Daily Settlement Products without TAX', 'expense'
-            )
-            
-            sales_journal = self.env['account.journal'].sudo().search([
-                ('type', '=', 'purchase'),
-                ('company_id', '=', billing_company.id)
-            ], limit=1)
-            
-            # 使用映射中的billing_partner_id作为供应商
-            vendor_partner_id = mapping.billing_partner_id.id
-            
-            adjustment_vals = {
-                'move_type': 'in_invoice',
-                'partner_id': vendor_partner_id,
-                'company_id': billing_company.id,
-                'journal_id': sales_journal.id,
-                'invoice_date': invoice_date,
-                'invoice_origin': 'Customer Billing Adjustment',
-                'invoice_line_ids': []
-            }
-            
-            if adjustment_tax != 0:
-                adjustment_vals['invoice_line_ids'].append((0, 0, {
-                    'product_id': product_with_tax.id,
-                    'quantity': 1.0,
-                    'price_unit': adjustment_tax / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else adjustment_tax,
-                    'name': f"{product_with_tax.name} - Adjustment",
-                    'account_id': expense_account_tax.id,
-                    'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
-                }))
-            
-            if adjustment_notax != 0:
-                adjustment_vals['invoice_line_ids'].append((0, 0, {
-                    'product_id': product_without_tax.id,
-                    'quantity': 1.0,
-                    'price_unit': adjustment_notax,
-                    'name': f"{product_without_tax.name} - Adjustment",
-                    'account_id': expense_account_notax.id,
-                    'tax_ids': []
-                }))
-            
-            adjustment_bill = self.env['account.move'].with_company(billing_company.id).create(adjustment_vals)
-            _logger.info(f"Created Customer Billing Adjustment: {adjustment_bill.id}")
-                
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
             if not self.company_id.private_contact_only and not self.company_id.private_product_only and not self.company_id.is_virtual:

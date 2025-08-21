@@ -14,9 +14,9 @@ class CustomerBillingUpdateWizard(models.TransientModel):
     """
     客户账单更新向导
     
-    使用新的事件驱动逻辑处理发票：
-    - 草稿状态：使用 _handle_draft_invoices_update() 方法
-    - 已过账状态：使用 _handle_posted_invoices_update() 方法
+    使用统一的事件驱动逻辑处理发票：
+    - 草稿状态：使用 _handle_invoice_state_change() 方法
+    - 已过账状态：使用 _handle_invoice_state_change() 方法
     
     这样可以避免重复触发，提高处理效率。
     """
@@ -70,9 +70,9 @@ class CustomerBillingUpdateWizard(models.TransientModel):
         """
         执行账单更新处理
         
-        使用新的事件驱动逻辑：
-        1. 草稿发票：调用 _handle_draft_invoices_update()
-        2. 已过账发票：调用 _handle_posted_invoices_update()
+        使用统一的事件驱动逻辑：
+        1. 草稿发票：调用 _handle_invoice_state_change()
+        2. 已过账发票：调用 _handle_invoice_state_change()
         3. 其他状态：跳过处理
         
         这样可以避免重复触发，提高处理效率。
@@ -90,19 +90,9 @@ class CustomerBillingUpdateWizard(models.TransientModel):
             processed_count = 0
             for invoice in invoices:
                 try:
-                    # 根据发票状态使用相应的事件处理方法
-                    if invoice.state == 'draft':
-                        # 草稿状态：使用草稿事件处理
-                        invoice._handle_draft_invoices_update()
-                        _logger.info(f"Successfully processed draft invoice: {invoice.name}")
-                    elif invoice.state == 'posted':
-                        # 已过账状态：使用过账事件处理
-                        invoice._handle_posted_invoices_update()
-                        _logger.info(f"Successfully processed posted invoice: {invoice.name}")
-                    else:
-                        # 其他状态：跳过
-                        _logger.info(f"Skipping invoice {invoice.name} with state: {invoice.state}")
-                        continue
+                    # 统一处理发票状态变化
+                    invoice._handle_invoice_state_change()
+                    _logger.info(f"Successfully processed invoice: {invoice.name} (State: {invoice.state})")
                     
                     processed_count += 1
                 except Exception as e:

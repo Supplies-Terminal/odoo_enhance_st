@@ -207,8 +207,8 @@ Update Type: Monthly Update
 def _handle_draft_invoices_update(self):
     """处理发票重置为草稿状态事件"""
     for record in self:
-        # 只处理销售发票
-        if record.move_type != 'out_invoice':
+        # 处理销售发票和贷项通知单
+        if record.move_type not in ['out_invoice', 'out_refund']:
             continue
         
         # 使用类级别的锁防止重复触发
@@ -234,8 +234,8 @@ def _handle_draft_invoices_update(self):
 def _handle_posted_invoices_update(self):
     """处理发票确认过账事件"""
     for record in self:
-        # 只处理销售发票
-        if record.move_type != 'out_invoice':
+        # 处理销售发票和贷项通知单
+        if record.move_type not in ['out_invoice', 'out_refund']:
             continue
         
         # 使用类级别的锁防止重复触发
@@ -255,7 +255,20 @@ def _handle_posted_invoices_update(self):
                 del self._billing_update_locks[lock_key]
 ```
 
-#### 1.3 事件触发逻辑
+#### 1.3 支持的业务类型 ⭐ **新增**
+
+现在系统支持以下业务类型：
+
+1. **销售发票 (out_invoice)**：
+   - 正向记录，增加客户应收账款
+   - 影响客户账单的正向金额
+
+2. **贷项通知单 (out_refund)**：
+   - 负向记录，减少客户应收账款
+   - 用于退款、折扣、调整等
+   - 影响客户账单的负向金额
+
+#### 1.4 事件触发逻辑
 
 ```python
 def write(self, vals):
@@ -266,12 +279,17 @@ def write(self, vals):
         
         # 只处理两个关键事件：reset to draft 和 confirm invoice
         if 'state' in vals:
-            if vals['state'] == 'draft':
-                # 发票重置为草稿状态
-                record._handle_draft_invoices_update()
-            elif vals['state'] == 'posted':
-                # 发票确认过账
-                record._handle_posted_invoices_update()
+            try:
+                if vals['state'] == 'draft':
+                    # 发票重置为草稿状态
+                    record._handle_draft_invoices_update()
+                elif vals['state'] == 'posted':
+                    # 发票确认过账
+                    record._handle_posted_invoices_update()
+            except Exception as e:
+                # 记录错误但不中断发票状态变化
+                _logger.error(f"处理发票状态变化时出错: {str(e)}")
+                _logger.error(f"发票状态变化将继续，但账单更新可能失败")
     return res
 ```
 
