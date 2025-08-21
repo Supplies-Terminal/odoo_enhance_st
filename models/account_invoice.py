@@ -47,9 +47,14 @@ class AccountInvoice(models.Model):
                         # 统一处理发票状态变化
                         record._handle_invoice_state_change()
                 except Exception as e:
-                    # 记录错误但不中断发票状态变化
                     _logger.error(f"处理发票 {record.id} 状态变化时出错: {str(e)}")
-                    _logger.error(f"发票状态变化将继续，但账单更新可能失败")
+                    # 如果是不平衡账单错误或其他关键错误，应该阻止发票状态变化
+                    if "unbalanced journal entry" in str(e) or "Cannot create" in str(e):
+                        _logger.error(f"关键错误，阻止发票状态变化")
+                        raise
+                    else:
+                        # 其他非关键错误只记录，不阻止发票状态变化
+                        _logger.error(f"非关键错误，发票状态变化将继续，但账单更新可能失败")
         return res
 
     def unlink(self):
@@ -326,14 +331,27 @@ class AccountInvoice(models.Model):
                 _logger.info(f"更新现有账单")
                 
                 # 查找现有的账单
-                existing_bills = self.env['account.move'].search([
+                _logger.info(f"查找现有的账单")
+                _logger.info(f"company_id: {billing_company.id} (type: {type(billing_company.id)})")
+                _logger.info(f"move_type: in_invoice")
+                _logger.info(f"invoice_date: {invoice_date} (type: {type(invoice_date)})")
+                _logger.info(f"partner_id: {vendor_partner_id} (type: {type(vendor_partner_id)})")
+                _logger.info(f"invoice_origin: Auto Billing")
+                _logger.info(f"state: in ['draft', 'posted']")
+                
+                # 正式查询
+                existing_bills = self.env['account.move'].sudo().search([
                     ('company_id', '=', billing_company.id),
                     ('move_type', '=', 'in_invoice'),
                     ('invoice_date', '=', invoice_date),
                     ('partner_id', '=', vendor_partner_id),
-                    ('invoice_origin', '=', 'Customer Billing'),
+                    ('invoice_origin', '=', 'Auto Billing'),
                     ('state', 'in', ['draft', 'posted']),
                 ])
+                
+                _logger.info(f"Formal query found {len(existing_bills)} bills")
+                for bill in existing_bills:
+                    _logger.info(f"Found bill: ID={bill.id}, origin='{bill.invoice_origin}', state='{bill.state}'")
                 
                 if existing_bills:
                     _logger.info(f"Found {len(existing_bills)} existing bills to update")
@@ -384,7 +402,7 @@ class AccountInvoice(models.Model):
         
         # 获取所有相关的已过账发票
         _logger.info(f"发票 {invoice.id} 状态: {invoice.state}，只计算已过账发票的金额")
-        posted_invoices = self.env['account.move'].search([
+        posted_invoices = self.env['account.move'].sudo().search([
             ('company_id', '=', invoice.company_id.id),
             ('invoice_date', '=', invoice_date),
             ('partner_id', '=', invoice.partner_id.id),
@@ -410,12 +428,12 @@ class AccountInvoice(models.Model):
         vendor_partner_id = mapping.billing_partner_id.id
         
         # 扣减已过账的账单部分
-        posted_bills = self.env['account.move'].search([
+        posted_bills = self.env['account.move'].sudo().search([
             ('company_id', '=', billing_company.id),
             ('move_type', '=', 'in_invoice'),
             ('invoice_date', '=', invoice_date),
             ('partner_id', '=', vendor_partner_id),
-            ('invoice_origin', '=', 'Customer Billing'),
+            ('invoice_origin', '=', 'Auto Billing'),
             ('state', '=', 'posted'),
         ])
         
@@ -431,14 +449,19 @@ class AccountInvoice(models.Model):
         
         _logger.info(f"最终账单金额 - 含税: {total_amount_tax_bill}, 不含税: {total_amount_notax_bill}")
         
+        # 获取产品和账户信息（与创建新账单时相同）
+        product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products with TAX', 'expense'
+        )
+        product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products without TAX', 'expense'
+        )
+        
         # 使用锁机制防止并发创建重复账单
         with self.env.cr.savepoint():
             # 如果存在现有账单，直接更新它
             if existing_bill:
                 _logger.info(f"Updating existing Customer Bill: {existing_bill.id}")
-                
-                # 清除现有账单行
-                existing_bill.invoice_line_ids.unlink()
                 
                 # 准备新的账单行
                 invoice_line_ids = []
@@ -470,24 +493,44 @@ class AccountInvoice(models.Model):
                 # 如果没有有效的账单行，则删除账单
                 if not invoice_line_ids:
                     _logger.info(f"No valid invoice lines, deleting existing bill: {existing_bill.id}")
+                    bill_id = existing_bill.id
                     existing_bill.unlink()
+                    
+                    # 验证账单是否被成功删除
+                    deleted_bill = self.env['account.move'].sudo().browse(bill_id)
+                    if not deleted_bill.exists():
+                        _logger.info(f"Bill {bill_id} successfully deleted")
+                    else:
+                        _logger.warning(f"Bill {bill_id} still exists after deletion attempt")
+                    
                     return
                 
-                # 更新现有账单
-                existing_bill.write({
-                    'invoice_line_ids': invoice_line_ids
-                })
+                # 根据账单状态采用不同的更新策略
+                if existing_bill.state == 'draft':
+                    # Draft 账单：直接替换所有行
+                    _logger.info(f"Bill {existing_bill.id} is draft, directly replacing lines")
+                    existing_bill.write({
+                        'invoice_line_ids': [(6, 0, [])] + invoice_line_ids
+                    })
+                else:
+                    # Posted 账单：需要先取消过账，更新后再重新过账
+                    _logger.info(f"Bill {existing_bill.id} is posted, need to unpost first")
+                    
+                    # 先取消过账
+                    existing_bill.button_draft()
+                    _logger.info(f"Bill {existing_bill.id} unposted to draft")
+                    
+                    # 替换账单行
+                    existing_bill.write({
+                        'invoice_line_ids': [(6, 0, [])] + invoice_line_ids
+                    })
+                    _logger.info(f"Bill {existing_bill.id} lines updated")
+                    
+                    # 重新过账
+                    existing_bill.action_post()
+                    _logger.info(f"Bill {existing_bill.id} reposted")
                 _logger.info(f"Updated existing Customer Bill: {existing_bill.id} with {len(invoice_line_ids)} lines")
                 return
-            
-            # 如果没有现有账单，创建新的
-            _logger.info("Creating new Customer Bill")
-            product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
-                billing_company, 'Daily Settlement Products with TAX', 'expense'
-            )
-            product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
-                billing_company, 'Daily Settlement Products without TAX', 'expense'
-            )
             
             sales_journal = self.env['account.journal'].sudo().search([
                 ('type', '=', 'purchase'),
@@ -535,7 +578,7 @@ class AccountInvoice(models.Model):
                 'company_id': billing_company.id,
                 'journal_id': sales_journal.id,
                 'invoice_date': invoice_date,
-                'invoice_origin': 'Customer Billing',
+                'invoice_origin': 'Auto Billing',
                 'invoice_line_ids': invoice_line_ids
             }
             
