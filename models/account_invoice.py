@@ -57,6 +57,92 @@ class AccountInvoice(models.Model):
                         _logger.error(f"非关键错误，发票状态变化将继续，但账单更新可能失败")
         return res
 
+    def _create_adjustment_bill(self, billing_company, mapping, invoice_date, adjustment_amount, total_amount_tax_bill, total_amount_notax_bill):
+        """创建调整账单"""
+        _logger.info(f"Creating adjustment bill for company {billing_company.id}, date {invoice_date}, amount {adjustment_amount}")
+        
+        # 获取产品和账户信息
+        product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products with TAX', 'expense'
+        )
+        product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products without TAX', 'expense'
+        )
+        
+        # 获取采购日记账
+        sales_journal = self.env['account.journal'].sudo().search([
+            ('type', '=', 'purchase'),
+            ('company_id', '=', billing_company.id)
+        ], limit=1)
+        
+        # 使用映射中的billing_partner_id作为供应商
+        vendor_partner_id = mapping.billing_partner_id.id
+        
+        # 准备调整账单行
+        invoice_line_ids = []
+        
+        # 根据调整金额的正负决定是借方还是贷方
+        if adjustment_amount > 0:
+            # 需要增加金额：创建借方行
+            if total_amount_tax_bill > 0:
+                invoice_line_ids.append((0, 0, {
+                    'product_id': product_with_tax.id,
+                    'quantity': 1.0,
+                    'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
+                    'name': f"Adjustment - {product_with_tax.name}",
+                    'account_id': expense_account_tax.id,
+                    'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+                }))
+            
+            if total_amount_notax_bill > 0:
+                invoice_line_ids.append((0, 0, {
+                    'product_id': product_without_tax.id,
+                    'quantity': 1.0,
+                    'price_unit': total_amount_notax_bill,
+                    'name': f"Adjustment - {product_without_tax.name}",
+                    'account_id': expense_account_notax.id,
+                    'tax_ids': []
+                }))
+        else:
+            # 需要减少金额：创建贷方行（负数）
+            adjustment_amount = abs(adjustment_amount)
+            if total_amount_tax_bill > 0:
+                invoice_line_ids.append((0, 0, {
+                    'product_id': product_with_tax.id,
+                    'quantity': -1.0,  # 负数数量
+                    'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
+                    'name': f"Adjustment - {product_with_tax.name}",
+                    'account_id': expense_account_tax.id,
+                    'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+                }))
+            
+            if total_amount_notax_bill > 0:
+                invoice_line_ids.append((0, 0, {
+                    'product_id': product_without_tax.id,
+                    'quantity': -1.0,  # 负数数量
+                    'name': f"Adjustment - {product_without_tax.name}",
+                    'price_unit': total_amount_notax_bill,
+                    'account_id': expense_account_notax.id,
+                    'tax_ids': []
+                }))
+        
+        # 创建调整账单
+        adjustment_bill_vals = {
+            'move_type': 'in_invoice',
+            'partner_id': vendor_partner_id,
+            'company_id': billing_company.id,
+            'journal_id': sales_journal.id,
+            'invoice_date': invoice_date,
+            'invoice_line_ids': invoice_line_ids,
+            'invoice_origin': 'Auto Billing',
+            'ref': f'Adjustment for {invoice_date}',
+        }
+        
+        adjustment_bill = self.env['account.move'].sudo().create(adjustment_bill_vals)
+        _logger.info(f"Created adjustment bill: {adjustment_bill.id}")
+        
+        return adjustment_bill
+
     def unlink(self):
         return super(AccountInvoice, self).unlink()
 
@@ -354,22 +440,51 @@ class AccountInvoice(models.Model):
                     _logger.info(f"Found bill: ID={bill.id}, origin='{bill.invoice_origin}', state='{bill.state}'")
                 
                 if existing_bills:
-                    _logger.info(f"Found {len(existing_bills)} existing bills to update")
-                    # 如果有多个账单，只保留第一个，删除其他的
-                    if len(existing_bills) > 1:
-                        _logger.info(f"Multiple bills found, keeping first one and deleting others")
-                        for bill in existing_bills[1:]:
-                            if bill.state == 'posted':
-                                for line in bill.line_ids:
-                                    if line.reconciled:
-                                        line.remove_move_reconcile()
-                                bill.button_draft()
-                            bill.unlink()
+                    _logger.info(f"Found {len(existing_bills)} existing bills")
                     
-                    # 更新第一个账单
-                    existing_bill = existing_bills[0]
-                    _logger.info(f"Updating existing bill: {existing_bill.id}")
-                    self._update_customer_billing_bill(billing_company, record, mapping, existing_bill)
+                    # 分类账单：已付款和未付款
+                    paid_bills = []
+                    unpaid_bills = []
+                    
+                    for bill in existing_bills:
+                        bill_amount_residual = bill.amount_residual
+                        bill_amount_total = bill.amount_total
+                        
+                        if bill_amount_residual < bill_amount_total:
+                            # 已付款账单
+                            paid_bills.append(bill)
+                            _logger.info(f"Paid bill: ID={bill.id}, total={bill_amount_total}, residual={bill_amount_residual}")
+                        else:
+                            # 未付款账单
+                            unpaid_bills.append(bill)
+                            _logger.info(f"Unpaid bill: ID={bill.id}, total={bill_amount_total}, residual={bill_amount_residual}")
+                    
+                    # 处理未付款账单
+                    if unpaid_bills:
+                        if len(unpaid_bills) > 1:
+                            _logger.info(f"Multiple unpaid bills found, keeping first one and deleting others")
+                            # 保留第一个未付款账单，删除其他的
+                            for bill in unpaid_bills[1:]:
+                                if bill.state == 'posted':
+                                    for line in bill.line_ids:
+                                        if line.reconciled:
+                                            line.remove_move_reconcile()
+                                    bill.button_draft()
+                                bill.unlink()
+                        
+                        # 更新第一个未付款账单
+                        existing_bill = unpaid_bills[0]
+                        _logger.info(f"Updating unpaid bill: {existing_bill.id}")
+                        self._update_customer_billing_bill(billing_company, record, mapping, existing_bill, paid_bills)
+                    else:
+                        _logger.info(f"No unpaid bills found, will create new one")
+                        self._update_customer_billing_bill(billing_company, record, mapping, False, paid_bills)
+                    
+                    # 记录已付款账单信息，但不做任何修改
+                    if paid_bills:
+                        _logger.info(f"Found {len(paid_bills)} paid bills that will not be modified")
+                        for paid_bill in paid_bills:
+                            _logger.info(f"Paid bill {paid_bill.id}: amount={paid_bill.amount_total}, will be considered in total calculation")
                 else:
                     # 如果没有现有账单，创建新的
                     _logger.info(f"No existing bills found, creating new one")
@@ -396,7 +511,7 @@ class AccountInvoice(models.Model):
             ('state', '=', 'draft'),
         ], limit=1)
 
-    def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill):
+    def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill, paid_bills=None):
         """更新客户账单"""
         invoice_date = invoice.invoice_date
         
@@ -427,25 +542,26 @@ class AccountInvoice(models.Model):
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
         
-        # 扣减已过账的账单部分
-        posted_bills = self.env['account.move'].sudo().search([
-            ('company_id', '=', billing_company.id),
-            ('move_type', '=', 'in_invoice'),
-            ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', vendor_partner_id),
-            ('invoice_origin', '=', 'Auto Billing'),
-            ('state', '=', 'posted'),
-        ])
+        # 扣减已付款账单的金额
+        paid_amount_tax_bill = 0
+        paid_amount_notax_bill = 0
         
-        posted_amount_tax_bill = sum(
-            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if line.tax_ids
-        )
-        posted_amount_notax_bill = sum(
-            line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if not line.tax_ids
-        )
+        if paid_bills:
+            _logger.info(f"Considering {len(paid_bills)} paid bills in calculation")
+            for paid_bill in paid_bills:
+                bill_tax_amount = 0
+                bill_notax_amount = 0
+                for line in paid_bill.invoice_line_ids:
+                    if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
+                        bill_tax_amount += line.price_total
+                        paid_amount_tax_bill += line.price_total
+                    else:
+                        bill_notax_amount += line.price_total
+                        paid_amount_notax_bill += line.price_total
+                _logger.info(f"Paid bill {paid_bill.id}: tax_amount={bill_tax_amount}, notax_amount={bill_notax_amount}")
         
-        total_amount_tax_bill = total_amount_tax - posted_amount_tax_bill
-        total_amount_notax_bill = total_amount_notax - posted_amount_notax_bill
+        total_amount_tax_bill = total_amount_tax - paid_amount_tax_bill
+        total_amount_notax_bill = total_amount_notax - paid_amount_notax_bill
         
         _logger.info(f"最终账单金额 - 含税: {total_amount_tax_bill}, 不含税: {total_amount_notax_bill}")
         
@@ -494,7 +610,23 @@ class AccountInvoice(models.Model):
                 if not invoice_line_ids:
                     _logger.info(f"No valid invoice lines, deleting existing bill: {existing_bill.id}")
                     bill_id = existing_bill.id
-                    existing_bill.unlink()
+                    
+                    # 根据账单状态采用不同的删除策略
+                    if existing_bill.state == 'draft':
+                        # Draft 账单：直接删除
+                        _logger.info(f"Bill {bill_id} is draft, deleting directly")
+                        existing_bill.unlink()
+                    else:
+                        # Posted 账单：需要先取消过账再删除
+                        _logger.info(f"Bill {bill_id} is posted, need to unpost before deletion")
+                        
+                        # 先取消过账
+                        existing_bill.button_draft()
+                        _logger.info(f"Bill {bill_id} unposted to draft")
+                        
+                        # 然后删除
+                        existing_bill.unlink()
+                        _logger.info(f"Bill {bill_id} deleted after unposting")
                     
                     # 验证账单是否被成功删除
                     deleted_bill = self.env['account.move'].sudo().browse(bill_id)
@@ -505,30 +637,59 @@ class AccountInvoice(models.Model):
                     
                     return
                 
-                # 根据账单状态采用不同的更新策略
-                if existing_bill.state == 'draft':
-                    # Draft 账单：直接替换所有行
-                    _logger.info(f"Bill {existing_bill.id} is draft, directly replacing lines")
-                    existing_bill.write({
-                        'invoice_line_ids': [(6, 0, [])] + invoice_line_ids
-                    })
+                # 检查账单是否已付款
+                bill_amount_residual = existing_bill.amount_residual
+                bill_amount_total = existing_bill.amount_total
+                
+                if bill_amount_residual == bill_amount_total:
+                    # 未付款账单：直接更新现有账单
+                    _logger.info(f"Bill {existing_bill.id} is unpaid (residual: {bill_amount_residual}, total: {bill_amount_total}), updating directly")
+                    
+                    if existing_bill.state == 'draft':
+                        # Draft 账单：直接替换所有行
+                        _logger.info(f"Bill {existing_bill.id} is draft, directly replacing lines")
+                        existing_bill.write({
+                            'invoice_line_ids': [(6, 0, [])] + invoice_line_ids
+                        })
+                    else:
+                        # Posted 账单：需要先取消过账，更新后再重新过账
+                        _logger.info(f"Bill {existing_bill.id} is posted, need to unpost first")
+                        
+                        # 先取消过账
+                        existing_bill.button_draft()
+                        _logger.info(f"Bill {existing_bill.id} unposted to draft")
+                        
+                        # 替换账单行
+                        existing_bill.write({
+                            'invoice_line_ids': [(6, 0, [])] + invoice_line_ids
+                        })
+                        _logger.info(f"Bill {existing_bill.id} lines updated")
+                        
+                        # 重新过账
+                        existing_bill.action_post()
+                        _logger.info(f"Bill {existing_bill.id} reposted")
                 else:
-                    # Posted 账单：需要先取消过账，更新后再重新过账
-                    _logger.info(f"Bill {existing_bill.id} is posted, need to unpost first")
+                    # 已付款账单：不能修改，需要创建调整账单
+                    _logger.info(f"Bill {existing_bill.id} is paid/partially paid (residual: {bill_amount_residual}, total: {bill_amount_total}), creating adjustment bill")
                     
-                    # 先取消过账
-                    existing_bill.button_draft()
-                    _logger.info(f"Bill {existing_bill.id} unposted to draft")
+                    # 计算差异金额
+                    current_bill_amount = bill_amount_total
+                    new_calculated_amount = total_amount_tax_bill + total_amount_notax_bill
+                    adjustment_amount = new_calculated_amount - current_bill_amount
                     
-                    # 替换账单行
-                    existing_bill.write({
-                        'invoice_line_ids': [(6, 0, [])] + invoice_line_ids
-                    })
-                    _logger.info(f"Bill {existing_bill.id} lines updated")
+                    _logger.info(f"Current bill amount: {current_bill_amount}, new calculated amount: {new_calculated_amount}, adjustment needed: {adjustment_amount}")
                     
-                    # 重新过账
-                    existing_bill.action_post()
-                    _logger.info(f"Bill {existing_bill.id} reposted")
+                    if abs(adjustment_amount) > 0.01:  # 避免浮点数精度问题
+                        # 创建调整账单
+                        adjustment_bill = self._create_adjustment_bill(
+                            billing_company, mapping, invoice_date, adjustment_amount, 
+                            total_amount_tax_bill, total_amount_notax_bill
+                        )
+                        _logger.info(f"Created adjustment bill: {adjustment_bill.id} with amount: {adjustment_amount}")
+                    else:
+                        _logger.info(f"No adjustment needed, amounts are equal")
+                    
+                    return
                 _logger.info(f"Updated existing Customer Bill: {existing_bill.id} with {len(invoice_line_ids)} lines")
                 return
             
