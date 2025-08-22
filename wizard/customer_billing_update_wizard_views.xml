@@ -9,7 +9,7 @@
                 <sheet>
                     <div class="oe_title">
                         <h1>Cross Company Billing Batch Wizard</h1>
-                        <p>This wizard allows you to manually trigger billing updates for historical invoices.</p>
+                        <p>This wizard allows you to manually trigger billing updates for historical invoices and credit notes.</p>
                     </div>
                     
                     <group>
@@ -48,7 +48,10 @@
                 Configure the billing update parameters
             </p>
             <p>
-                Select the company, customer, and date range to process historical invoices and generate corresponding bills.
+                Select the company, customer, and date range to process historical invoices and credit notes, generating corresponding bills.
+            </p>
+            <p>
+                <strong>Note:</strong> This wizard now processes both sales invoices and credit notes using the unified billing logic.
             </p>
         </field>
     </record>

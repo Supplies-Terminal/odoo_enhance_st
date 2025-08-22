@@ -402,95 +402,17 @@ class AccountInvoice(models.Model):
                 if not mapping:
                     continue
 
-                _logger.info(f"  更新billing")
-                billing_company = mapping.billing_company_id
-                invoice_date = record.invoice_date
-                
-                if not invoice_date:
-                    _logger.info(f"  更新billing失败，没有invoice_date")
-                    continue
-                
-                # 使用映射中的billing_partner_id作为供应商ID
-                vendor_partner_id = mapping.billing_partner_id.id
-                
-                # 参考_update_daily_settlement的逻辑：直接更新现有账单
-                _logger.info(f"更新现有账单")
-                
-                # 查找现有的账单
-                _logger.info(f"查找现有的账单")
-                _logger.info(f"company_id: {billing_company.id} (type: {type(billing_company.id)})")
-                _logger.info(f"move_type: in_invoice")
-                _logger.info(f"invoice_date: {invoice_date} (type: {type(invoice_date)})")
-                _logger.info(f"partner_id: {vendor_partner_id} (type: {type(vendor_partner_id)})")
-                _logger.info(f"invoice_origin: Auto Billing")
-                _logger.info(f"state: in ['draft', 'posted']")
-                
-                # 正式查询
-                existing_bills = self.env['account.move'].sudo().search([
-                    ('company_id', '=', billing_company.id),
-                    ('move_type', '=', 'in_invoice'),
-                    ('invoice_date', '=', invoice_date),
-                    ('partner_id', '=', vendor_partner_id),
-                    ('invoice_origin', '=', 'Auto Billing'),
-                    ('state', 'in', ['draft', 'posted']),
-                ])
-                
-                _logger.info(f"Formal query found {len(existing_bills)} bills")
-                for bill in existing_bills:
-                    _logger.info(f"Found bill: ID={bill.id}, origin='{bill.invoice_origin}', state='{bill.state}'")
-                
-                if existing_bills:
-                    _logger.info(f"Found {len(existing_bills)} existing bills")
-                    
-                    # 分类账单：已付款和未付款
-                    paid_bills = []
-                    unpaid_bills = []
-                    
-                    for bill in existing_bills:
-                        bill_amount_residual = bill.amount_residual
-                        bill_amount_total = bill.amount_total
-                        
-                        if bill_amount_residual < bill_amount_total:
-                            # 已付款账单
-                            paid_bills.append(bill)
-                            _logger.info(f"Paid bill: ID={bill.id}, total={bill_amount_total}, residual={bill_amount_residual}")
-                        else:
-                            # 未付款账单
-                            unpaid_bills.append(bill)
-                            _logger.info(f"Unpaid bill: ID={bill.id}, total={bill_amount_total}, residual={bill_amount_residual}")
-                    
-                    # 处理未付款账单
-                    if unpaid_bills:
-                        if len(unpaid_bills) > 1:
-                            _logger.info(f"Multiple unpaid bills found, keeping first one and deleting others")
-                            # 保留第一个未付款账单，删除其他的
-                            for bill in unpaid_bills[1:]:
-                                if bill.state == 'posted':
-                                    for line in bill.line_ids:
-                                        if line.reconciled:
-                                            line.remove_move_reconcile()
-                                    bill.button_draft()
-                                bill.unlink()
-                        
-                        # 更新第一个未付款账单
-                        existing_bill = unpaid_bills[0]
-                        _logger.info(f"Updating unpaid bill: {existing_bill.id}")
-                        self._update_customer_billing_bill(billing_company, record, mapping, existing_bill, paid_bills)
-                    else:
-                        _logger.info(f"No unpaid bills found, will create new one")
-                        self._update_customer_billing_bill(billing_company, record, mapping, False, paid_bills)
-                    
-                    # 记录已付款账单信息，但不做任何修改
-                    if paid_bills:
-                        _logger.info(f"Found {len(paid_bills)} paid bills that will not be modified")
-                        for paid_bill in paid_bills:
-                            _logger.info(f"Paid bill {paid_bill.id}: amount={paid_bill.amount_total}, will be considered in total calculation")
+                # 根据发票类型分别处理
+                if record.move_type == 'out_invoice':
+                    # 销售发票：使用原有的合并逻辑
+                    _logger.info(f"处理销售发票，使用合并逻辑")
+                    self._handle_sales_invoice_billing(record, mapping)
                 else:
-                    # 如果没有现有账单，创建新的
-                    _logger.info(f"No existing bills found, creating new one")
-                    self._update_customer_billing_bill(billing_company, record, mapping, False)
+                    # 贷项通知单：使用一一对应逻辑
+                    _logger.info(f"处理贷项通知单，使用一一对应逻辑")
+                    self._handle_credit_note_billing(record, mapping)
                 
-                _logger.info(f"Completed billing update for date {invoice_date}")
+                _logger.info(f"Completed billing update for invoice {record.name}")
                 
             except Exception as e:
                 _logger.error(f"处理发票状态变化时发生错误: {str(e)}")
@@ -499,6 +421,112 @@ class AccountInvoice(models.Model):
                 # 清除锁
                 if lock_key in self._billing_update_locks:
                     del self._billing_update_locks[lock_key]
+
+    def _handle_sales_invoice_billing(self, record, mapping):
+        """处理销售发票的账单逻辑（原有的合并逻辑）"""
+        billing_company = mapping.billing_company_id
+        invoice_date = record.invoice_date
+        
+        if not invoice_date:
+            _logger.info(f"处理销售发票失败，没有invoice_date")
+            return
+        
+        # 使用映射中的billing_partner_id作为供应商ID
+        vendor_partner_id = mapping.billing_partner_id.id
+        
+        # 查找现有的账单
+        existing_bills = self.env['account.move'].sudo().search([
+            ('company_id', '=', billing_company.id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', vendor_partner_id),
+            ('invoice_origin', '=', 'Auto Billing'),
+            ('state', 'in', ['draft', 'posted']),
+        ])
+        
+        if existing_bills:
+            # 分类账单：已付款和未付款
+            paid_bills = []
+            unpaid_bills = []
+            
+            for bill in existing_bills:
+                if bill.amount_residual < bill.amount_total:
+                    paid_bills.append(bill)
+                else:
+                    unpaid_bills.append(bill)
+            
+            # 处理未付款账单
+            if unpaid_bills:
+                if len(unpaid_bills) > 1:
+                    # 保留第一个未付款账单，删除其他的
+                    for bill in unpaid_bills[1:]:
+                        if bill.state == 'posted':
+                            for line in bill.line_ids:
+                                if line.reconciled:
+                                    line.remove_move_reconcile()
+                            bill.button_draft()
+                        bill.unlink()
+                
+                # 更新第一个未付款账单
+                existing_bill = unpaid_bills[0]
+                self._update_customer_billing_bill(billing_company, record, mapping, existing_bill, paid_bills)
+            else:
+                self._update_customer_billing_bill(billing_company, record, mapping, False, paid_bills)
+        else:
+            # 如果没有现有账单，创建新的
+            self._update_customer_billing_bill(billing_company, record, mapping, False, [])
+
+    def _handle_credit_note_billing(self, record, mapping):
+        """处理贷项通知单的账单逻辑（一一对应逻辑）"""
+        billing_company = mapping.billing_company_id
+        invoice_date = record.invoice_date
+        
+        if not invoice_date:
+            _logger.info(f"处理贷项通知单失败，没有invoice_date")
+            return
+        
+        # 使用映射中的billing_partner_id作为供应商ID
+        vendor_partner_id = mapping.billing_partner_id.id
+        
+        # 检查是否已经存在对应的账单
+        existing_credit_bill = self.env['account.move'].sudo().search([
+            ('company_id', '=', billing_company.id),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', vendor_partner_id),
+            ('invoice_origin', '=', 'Auto Billing Credit Note'),
+            ('ref', '=', record.name),  # 通过源文档号码匹配
+            ('state', 'in', ['draft', 'posted']),
+        ], limit=1)
+        
+        # 计算该贷项通知单的金额
+        credit_tax_amount = 0
+        credit_notax_amount = 0
+        
+        for line in record.invoice_line_ids:
+            if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
+                credit_tax_amount += line.price_total
+            else:
+                credit_notax_amount += line.price_total
+        
+        if existing_credit_bill:
+            # 检查金额是否一致
+            expected_total = credit_tax_amount + credit_notax_amount
+            current_total = abs(existing_credit_bill.amount_total)  # 取绝对值，因为是负数
+            
+            _logger.info(f"Credit note {record.name}: expected={expected_total}, current={current_total}")
+            
+            if abs(expected_total - current_total) > 0.01:  # 允许小数点精度误差
+                _logger.info(f"Amount mismatch for credit note {record.name}, updating bill {existing_credit_bill.id}")
+                # 金额不一致，需要更新
+                self._update_credit_note_bill(existing_credit_bill, record, credit_tax_amount, credit_notax_amount)
+            else:
+                _logger.info(f"Credit note {record.name} bill {existing_credit_bill.id} already exists with correct amount")
+        else:
+            # 不存在对应账单，创建新的
+            _logger.info(f"Creating new bill for credit note {record.name}")
+            self._create_credit_note_bill(record, credit_tax_amount, credit_notax_amount, 
+                                        billing_company, vendor_partner_id, invoice_date)
 
     def _get_customer_billing_bill(self, company, partner_id, origin, date):
         """查询客户账单"""
@@ -515,32 +543,28 @@ class AccountInvoice(models.Model):
         """更新客户账单"""
         invoice_date = invoice.invoice_date
         
-        # 获取所有相关的已过账发票
-        _logger.info(f"发票 {invoice.id} 状态: {invoice.state}，只计算已过账发票的金额")
-        posted_invoices = self.env['account.move'].sudo().search([
+        # 分别处理销售发票和贷项通知单
+        _logger.info(f"发票 {invoice.id} 状态: {invoice.state}，分别处理销售发票和贷项通知单")
+        
+        # 获取销售发票
+        sales_invoices = self.env['account.move'].sudo().search([
             ('company_id', '=', invoice.company_id.id),
             ('invoice_date', '=', invoice_date),
             ('partner_id', '=', invoice.partner_id.id),
-            ('move_type', 'in', ['out_invoice', 'out_refund']),  # 包含销售发票和贷项通知单
-            ('state', '=', 'posted'),  # 只查询已过账的发票
+            ('move_type', '=', 'out_invoice'),  # 只查询销售发票
+            ('state', '=', 'posted'),
         ])
         
-        # 计算含税和不含税的总金额
-        total_amount_tax = 0
-        total_amount_notax = 0
+        # 获取贷项通知单
+        credit_notes = self.env['account.move'].sudo().search([
+            ('company_id', '=', invoice.company_id.id),
+            ('invoice_date', '=', invoice_date),
+            ('partner_id', '=', invoice.partner_id.id),
+            ('move_type', '=', 'out_refund'),  # 只查询贷项通知单
+            ('state', '=', 'posted'),
+        ])
         
-        for invoice in posted_invoices:
-            # 根据发票类型决定是增加还是减少
-            multiplier = 1 if invoice.move_type == 'out_invoice' else -1
-            
-            for line in invoice.invoice_line_ids:
-                if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
-                    total_amount_tax += line.price_total * multiplier
-                else:
-                    total_amount_notax += line.price_total * multiplier
-        
-        _logger.info(f"计算得到含税金额: {total_amount_tax}, 不含税金额: {total_amount_notax}")
-        _logger.info(f"包含 {len(posted_invoices)} 张已过账发票（销售发票: {len(posted_invoices.filtered(lambda inv: inv.move_type == 'out_invoice'))}, 贷项通知单: {len(posted_invoices.filtered(lambda inv: inv.move_type == 'out_refund'))}）")
+        _logger.info(f"找到 {len(sales_invoices)} 张销售发票，{len(credit_notes)} 张贷项通知单")
         
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
@@ -563,8 +587,23 @@ class AccountInvoice(models.Model):
                         paid_amount_notax_bill += line.price_total
                 _logger.info(f"Paid bill {paid_bill.id}: tax_amount={bill_tax_amount}, notax_amount={bill_notax_amount}")
         
-        total_amount_tax_bill = total_amount_tax - paid_amount_tax_bill
-        total_amount_notax_bill = total_amount_notax - paid_amount_notax_bill
+        # 计算销售发票的金额（正数）
+        sales_amount_tax = 0
+        sales_amount_notax = 0
+        
+        for sales_invoice in sales_invoices:
+            for line in sales_invoice.invoice_line_ids:
+                if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
+                    sales_amount_tax += line.price_total
+                else:
+                    sales_amount_notax += line.price_total
+        
+        # 销售发票的净额计算（不包含贷项通知单）
+        total_amount_tax_bill = sales_amount_tax - paid_amount_tax_bill
+        total_amount_notax_bill = sales_amount_notax - paid_amount_notax_bill
+        
+        _logger.info(f"销售发票金额 - 含税: {sales_amount_tax}, 不含税: {sales_amount_notax}")
+        _logger.info(f"找到 {len(credit_notes)} 张贷项通知单，将单独处理")
         
         _logger.info(f"最终账单金额 - 含税: {total_amount_tax_bill}, 不含税: {total_amount_notax_bill}")
         
@@ -731,31 +770,209 @@ class AccountInvoice(models.Model):
                 }))
                 _logger.info(f"Adding non-tax line with amount: {total_amount_notax_bill}")
             
-            # 如果没有有效的账单行，则不创建账单
-            if not invoice_line_ids:
-                _logger.info(f"No valid invoice lines to create bill for date {invoice_date}, skipping bill creation")
-                return
+            # 创建销售发票对应的账单（如果有金额）
+            if invoice_line_ids:
+                bill_vals = {
+                    'move_type': 'in_invoice',
+                    'partner_id': vendor_partner_id,
+                    'company_id': billing_company.id,
+                    'journal_id': sales_journal.id,
+                    'invoice_date': invoice_date,
+                    'invoice_origin': 'Auto Billing',
+                    'invoice_line_ids': invoice_line_ids
+                }
+                
+                customer_bill = self.env['account.move'].with_company(billing_company.id).create(bill_vals)
+                _logger.info(f"Created Customer Bill for sales invoices: {customer_bill.id} with {len(invoice_line_ids)} lines")
+                
+                # 自动确认新创建的账单
+                try:
+                    customer_bill.action_post()
+                    _logger.info(f"Auto-confirmed Customer Bill: {customer_bill.id} to posted state")
+                except Exception as e:
+                    _logger.error(f"Failed to auto-confirm Customer Bill {customer_bill.id}: {str(e)}")
+                    # 即使自动确认失败，也不影响账单创建
             
-            bill_vals = {
+            # 为每个贷项通知单单独处理（检查是否存在，金额是否一致）
+            if credit_notes:
+                _logger.info(f"Processing {len(credit_notes)} credit notes individually")
+                
+                for credit_note in credit_notes:
+                    # 检查是否已经存在对应的账单
+                    existing_credit_bill = self.env['account.move'].sudo().search([
+                        ('company_id', '=', billing_company.id),
+                        ('move_type', '=', 'in_invoice'),
+                        ('invoice_date', '=', invoice_date),
+                        ('partner_id', '=', vendor_partner_id),
+                        ('invoice_origin', '=', 'Auto Billing Credit Note'),
+                        ('ref', '=', credit_note.name),  # 通过源文档号码匹配
+                        ('state', 'in', ['draft', 'posted']),
+                    ], limit=1)
+                    
+                    # 计算该贷项通知单的金额
+                    credit_tax_amount = 0
+                    credit_notax_amount = 0
+                    
+                    for line in credit_note.invoice_line_ids:
+                        if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
+                            credit_tax_amount += line.price_total
+                        else:
+                            credit_notax_amount += line.price_total
+                    
+                    if existing_credit_bill:
+                        # 检查金额是否一致
+                        expected_total = credit_tax_amount + credit_notax_amount
+                        current_total = abs(existing_credit_bill.amount_total)  # 取绝对值，因为是负数
+                        
+                        _logger.info(f"Credit note {credit_note.name}: expected={expected_total}, current={current_total}")
+                        
+                        if abs(expected_total - current_total) > 0.01:  # 允许小数点精度误差
+                            _logger.info(f"Amount mismatch for credit note {credit_note.name}, updating bill {existing_credit_bill.id}")
+                            # 金额不一致，需要更新
+                            self._update_credit_note_bill(existing_credit_bill, credit_note, credit_tax_amount, credit_notax_amount, 
+                                                         product_with_tax, product_without_tax, expense_account_tax, expense_account_notax, supplier_taxes)
+                        else:
+                            _logger.info(f"Credit note {credit_note.name} bill {existing_credit_bill.id} already exists with correct amount")
+                    else:
+                        # 不存在对应账单，创建新的
+                        _logger.info(f"Creating new bill for credit note {credit_note.name}")
+                        self._create_credit_note_bill(credit_note, credit_tax_amount, credit_notax_amount, 
+                                                    billing_company, vendor_partner_id, sales_journal, invoice_date,
+                                                    product_with_tax, product_without_tax, expense_account_tax, expense_account_notax, supplier_taxes)
+
+    def _create_credit_note_bill(self, credit_note, credit_tax_amount, credit_notax_amount, 
+                               billing_company, vendor_partner_id, invoice_date):
+        """为贷项通知单创建对应的账单"""
+        # 获取产品和账户信息
+        product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products with TAX', 'expense'
+        )
+        product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products without TAX', 'expense'
+        )
+        
+        # 获取采购日记账
+        sales_journal = self.env['account.journal'].sudo().search([
+            ('type', '=', 'purchase'),
+            ('company_id', '=', billing_company.id)
+        ], limit=1)
+        
+        # 准备贷项通知单的账单行
+        credit_bill_lines = []
+        
+        if credit_tax_amount > 0:
+            credit_bill_lines.append((0, 0, {
+                'product_id': product_with_tax.id,
+                'quantity': -1.0,  # 负数数量表示退款
+                'price_unit': credit_tax_amount / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else credit_tax_amount,
+                'name': f"Credit Note - {product_with_tax.name}",
+                'account_id': expense_account_tax.id,
+                'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+            }))
+        
+        if credit_notax_amount > 0:
+            credit_bill_lines.append((0, 0, {
+                'product_id': product_without_tax.id,
+                'quantity': -1.0,  # 负数数量表示退款
+                'price_unit': credit_notax_amount,
+                'name': f"Credit Note - {product_without_tax.name}",
+                'account_id': expense_account_notax.id,
+                'tax_ids': []
+            }))
+        
+        if credit_bill_lines:
+            # 创建贷项通知单对应的账单
+            credit_bill_vals = {
                 'move_type': 'in_invoice',
                 'partner_id': vendor_partner_id,
                 'company_id': billing_company.id,
                 'journal_id': sales_journal.id,
                 'invoice_date': invoice_date,
-                'invoice_origin': 'Auto Billing',
-                'invoice_line_ids': invoice_line_ids
+                'invoice_origin': 'Auto Billing Credit Note',
+                'ref': credit_note.name,  # 设置源文档为贷项通知单号码
+                'invoice_line_ids': credit_bill_lines
             }
             
-            customer_bill = self.env['account.move'].with_company(billing_company.id).create(bill_vals)
-            _logger.info(f"Created Customer Bill: {customer_bill.id} with {len(invoice_line_ids)} lines")
+            credit_bill = self.env['account.move'].with_company(billing_company.id).create(credit_bill_vals)
+            _logger.info(f"Created Credit Note Bill: {credit_bill.id} for credit note {credit_note.name}")
             
-            # 自动确认新创建的账单
+            # 自动确认贷项通知单账单
             try:
-                customer_bill.action_post()
-                _logger.info(f"Auto-confirmed Customer Bill: {customer_bill.id} to posted state")
+                credit_bill.action_post()
+                _logger.info(f"Auto-confirmed Credit Note Bill: {credit_bill.id} to posted state")
             except Exception as e:
-                _logger.error(f"Failed to auto-confirm Customer Bill {customer_bill.id}: {str(e)}")
+                _logger.error(f"Failed to auto-confirm Credit Note Bill {credit_bill.id}: {str(e)}")
                 # 即使自动确认失败，也不影响账单创建
+            
+            return credit_bill
+
+    def _update_credit_note_bill(self, existing_bill, credit_note, credit_tax_amount, credit_notax_amount):
+        """更新贷项通知单对应的账单"""
+        # 获取产品和账户信息
+        billing_company = existing_bill.company_id
+        product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products with TAX', 'expense'
+        )
+        product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
+            billing_company, 'Daily Settlement Products without TAX', 'expense'
+        )
+        
+        # 准备新的账单行
+        credit_bill_lines = []
+        
+        if credit_tax_amount > 0:
+            credit_bill_lines.append((0, 0, {
+                'product_id': product_with_tax.id,
+                'quantity': -1.0,  # 负数数量表示退款
+                'price_unit': credit_tax_amount / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else credit_tax_amount,
+                'name': f"Credit Note - {product_with_tax.name}",
+                'account_id': expense_account_tax.id,
+                'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+            }))
+        
+        if credit_notax_amount > 0:
+            credit_bill_lines.append((0, 0, {
+                'product_id': product_without_tax.id,
+                'quantity': -1.0,  # 负数数量表示退款
+                'price_unit': credit_notax_amount,
+                'name': f"Credit Note - {product_without_tax.name}",
+                'account_id': expense_account_notax.id,
+                'tax_ids': []
+            }))
+        
+        if credit_bill_lines:
+            # 根据账单状态采用不同的更新策略
+            if existing_bill.state == 'draft':
+                # Draft 账单：直接替换所有行
+                _logger.info(f"Credit Note Bill {existing_bill.id} is draft, directly replacing lines")
+                existing_bill.write({
+                    'invoice_line_ids': [(6, 0, [])] + credit_bill_lines
+                })
+            else:
+                # Posted 账单：需要先取消过账，更新后再重新过账
+                _logger.info(f"Credit Note Bill {existing_bill.id} is posted, need to unpost first")
+                
+                # 先取消过账
+                existing_bill.button_draft()
+                _logger.info(f"Credit Note Bill {existing_bill.id} unposted to draft")
+                
+                # 替换账单行
+                existing_bill.write({
+                    'invoice_line_ids': [(6, 0, [])] + credit_bill_lines
+                })
+                _logger.info(f"Credit Note Bill {existing_bill.id} lines updated")
+                
+                # 重新过账
+                existing_bill.action_post()
+                _logger.info(f"Credit Note Bill {existing_bill.id} reposted")
+            
+            _logger.info(f"Updated Credit Note Bill: {existing_bill.id} for credit note {credit_note.name}")
+        else:
+            # 如果没有有效行，删除账单
+            _logger.info(f"No valid lines for credit note {credit_note.name}, deleting bill {existing_bill.id}")
+            if existing_bill.state == 'posted':
+                existing_bill.button_draft()
+            existing_bill.unlink()
 
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
