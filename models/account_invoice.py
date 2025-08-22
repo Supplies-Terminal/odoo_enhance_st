@@ -554,17 +554,8 @@ class AccountInvoice(models.Model):
             ('move_type', '=', 'out_invoice'),  # 只查询销售发票
             ('state', '=', 'posted'),
         ])
-        
-        # 获取贷项通知单
-        credit_notes = self.env['account.move'].sudo().search([
-            ('company_id', '=', invoice.company_id.id),
-            ('invoice_date', '=', invoice_date),
-            ('partner_id', '=', invoice.partner_id.id),
-            ('move_type', '=', 'out_refund'),  # 只查询贷项通知单
-            ('state', '=', 'posted'),
-        ])
-        
-        _logger.info(f"找到 {len(sales_invoices)} 张销售发票，{len(credit_notes)} 张贷项通知单")
+
+        _logger.info(f"找到 {len(sales_invoices)} 张销售发票")
         
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
@@ -603,8 +594,6 @@ class AccountInvoice(models.Model):
         total_amount_notax_bill = sales_amount_notax - paid_amount_notax_bill
         
         _logger.info(f"销售发票金额 - 含税: {sales_amount_tax}, 不含税: {sales_amount_notax}")
-        _logger.info(f"找到 {len(credit_notes)} 张贷项通知单，将单独处理")
-        
         _logger.info(f"最终账单金额 - 含税: {total_amount_tax_bill}, 不含税: {total_amount_notax_bill}")
         
         # 获取产品和账户信息（与创建新账单时相同）
@@ -793,53 +782,6 @@ class AccountInvoice(models.Model):
                     _logger.error(f"Failed to auto-confirm Customer Bill {customer_bill.id}: {str(e)}")
                     # 即使自动确认失败，也不影响账单创建
             
-            # 为每个贷项通知单单独处理（检查是否存在，金额是否一致）
-            if credit_notes:
-                _logger.info(f"Processing {len(credit_notes)} credit notes individually")
-                
-                for credit_note in credit_notes:
-                    # 检查是否已经存在对应的账单
-                    existing_credit_bill = self.env['account.move'].sudo().search([
-                        ('company_id', '=', billing_company.id),
-                        ('move_type', '=', 'in_invoice'),
-                        ('invoice_date', '=', invoice_date),
-                        ('partner_id', '=', vendor_partner_id),
-                        ('invoice_origin', '=', 'Auto Billing Credit Note'),
-                        ('ref', '=', credit_note.name),  # 通过源文档号码匹配
-                        ('state', 'in', ['draft', 'posted']),
-                    ], limit=1)
-                    
-                    # 计算该贷项通知单的金额
-                    credit_tax_amount = 0
-                    credit_notax_amount = 0
-                    
-                    for line in credit_note.invoice_line_ids:
-                        if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
-                            credit_tax_amount += line.price_total
-                        else:
-                            credit_notax_amount += line.price_total
-                    
-                    if existing_credit_bill:
-                        # 检查金额是否一致
-                        expected_total = credit_tax_amount + credit_notax_amount
-                        current_total = abs(existing_credit_bill.amount_total)  # 取绝对值，因为是负数
-                        
-                        _logger.info(f"Credit note {credit_note.name}: expected={expected_total}, current={current_total}")
-                        
-                        if abs(expected_total - current_total) > 0.01:  # 允许小数点精度误差
-                            _logger.info(f"Amount mismatch for credit note {credit_note.name}, updating bill {existing_credit_bill.id}")
-                            # 金额不一致，需要更新
-                            self._update_credit_note_bill(existing_credit_bill, credit_note, credit_tax_amount, credit_notax_amount, 
-                                                         product_with_tax, product_without_tax, expense_account_tax, expense_account_notax, supplier_taxes)
-                        else:
-                            _logger.info(f"Credit note {credit_note.name} bill {existing_credit_bill.id} already exists with correct amount")
-                    else:
-                        # 不存在对应账单，创建新的
-                        _logger.info(f"Creating new bill for credit note {credit_note.name}")
-                        self._create_credit_note_bill(credit_note, credit_tax_amount, credit_notax_amount, 
-                                                    billing_company, vendor_partner_id, sales_journal, invoice_date,
-                                                    product_with_tax, product_without_tax, expense_account_tax, expense_account_notax, supplier_taxes)
-
     def _create_credit_note_bill(self, credit_note, credit_tax_amount, credit_notax_amount, 
                                billing_company, vendor_partner_id, invoice_date):
         """为贷项通知单创建对应的账单"""
