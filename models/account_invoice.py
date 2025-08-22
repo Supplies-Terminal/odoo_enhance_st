@@ -488,10 +488,10 @@ class AccountInvoice(models.Model):
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
         
-        # 检查是否已经存在对应的账单
+        # 检查是否已经存在对应的退款单
         existing_credit_bill = self.env['account.move'].sudo().search([
             ('company_id', '=', billing_company.id),
-            ('move_type', '=', 'in_invoice'),
+            ('move_type', '=', 'in_refund'),  # 门店端对应的是退款单，不是账单
             ('invoice_date', '=', invoice_date),
             ('partner_id', '=', vendor_partner_id),
             ('invoice_origin', '=', 'Auto Billing Credit Note'),
@@ -517,15 +517,15 @@ class AccountInvoice(models.Model):
             _logger.info(f"Credit note {record.name}: expected={expected_total}, current={current_total}")
             
             if abs(expected_total - current_total) > 0.01:  # 允许小数点精度误差
-                _logger.info(f"Amount mismatch for credit note {record.name}, updating bill {existing_credit_bill.id}")
+                _logger.info(f"Amount mismatch for credit note {record.name}, updating refund {existing_credit_bill.id}")
                 # 金额不一致，需要更新
-                self._update_credit_note_bill(existing_credit_bill, record, credit_tax_amount, credit_notax_amount)
+                self._update_credit_note_refund(existing_credit_bill, record, credit_tax_amount, credit_notax_amount)
             else:
-                _logger.info(f"Credit note {record.name} bill {existing_credit_bill.id} already exists with correct amount")
+                _logger.info(f"Credit note {record.name} refund {existing_credit_bill.id} already exists with correct amount")
         else:
-            # 不存在对应账单，创建新的
-            _logger.info(f"Creating new bill for credit note {record.name}")
-            self._create_credit_note_bill(record, credit_tax_amount, credit_notax_amount, 
+            # 不存在对应退款单，创建新的
+            _logger.info(f"Creating new refund for credit note {record.name}")
+            self._create_credit_note_refund(record, credit_tax_amount, credit_notax_amount, 
                                         billing_company, vendor_partner_id, invoice_date)
 
     def _get_customer_billing_bill(self, company, partner_id, origin, date):
@@ -540,11 +540,11 @@ class AccountInvoice(models.Model):
         ], limit=1)
 
     def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill, paid_bills=None):
-        """更新客户账单"""
+        """更新客户账单（仅处理销售发票的合并账单逻辑，不处理贷项通知单）"""
         invoice_date = invoice.invoice_date
         
-        # 分别处理销售发票和贷项通知单
-        _logger.info(f"发票 {invoice.id} 状态: {invoice.state}，分别处理销售发票和贷项通知单")
+        # 处理销售发票的合并账单逻辑
+        _logger.info(f"发票 {invoice.id} 状态: {invoice.state}，处理销售发票的合并账单逻辑")
         
         # 获取销售发票
         sales_invoices = self.env['account.move'].sudo().search([
@@ -554,8 +554,8 @@ class AccountInvoice(models.Model):
             ('move_type', '=', 'out_invoice'),  # 只查询销售发票
             ('state', '=', 'posted'),
         ])
-
-        _logger.info(f"找到 {len(sales_invoices)} 张销售发票")
+        
+        _logger.info(f"找到 {len(sales_invoices)} 张销售发票，将使用合并逻辑处理")
         
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
@@ -589,12 +589,13 @@ class AccountInvoice(models.Model):
                 else:
                     sales_amount_notax += line.price_total
         
-        # 销售发票的净额计算（不包含贷项通知单）
+        # 销售发票的净额计算
         total_amount_tax_bill = sales_amount_tax - paid_amount_tax_bill
         total_amount_notax_bill = sales_amount_notax - paid_amount_notax_bill
         
         _logger.info(f"销售发票金额 - 含税: {sales_amount_tax}, 不含税: {sales_amount_notax}")
-        _logger.info(f"最终账单金额 - 含税: {total_amount_tax_bill}, 不含税: {total_amount_notax_bill}")
+        
+        _logger.info(f"最终合并账单金额 - 含税: {total_amount_tax_bill}, 不含税: {total_amount_notax_bill}")
         
         # 获取产品和账户信息（与创建新账单时相同）
         product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
@@ -759,7 +760,7 @@ class AccountInvoice(models.Model):
                 }))
                 _logger.info(f"Adding non-tax line with amount: {total_amount_notax_bill}")
             
-            # 创建销售发票对应的账单（如果有金额）
+            # 创建销售发票对应的合并账单（如果有金额）
             if invoice_line_ids:
                 bill_vals = {
                     'move_type': 'in_invoice',
@@ -772,19 +773,19 @@ class AccountInvoice(models.Model):
                 }
                 
                 customer_bill = self.env['account.move'].with_company(billing_company.id).create(bill_vals)
-                _logger.info(f"Created Customer Bill for sales invoices: {customer_bill.id} with {len(invoice_line_ids)} lines")
+                _logger.info(f"Created merged Customer Bill for sales invoices: {customer_bill.id} with {len(invoice_line_ids)} lines")
                 
-                # 自动确认新创建的账单
+                # 自动确认新创建的合并账单
                 try:
                     customer_bill.action_post()
-                    _logger.info(f"Auto-confirmed Customer Bill: {customer_bill.id} to posted state")
+                    _logger.info(f"Auto-confirmed merged Customer Bill: {customer_bill.id} to posted state")
                 except Exception as e:
-                    _logger.error(f"Failed to auto-confirm Customer Bill {customer_bill.id}: {str(e)}")
+                    _logger.error(f"Failed to auto-confirm merged Customer Bill {customer_bill.id}: {str(e)}")
                     # 即使自动确认失败，也不影响账单创建
-            
-    def _create_credit_note_bill(self, credit_note, credit_tax_amount, credit_notax_amount, 
+
+    def _create_credit_note_refund(self, credit_note, credit_tax_amount, credit_notax_amount, 
                                billing_company, vendor_partner_id, invoice_date):
-        """为贷项通知单创建对应的账单"""
+        """为贷项通知单创建对应的退款单"""
         # 获取产品和账户信息
         product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
             billing_company, 'Daily Settlement Products with TAX', 'expense'
@@ -823,9 +824,9 @@ class AccountInvoice(models.Model):
             }))
         
         if credit_bill_lines:
-            # 创建贷项通知单对应的账单
+            # 创建贷项通知单对应的退款单
             credit_bill_vals = {
-                'move_type': 'in_invoice',
+                'move_type': 'in_refund',  # 门店端对应的是退款单，不是账单
                 'partner_id': vendor_partner_id,
                 'company_id': billing_company.id,
                 'journal_id': sales_journal.id,
@@ -835,21 +836,21 @@ class AccountInvoice(models.Model):
                 'invoice_line_ids': credit_bill_lines
             }
             
-            credit_bill = self.env['account.move'].with_company(billing_company.id).create(credit_bill_vals)
-            _logger.info(f"Created Credit Note Bill: {credit_bill.id} for credit note {credit_note.name}")
+            credit_refund = self.env['account.move'].with_company(billing_company.id).create(credit_bill_vals)
+            _logger.info(f"Created Credit Note Refund: {credit_refund.id} for credit note {credit_note.name}")
             
-            # 自动确认贷项通知单账单
+            # 自动确认贷项通知单退款单
             try:
-                credit_bill.action_post()
-                _logger.info(f"Auto-confirmed Credit Note Bill: {credit_bill.id} to posted state")
+                credit_refund.action_post()
+                _logger.info(f"Auto-confirmed Credit Note Refund: {credit_refund.id} to posted state")
             except Exception as e:
-                _logger.error(f"Failed to auto-confirm Credit Note Bill {credit_bill.id}: {str(e)}")
-                # 即使自动确认失败，也不影响账单创建
+                _logger.error(f"Failed to auto-confirm Credit Note Refund {credit_refund.id}: {str(e)}")
+                # 即使自动确认失败，也不影响退款单创建
             
-            return credit_bill
+            return credit_refund
 
-    def _update_credit_note_bill(self, existing_bill, credit_note, credit_tax_amount, credit_notax_amount):
-        """更新贷项通知单对应的账单"""
+    def _update_credit_note_refund(self, existing_bill, credit_note, credit_tax_amount, credit_notax_amount):
+        """更新贷项通知单对应的退款单（独立于销售发票的合并账单逻辑）"""
         # 获取产品和账户信息
         billing_company = existing_bill.company_id
         product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
@@ -883,35 +884,35 @@ class AccountInvoice(models.Model):
             }))
         
         if credit_bill_lines:
-            # 根据账单状态采用不同的更新策略
+            # 根据退款单状态采用不同的更新策略
             if existing_bill.state == 'draft':
-                # Draft 账单：直接替换所有行
-                _logger.info(f"Credit Note Bill {existing_bill.id} is draft, directly replacing lines")
+                # Draft 退款单：直接替换所有行
+                _logger.info(f"Credit Note Refund {existing_bill.id} is draft, directly replacing lines")
                 existing_bill.write({
                     'invoice_line_ids': [(6, 0, [])] + credit_bill_lines
                 })
             else:
-                # Posted 账单：需要先取消过账，更新后再重新过账
-                _logger.info(f"Credit Note Bill {existing_bill.id} is posted, need to unpost first")
+                # Posted 退款单：需要先取消过账，更新后再重新过账
+                _logger.info(f"Credit Note Refund {existing_bill.id} is posted, need to unpost first")
                 
                 # 先取消过账
                 existing_bill.button_draft()
-                _logger.info(f"Credit Note Bill {existing_bill.id} unposted to draft")
+                _logger.info(f"Credit Note Refund {existing_bill.id} unposted to draft")
                 
-                # 替换账单行
+                # 替换退款单行
                 existing_bill.write({
                     'invoice_line_ids': [(6, 0, [])] + credit_bill_lines
                 })
-                _logger.info(f"Credit Note Bill {existing_bill.id} lines updated")
+                _logger.info(f"Credit Note Refund {existing_bill.id} lines updated")
                 
                 # 重新过账
                 existing_bill.action_post()
-                _logger.info(f"Credit Note Bill {existing_bill.id} reposted")
+                _logger.info(f"Credit Note Refund {existing_bill.id} reposted")
             
-            _logger.info(f"Updated Credit Note Bill: {existing_bill.id} for credit note {credit_note.name}")
+            _logger.info(f"Updated Credit Note Refund: {existing_bill.id} for credit note {credit_note.name}")
         else:
-            # 如果没有有效行，删除账单
-            _logger.info(f"No valid lines for credit note {credit_note.name}, deleting bill {existing_bill.id}")
+            # 如果没有有效行，删除退款单
+            _logger.info(f"No valid lines for credit note {credit_note.name}, deleting refund {existing_bill.id}")
             if existing_bill.state == 'posted':
                 existing_bill.button_draft()
             existing_bill.unlink()
