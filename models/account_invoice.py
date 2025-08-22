@@ -806,7 +806,7 @@ class AccountInvoice(models.Model):
         if credit_tax_amount > 0:
             credit_bill_lines.append((0, 0, {
                 'product_id': product_with_tax.id,
-                'quantity': -1.0,  # 负数数量表示退款
+                'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_tax_amount / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else credit_tax_amount,
                 'name': f"Credit Note - {product_with_tax.name}",
                 'account_id': expense_account_tax.id,
@@ -816,7 +816,7 @@ class AccountInvoice(models.Model):
         if credit_notax_amount > 0:
             credit_bill_lines.append((0, 0, {
                 'product_id': product_without_tax.id,
-                'quantity': -1.0,  # 负数数量表示退款
+                'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_notax_amount,
                 'name': f"Credit Note - {product_without_tax.name}",
                 'account_id': expense_account_notax.id,
@@ -866,7 +866,7 @@ class AccountInvoice(models.Model):
         if credit_tax_amount > 0:
             credit_bill_lines.append((0, 0, {
                 'product_id': product_with_tax.id,
-                'quantity': -1.0,  # 负数数量表示退款
+                'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_tax_amount / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else credit_tax_amount,
                 'name': f"Credit Note - {product_with_tax.name}",
                 'account_id': expense_account_tax.id,
@@ -876,7 +876,7 @@ class AccountInvoice(models.Model):
         if credit_notax_amount > 0:
             credit_bill_lines.append((0, 0, {
                 'product_id': product_without_tax.id,
-                'quantity': -1.0,  # 负数数量表示退款
+                'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_notax_amount,
                 'name': f"Credit Note - {product_without_tax.name}",
                 'account_id': expense_account_notax.id,
