@@ -37,7 +37,7 @@ class CustomerBillingMapping(models.Model):
         'res.partner', 
         string='Billing Vendor', 
         required=True,
-        domain="[('is_company', '=', True), ('company_id', '=', billing_company_id)]",
+        domain="[('is_company', '=', True)]",
         help='Vendor partner in the billing company (e.g., "syntac" customer in jo\'s tea company)'
     )
     active = fields.Boolean(default=True, string='Active')
@@ -66,7 +66,7 @@ class CustomerBillingMapping(models.Model):
         if self.billing_company_id:
             # 清空供应商选择
             self.billing_partner_id = False
-            # 返回动态域
+            # 返回动态域，使用 sudo() 来跨公司查询
             return {
                 'domain': {
                     'billing_partner_id': [
@@ -95,4 +95,3 @@ class CustomerBillingMapping(models.Model):
                         'message': _('Selected vendor does not belong to the billing company. Please select a vendor from the billing company.')
                     }
                 }
-

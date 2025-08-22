@@ -530,11 +530,14 @@ class AccountInvoice(models.Model):
         total_amount_notax = 0
         
         for invoice in posted_invoices:
+            # 根据发票类型决定是增加还是减少
+            multiplier = 1 if invoice.move_type == 'out_invoice' else -1
+            
             for line in invoice.invoice_line_ids:
                 if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
-                    total_amount_tax += line.price_total
+                    total_amount_tax += line.price_total * multiplier
                 else:
-                    total_amount_notax += line.price_total
+                    total_amount_notax += line.price_total * multiplier
         
         _logger.info(f"计算得到含税金额: {total_amount_tax}, 不含税金额: {total_amount_notax}")
         _logger.info(f"包含 {len(posted_invoices)} 张已过账发票（销售发票: {len(posted_invoices.filtered(lambda inv: inv.move_type == 'out_invoice'))}, 贷项通知单: {len(posted_invoices.filtered(lambda inv: inv.move_type == 'out_refund'))}）")
