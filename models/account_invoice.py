@@ -748,7 +748,14 @@ class AccountInvoice(models.Model):
             
             customer_bill = self.env['account.move'].with_company(billing_company.id).create(bill_vals)
             _logger.info(f"Created Customer Bill: {customer_bill.id} with {len(invoice_line_ids)} lines")
-
+            
+            # 自动确认新创建的账单
+            try:
+                customer_bill.action_post()
+                _logger.info(f"Auto-confirmed Customer Bill: {customer_bill.id} to posted state")
+            except Exception as e:
+                _logger.error(f"Failed to auto-confirm Customer Bill {customer_bill.id}: {str(e)}")
+                # 即使自动确认失败，也不影响账单创建
 
     def _set_next_sequence(self):
         if self.move_type == 'out_invoice':
