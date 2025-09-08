@@ -35,6 +35,12 @@ class AccountInvoice(models.Model):
         return move
 
     def write(self, vals):
+        # 记录修改前的invoice_date，用于后续处理
+        old_invoice_dates = {}
+        if 'invoice_date' in vals and not self.env.context.get('skip_invoice_date_update'):
+            for record in self:
+                old_invoice_dates[record.id] = record.invoice_date
+        
         res = super(AccountInvoice, self).write(vals)
         for record in self:
             if record.operating_company_id:
@@ -55,6 +61,28 @@ class AccountInvoice(models.Model):
                     else:
                         # 其他非关键错误只记录，不阻止发票状态变化
                         _logger.error(f"非关键错误，发票状态变化将继续，但账单更新可能失败")
+            
+            # 处理invoice_date修改的情况（只在非跳过上下文中执行）
+            if 'invoice_date' in vals and record.id in old_invoice_dates and not self.env.context.get('skip_invoice_date_update'):
+                old_date = old_invoice_dates[record.id]
+                new_date = vals['invoice_date']
+                
+                # 如果发票日期确实发生了变化，且发票已过账
+                if old_date != new_date and record.state == 'posted':
+                    _logger.info(f"发票 {record.id} 的日期从 {old_date} 修改为 {new_date}，需要重新更新账单")
+                    try:
+                        # 首先处理旧日期的账单更新（移除该发票的影响）
+                        if old_date:
+                            _logger.info(f"处理旧日期 {old_date} 的账单更新")
+                            record._handle_invoice_state_change(target_date=old_date)
+                        
+                        # 然后处理新日期的账单更新（添加该发票的影响）
+                        _logger.info(f"处理新日期 {new_date} 的账单更新")
+                        record._handle_invoice_state_change(target_date=new_date)
+                        
+                        _logger.info(f"发票 {record.id} 日期修改后的账单更新完成")
+                    except Exception as e:
+                        _logger.error(f"处理发票 {record.id} 日期修改后的账单更新时出错: {str(e)}")
         return res
 
     def _create_adjustment_bill(self, billing_company, mapping, invoice_date, adjustment_amount, total_amount_tax_bill, total_amount_notax_bill):
@@ -373,17 +401,23 @@ class AccountInvoice(models.Model):
             }
             settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
 
-    def _handle_invoice_state_change(self):
-        """统一处理发票状态变化"""
+    def _handle_invoice_state_change(self, target_date=None):
+        """统一处理发票状态变化
+        
+        Args:
+            target_date: 可选的日期参数，如果提供则使用此日期而不是发票的invoice_date
+        """
         for record in self:
             # 处理销售发票和贷项通知单
             if record.move_type not in ['out_invoice', 'out_refund']:
                 continue
             
-            _logger.info(f"_handle_invoice_state_change处理发票状态变化: {record.id} {record.name} {record.invoice_date}")
+            # 使用目标日期或发票的invoice_date
+            processing_date = target_date or record.invoice_date
+            _logger.info(f"_handle_invoice_state_change处理发票状态变化: {record.id} {record.name} {processing_date}")
             
             # 使用类级别的锁防止重复触发
-            lock_key = f"invoice_state_{record.id}_{record.invoice_date}"
+            lock_key = f"invoice_state_{record.id}_{processing_date}"
             if lock_key in self._billing_update_locks:
                 _logger.info(f"跳过重复的发票状态变化处理: {record.id} {record.name} (锁已存在)")
                 continue
@@ -406,11 +440,11 @@ class AccountInvoice(models.Model):
                 if record.move_type == 'out_invoice':
                     # 销售发票：使用原有的合并逻辑
                     _logger.info(f"处理销售发票，使用合并逻辑")
-                    self._handle_sales_invoice_billing(record, mapping)
+                    self._handle_sales_invoice_billing(record, mapping, processing_date)
                 else:
                     # 贷项通知单：使用一一对应逻辑
                     _logger.info(f"处理贷项通知单，使用一一对应逻辑")
-                    self._handle_credit_note_billing(record, mapping)
+                    self._handle_credit_note_billing(record, mapping, processing_date)
                 
                 _logger.info(f"Completed billing update for invoice {record.name}")
                 
@@ -422,10 +456,10 @@ class AccountInvoice(models.Model):
                 if lock_key in self._billing_update_locks:
                     del self._billing_update_locks[lock_key]
 
-    def _handle_sales_invoice_billing(self, record, mapping):
+    def _handle_sales_invoice_billing(self, record, mapping, target_date=None):
         """处理销售发票的账单逻辑（原有的合并逻辑）"""
         billing_company = mapping.billing_company_id
-        invoice_date = record.invoice_date
+        invoice_date = target_date or record.invoice_date
         
         if not invoice_date:
             _logger.info(f"处理销售发票失败，没有invoice_date")
@@ -469,17 +503,17 @@ class AccountInvoice(models.Model):
                 
                 # 更新第一个未付款账单
                 existing_bill = unpaid_bills[0]
-                self._update_customer_billing_bill(billing_company, record, mapping, existing_bill, paid_bills)
+                self._update_customer_billing_bill(billing_company, record, mapping, existing_bill, paid_bills, invoice_date)
             else:
-                self._update_customer_billing_bill(billing_company, record, mapping, False, paid_bills)
+                self._update_customer_billing_bill(billing_company, record, mapping, False, paid_bills, invoice_date)
         else:
             # 如果没有现有账单，创建新的
-            self._update_customer_billing_bill(billing_company, record, mapping, False, [])
+            self._update_customer_billing_bill(billing_company, record, mapping, False, [], invoice_date)
 
-    def _handle_credit_note_billing(self, record, mapping):
+    def _handle_credit_note_billing(self, record, mapping, target_date=None):
         """处理贷项通知单的账单逻辑（一一对应逻辑）"""
         billing_company = mapping.billing_company_id
-        invoice_date = record.invoice_date
+        invoice_date = target_date or record.invoice_date
         
         if not invoice_date:
             _logger.info(f"处理贷项通知单失败，没有invoice_date")
@@ -539,9 +573,9 @@ class AccountInvoice(models.Model):
             ('state', '=', 'draft'),
         ], limit=1)
 
-    def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill, paid_bills=None):
+    def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill, paid_bills=None, target_date=None):
         """更新客户账单（仅处理销售发票的合并账单逻辑，不处理贷项通知单）"""
-        invoice_date = invoice.invoice_date
+        invoice_date = target_date or invoice.invoice_date
         
         # 处理销售发票的合并账单逻辑
         _logger.info(f"发票 {invoice.id} 状态: {invoice.state}，处理销售发票的合并账单逻辑")
