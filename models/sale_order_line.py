@@ -165,6 +165,7 @@ class SaleOrderLine(models.Model):
 
     @api.depends('product_id')
     def _compute_latest_vendor(self):
+        PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo()
         for rec in self:
             rec.latest_vendor = ''
             _logger.info("------------_compute_latest_vendor------------")
@@ -175,18 +176,27 @@ class SaleOrderLine(models.Model):
             # 计算前一天的日期
             previous_date = current_date #- timedelta(days=1)
 
-            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([
-                ('product_id', '=', rec.product_id.id), 
-                ('order_id.company_id', '=', rec.order_id.company_id.id), 
-                ('order_id.state', 'in', ['purchase', 'done']), 
+            pols = PurchaseOrderLineSudo.search([
+                ('product_id', '=', rec.product_id.id),
+                ('order_id.company_id', '=', rec.order_id.company_id.id),
+                ('order_id.state', 'in', ['purchase', 'done']),
                 ('order_id.date_approve', '<=', previous_date)
-            ], limit=1, order='order_id.date_approve desc')
-            if pol:
-                rec.latest_vendor = pol.order_id.partner_id.name 
+            ])
 
+            # 按 order_id.date_approve 手动排序
+            pol_sorted = sorted(
+                pols,
+                key=lambda p: p.order_id.date_approve or p.order_id.date_order or datetime(2000, 1, 1),
+                reverse=True
+            )
+
+            if pol_sorted:
+                latest_pol = pol_sorted[0]
+                rec.latest_vendor = latest_pol.order_id.partner_id.name or ''
+                
     @api.depends('product_id')
     def _compute_latest_vendor_id(self):
+        PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo()
         for rec in self:
             rec.latest_vendor_id = 0
             _logger.info("------------_compute_latest_vendor_id------------")
@@ -196,15 +206,23 @@ class SaleOrderLine(models.Model):
             # 计算前一天的日期
             previous_date = current_date #- timedelta(days=1)
 
-            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([
-                ('product_id', '=', rec.product_id.id), 
-                ('order_id.company_id', '=', rec.order_id.company_id.id), 
-                ('order_id.state', 'in', ['purchase', 'done']), 
+            pols = PurchaseOrderLineSudo.search([
+                ('product_id', '=', rec.product_id.id),
+                ('order_id.company_id', '=', rec.order_id.company_id.id),
+                ('order_id.state', 'in', ['purchase', 'done']),
                 ('order_id.date_approve', '<=', previous_date)
-            ], limit=1, order='order_id.date_approve desc')
-            if pol:
-                rec.latest_vendor_id = pol.order_id.partner_id.id
+            ])
+
+            # 按 order_id.date_approve 手动排序
+            pol_sorted = sorted(
+                pols,
+                key=lambda p: p.order_id.date_approve or p.order_id.date_order or datetime(2000, 1, 1),
+                reverse=True
+            )
+
+            if pol_sorted:
+                latest_pol = pol_sorted[0]
+                rec.latest_vendor_id = latest_pol.order_id.partner_id.id
 
     @api.depends('product_id')
     def _compute_latest_price_value(self):
