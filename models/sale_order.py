@@ -298,17 +298,17 @@ class SaleOrder(models.Model):
             action['res_id'] = invoices.id
         return action
 
-    @api.model
-    def create(self, vals):
-        if self.current_company_is_virtual and not vals.get('sale_company_id'):
-            raise UserError(_('Sales Company is required for virtual companies.'))
-        return super(SaleOrder, self).create(vals)    
+    # @api.model
+    # def create(self, vals):
+    #     if self.current_company_is_virtual and not vals.get('sale_company_id'):
+    #         raise UserError(_('Sales Company is required for virtual companies.'))
+    #     return super(SaleOrder, self).create(vals)    
 
-    def write(self, vals):
-        for order in self:
-            if order.current_company_is_virtual and not order.sale_company_id and not vals.get('sale_company_id'):
-                raise UserError(_('Sales Company is required for virtual companies.'))
-        return super(SaleOrder, self).write(vals)
+    # def write(self, vals):
+    #     for order in self:
+    #         if order.current_company_is_virtual and not order.sale_company_id and not vals.get('sale_company_id'):
+    #             raise UserError(_('Sales Company is required for virtual companies.'))
+    #     return super(SaleOrder, self).write(vals)
 
     def action_create_sold_company_invoice(self):
         for order in self:
