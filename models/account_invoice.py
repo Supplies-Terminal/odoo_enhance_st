@@ -199,7 +199,8 @@ class AccountInvoice(models.Model):
 
     def _get_settlement_move(self, company, move_type, partner_id, origin, date):
         """
-        查询结算发票或账单。
+        查询结算发票或账单（所有状态）。
+        返回所有匹配的记录，包括draft和posted状态。
         """
         return self.env['account.move'].sudo().search([
             ('company_id', '=', company.id),
@@ -207,8 +208,8 @@ class AccountInvoice(models.Model):
             ('invoice_date', '=', date),
             ('partner_id', '=', partner_id),
             ('invoice_origin', '=', origin),
-            ('state', '=', 'draft'),
-        ], limit=1)
+            ('state', 'in', ['draft', 'posted']),
+        ])
 
     def _update_daily_settlement(self):
         """更新每日结算单"""
@@ -226,36 +227,129 @@ class AccountInvoice(models.Model):
             _logger.info(f"Operating company: {operating_company.id} {operating_company.name}")
             _logger.info(f"Sales company: {sales_company.id} {sales_company.name}")
     
-            # 查询结算发票和账单
-            settlement_invoice = self._get_settlement_move(
+            # 查询结算发票和账单（可能返回多条记录）
+            settlement_invoices = self._get_settlement_move(
                 operating_company, 'out_invoice', sales_company.partner_id.id, 'Daily Settlement', settlement_date
             )
-            settlement_bill = self._get_settlement_move(
+            settlement_bills = self._get_settlement_move(
                 sales_company, 'in_invoice', operating_company.partner_id.id, 'Daily Settlement', settlement_date
             )
+            
+            # 步骤1：删除not paid的结算发票和账单
+            # 对于not paid的记录（amount_residual == amount_total），可以删除并重新生成
+            # 对于paid/partially paid/in payment的记录，需要保留并创建adjustment
+            
+            # 处理结算发票：删除not paid的记录
+            paid_settlement_invoices = []
+            if settlement_invoices:
+                _logger.info(f"Found {len(settlement_invoices)} existing Invoice(s), checking payment status")
+                for settlement_invoice in settlement_invoices:
+                    # 判断是否已付款：amount_residual < amount_total 表示已付款或部分付款
+                    is_paid = settlement_invoice.state == 'posted' and settlement_invoice.amount_residual < settlement_invoice.amount_total
+                    
+                    if is_paid:
+                        _logger.info(f"Invoice {settlement_invoice.id} is paid/partially paid (residual: {settlement_invoice.amount_residual}, total: {settlement_invoice.amount_total}), will keep and create adjustment")
+                        paid_settlement_invoices.append(settlement_invoice)
+                    else:
+                        # not paid的记录可以删除
+                        _logger.info(f"Invoice {settlement_invoice.id} is not paid, deleting it")
+                        try:
+                            # 如果已过账，需要先取消过账
+                            if settlement_invoice.state == 'posted':
+                                _logger.info(f"Invoice {settlement_invoice.id} is posted, reverting to draft first")
+                                # 先解除对账
+                                for line in settlement_invoice.line_ids:
+                                    if line.reconciled:
+                                        line.remove_move_reconcile()
+                                # 取消过账
+                                settlement_invoice.button_draft()
+                                _logger.info(f"Invoice {settlement_invoice.id} reverted to draft")
+                            
+                            # 如果是draft状态，也需要解除对账
+                            if settlement_invoice.state == 'draft':
+                                for line in settlement_invoice.line_ids:
+                                    if line.reconciled:
+                                        line.remove_move_reconcile()
+                            
+                            # 如果已有编号，先清空编号
+                            if settlement_invoice.name and settlement_invoice.name != '/':
+                                settlement_invoice.name = '/'
+                            
+                            # 删除发票
+                            invoice_id = settlement_invoice.id
+                            settlement_invoice.unlink()
+                            _logger.info(f"Invoice {invoice_id} deleted successfully")
+                        except Exception as e:
+                            _logger.error(f"Failed to delete Invoice {settlement_invoice.id}: {str(e)}")
+            
+            # 处理结算账单：删除not paid的记录
+            paid_settlement_bills = []
+            if settlement_bills:
+                _logger.info(f"Found {len(settlement_bills)} existing Bill(s), checking payment status")
+                for settlement_bill in settlement_bills:
+                    # 判断是否已付款：amount_residual < amount_total 表示已付款或部分付款
+                    is_paid = settlement_bill.state == 'posted' and settlement_bill.amount_residual < settlement_bill.amount_total
+                    
+                    if is_paid:
+                        _logger.info(f"Bill {settlement_bill.id} is paid/partially paid (residual: {settlement_bill.amount_residual}, total: {settlement_bill.amount_total}), will keep and create adjustment")
+                        paid_settlement_bills.append(settlement_bill)
+                    else:
+                        # not paid的记录可以删除
+                        _logger.info(f"Bill {settlement_bill.id} is not paid, deleting it")
+                        try:
+                            # 如果已过账，需要先取消过账
+                            if settlement_bill.state == 'posted':
+                                _logger.info(f"Bill {settlement_bill.id} is posted, reverting to draft first")
+                                # 先解除对账
+                                for line in settlement_bill.line_ids:
+                                    if line.reconciled:
+                                        line.remove_move_reconcile()
+                                # 取消过账
+                                settlement_bill.button_draft()
+                                _logger.info(f"Bill {settlement_bill.id} reverted to draft")
+                            
+                            # 如果是draft状态，也需要解除对账
+                            if settlement_bill.state == 'draft':
+                                for line in settlement_bill.line_ids:
+                                    if line.reconciled:
+                                        line.remove_move_reconcile()
+                            
+                            # 如果已有编号，先清空编号
+                            if settlement_bill.name and settlement_bill.name != '/':
+                                settlement_bill.name = '/'
+                            
+                            # 删除账单
+                            bill_id = settlement_bill.id
+                            settlement_bill.unlink()
+                            _logger.info(f"Bill {bill_id} deleted successfully")
+                        except Exception as e:
+                            _logger.error(f"Failed to delete Bill {settlement_bill.id}: {str(e)}")
+            
+            # 步骤2：统计已paid过的结算记录的总额
+            posted_settlement_invoice_amount_tax = 0
+            posted_settlement_invoice_amount_notax = 0
+            for inv in paid_settlement_invoices:
+                _logger.info(f"Calculating amounts for paid Invoice {inv.id}")
+                for line in inv.invoice_line_ids:
+                    if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
+                        posted_settlement_invoice_amount_tax += line.price_unit
+                    else:
+                        posted_settlement_invoice_amount_notax += line.price_unit
+            
+            posted_settlement_bill_amount_tax = 0
+            posted_settlement_bill_amount_notax = 0
+            for bill in paid_settlement_bills:
+                _logger.info(f"Calculating amounts for paid Bill {bill.id}")
+                for line in bill.invoice_line_ids:
+                    if line.tax_ids and any(tax.amount > 0 for tax in line.tax_ids):
+                        posted_settlement_bill_amount_tax += line.price_unit
+                    else:
+                        posted_settlement_bill_amount_notax += line.price_unit
+            
+            _logger.info(f"Paid settlement invoice amounts - tax: {posted_settlement_invoice_amount_tax}, notax: {posted_settlement_invoice_amount_notax}")
+            _logger.info(f"Paid settlement bill amounts - tax: {posted_settlement_bill_amount_tax}, notax: {posted_settlement_bill_amount_notax}")
     
-            # 如果存在草稿状态的发票或账单，先删除
-            if settlement_invoice:
-                _logger.info(f"Deleting existing Invoice: {settlement_invoice.id}")
-                if settlement_invoice:
-                    for line in settlement_invoice.line_ids:
-                        if line.reconciled:
-                            line.remove_move_reconcile()
-                    if settlement_invoice.name != '/':
-                        settlement_invoice.name = '/'
-                    settlement_invoice.button_draft()
-                    settlement_invoice.unlink()
-            if settlement_bill:
-                _logger.info(f"Deleting existing Bill: {settlement_bill.id}")
-                if settlement_bill:
-                    for line in settlement_bill.line_ids:
-                        if line.reconciled:
-                            line.remove_move_reconcile()
-                    if settlement_bill.name != '/':
-                        settlement_bill.name = '/'
-                    settlement_bill.button_draft()
-                    settlement_bill.unlink()
-    
+            # 步骤3：统计应记账总额
             # 获取所有相关的发票行，而不是全局的 move lines
             all_invoices = self.env['account.move'].search([
                 ('company_id', '=', sales_company.id),
@@ -267,7 +361,7 @@ class AccountInvoice(models.Model):
             # 合并所有相关发票的 invoice_line_ids
             all_invoice_lines = all_invoices.mapped('invoice_line_ids')
 
-            # 计算含税和不含税的总金额
+            # 计算含税和不含税的总金额（应记账总额）
             total_amount_tax = sum(
                 line.price_total
                 for line in all_invoice_lines
@@ -281,57 +375,94 @@ class AccountInvoice(models.Model):
     
             _logger.info(f"Total Amount with Tax: {total_amount_tax}, Total Amount without Tax: {total_amount_notax}")
     
-            # 扣减已过账的发票部分
-            posted_invoices = self.env['account.move'].search([
-                ('company_id', '=', operating_company.id),
-                ('move_type', '=', 'out_invoice'),
-                ('invoice_date', '=', settlement_date),
-                ('partner_id', '=', sales_company.partner_id.id),
-                ('invoice_origin', '=', 'Daily Settlement'),
-                ('state', '=', 'posted'),
-            ])
-            posted_amount_tax_invoice = sum(
-                line.price_unit for invoice in posted_invoices for line in invoice.invoice_line_ids if line.tax_ids
-            )
-            posted_amount_notax_invoice = sum(
-                line.price_unit for invoice in posted_invoices for line in invoice.invoice_line_ids if not line.tax_ids
-            )
+            # 步骤4：计算差异
+            # 对于结算发票：应记账总额 - 已paid过的结算发票总额 = 差异
+            diff_amount_tax_invoice = total_amount_tax - posted_settlement_invoice_amount_tax
+            diff_amount_notax_invoice = total_amount_notax - posted_settlement_invoice_amount_notax
+            
+            # 对于结算账单：应记账总额 - 已paid过的结算账单总额 = 差异
+            diff_amount_tax_bill = total_amount_tax - posted_settlement_bill_amount_tax
+            diff_amount_notax_bill = total_amount_notax - posted_settlement_bill_amount_notax
+            
+            _logger.info(f"Difference for invoice - tax: {diff_amount_tax_invoice}, notax: {diff_amount_notax_invoice}")
+            _logger.info(f"Difference for bill - tax: {diff_amount_tax_bill}, notax: {diff_amount_notax_bill}")
     
-            total_amount_tax_invoice = total_amount_tax - posted_amount_tax_invoice
-            total_amount_notax_invoice = total_amount_notax - posted_amount_notax_invoice
+            # 步骤5：根据差异生成新的记录
+            # 对于结算发票：如果差异不为0，创建新的发票或adjustment
+            if abs(diff_amount_tax_invoice) > 0.01 or abs(diff_amount_notax_invoice) > 0.01:
+                if paid_settlement_invoices:
+                    # 如果存在已paid的结算发票，创建adjustment发票
+                    _logger.info("Creating adjustment Invoice for paid settlement invoices")
+                    self._create_settlement_adjustment_invoice(
+                        operating_company, sales_company, settlement_date,
+                        diff_amount_tax_invoice, diff_amount_notax_invoice
+                    )
+                else:
+                    # 如果没有已paid的结算发票，创建新的结算发票
+                    _logger.info("Creating new Invoice")
+                    self._create_settlement_invoice(
+                        operating_company, sales_company, settlement_date,
+                        diff_amount_tax_invoice, diff_amount_notax_invoice
+                    )
+            else:
+                _logger.info("No difference for invoice, skipping creation")
+            
+            # 对于结算账单：如果差异不为0，创建新的账单或adjustment
+            if abs(diff_amount_tax_bill) > 0.01 or abs(diff_amount_notax_bill) > 0.01:
+                if paid_settlement_bills:
+                    # 如果存在已paid的结算账单，创建adjustment账单
+                    _logger.info("Creating adjustment Bill for paid settlement bills")
+                    self._create_settlement_adjustment_bill(
+                        sales_company, operating_company, settlement_date,
+                        diff_amount_tax_bill, diff_amount_notax_bill
+                    )
+                else:
+                    # 如果没有已paid的结算账单，创建新的结算账单
+                    _logger.info("Creating new Bill")
+                    self._create_settlement_bill(
+                        sales_company, operating_company, settlement_date,
+                        diff_amount_tax_bill, diff_amount_notax_bill
+                    )
+            else:
+                _logger.info("No difference for bill, skipping creation")
     
-            # 扣减已过账的账单部分
-            posted_bills = self.env['account.move'].search([
-                ('company_id', '=', sales_company.id),
-                ('move_type', '=', 'in_invoice'),
-                ('invoice_date', '=', settlement_date),
-                ('partner_id', '=', operating_company.partner_id.id),
-                ('invoice_origin', '=', 'Daily Settlement'),
-                ('state', '=', 'posted'),
-            ])
-            posted_amount_tax_bill = sum(
-                line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if line.tax_ids
-            )
-            posted_amount_notax_bill = sum(
-                line.price_unit for bill in posted_bills for line in bill.invoice_line_ids if not line.tax_ids
-            )
-    
-            total_amount_tax_bill = total_amount_tax - posted_amount_tax_bill
-            total_amount_notax_bill = total_amount_notax - posted_amount_notax_bill
-    
-            # 创建新发票
-            _logger.info("Creating new Invoice")
-            product_with_tax, income_account_tax, taxes = self._get_product_and_accounts(
-                operating_company, 'Daily Settlement Products with TAX', 'income'
-            )
-            product_without_tax, income_account_notax, _ = self._get_product_and_accounts(
-                operating_company, 'Daily Settlement Products without TAX', 'income'
-            )
-            operating_journal = self.env['account.journal'].sudo().search([
-                ('type', '=', 'sale'),
-                ('company_id', '=', operating_company.id)
-            ], limit=1)
-    
+    def _create_settlement_invoice(self, operating_company, sales_company, settlement_date, amount_tax, amount_notax):
+        """创建新的结算发票"""
+        product_with_tax, income_account_tax, taxes = self._get_product_and_accounts(
+            operating_company, 'Daily Settlement Products with TAX', 'income'
+        )
+        product_without_tax, income_account_notax, _ = self._get_product_and_accounts(
+            operating_company, 'Daily Settlement Products without TAX', 'income'
+        )
+        operating_journal = self.env['account.journal'].sudo().search([
+            ('type', '=', 'sale'),
+            ('company_id', '=', operating_company.id)
+        ], limit=1)
+        
+        invoice_line_ids = []
+        # 只有当含税金额大于0时才添加含税行
+        if abs(amount_tax) > 0.01:
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_with_tax.id,
+                'quantity': 1.0,
+                'price_unit': amount_tax / (1 + sum(tax.amount/100.0 for tax in taxes)) if taxes else amount_tax,
+                'name': product_with_tax.name,
+                'account_id': income_account_tax.id,
+                'tax_ids': [(6, 0, taxes.ids)] if taxes else []
+            }))
+        
+        # 只有当不含税金额大于0时才添加不含税行
+        if abs(amount_notax) > 0.01:
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_without_tax.id,
+                'quantity': 1.0,
+                'price_unit': amount_notax,
+                'name': product_without_tax.name,
+                'account_id': income_account_notax.id,
+                'tax_ids': []
+            }))
+        
+        if invoice_line_ids:
             invoice_vals = {
                 'move_type': 'out_invoice',
                 'partner_id': sales_company.partner_id.id,
@@ -339,40 +470,50 @@ class AccountInvoice(models.Model):
                 'journal_id': operating_journal.id,
                 'invoice_date': settlement_date,
                 'invoice_origin': 'Daily Settlement',
-                'invoice_line_ids': [
-                    (0, 0, {
-                        'product_id': product_with_tax.id,
-                        'quantity': 1.0,
-                        'price_unit': total_amount_tax_invoice / (1 + sum(tax.amount/100.0 for tax in taxes)) if taxes else total_amount_tax_invoice,
-                        'name': product_with_tax.name,
-                        'account_id': income_account_tax.id,
-                        'tax_ids': [(6, 0, taxes.ids)] if taxes else []
-                    }),
-                    (0, 0, {
-                        'product_id': product_without_tax.id,
-                        'quantity': 1.0,
-                        'price_unit': total_amount_notax_invoice,
-                        'name': product_without_tax.name,
-                        'account_id': income_account_notax.id,
-                        'tax_ids': []
-                    })
-                ]
+                'invoice_line_ids': invoice_line_ids
             }
             settlement_invoice = self.env['account.move'].with_company(operating_company.id).create(invoice_vals)
+            _logger.info(f"Created new settlement Invoice: {settlement_invoice.id}")
+            return settlement_invoice
+        return None
     
-            # 创建新账单
-            _logger.info("Creating new Bill")
-            product_with_tax_sales, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
-                sales_company, 'Daily Settlement Products with TAX', 'expense'
-            )
-            product_without_tax_sales, expense_account_notax, _ = self._get_product_and_accounts(
-                sales_company, 'Daily Settlement Products without TAX', 'expense'
-            )
-            sales_journal = self.env['account.journal'].sudo().search([
-                ('type', '=', 'purchase'),
-                ('company_id', '=', sales_company.id)
-            ], limit=1)
-    
+    def _create_settlement_bill(self, sales_company, operating_company, settlement_date, amount_tax, amount_notax):
+        """创建新的结算账单"""
+        product_with_tax_sales, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+            sales_company, 'Daily Settlement Products with TAX', 'expense'
+        )
+        product_without_tax_sales, expense_account_notax, _ = self._get_product_and_accounts(
+            sales_company, 'Daily Settlement Products without TAX', 'expense'
+        )
+        sales_journal = self.env['account.journal'].sudo().search([
+            ('type', '=', 'purchase'),
+            ('company_id', '=', sales_company.id)
+        ], limit=1)
+        
+        invoice_line_ids = []
+        # 只有当含税金额大于0时才添加含税行
+        if abs(amount_tax) > 0.01:
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_with_tax_sales.id,
+                'quantity': 1.0,
+                'price_unit': amount_tax / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else amount_tax,
+                'name': product_with_tax_sales.name,
+                'account_id': expense_account_tax.id,
+                'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+            }))
+        
+        # 只有当不含税金额大于0时才添加不含税行
+        if abs(amount_notax) > 0.01:
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_without_tax_sales.id,
+                'quantity': 1.0,
+                'price_unit': amount_notax,
+                'name': product_without_tax_sales.name,
+                'account_id': expense_account_notax.id,
+                'tax_ids': []
+            }))
+        
+        if invoice_line_ids:
             bill_vals = {
                 'move_type': 'in_invoice',
                 'partner_id': operating_company.partner_id.id,
@@ -380,26 +521,116 @@ class AccountInvoice(models.Model):
                 'journal_id': sales_journal.id,
                 'invoice_date': settlement_date,
                 'invoice_origin': 'Daily Settlement',
-                'invoice_line_ids': [
-                    (0, 0, {
-                        'product_id': product_with_tax_sales.id,
-                        'quantity': 1.0,
-                        'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
-                        'name': product_with_tax_sales.name,
-                        'account_id': expense_account_tax.id,
-                        'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
-                    }),
-                    (0, 0, {
-                        'product_id': product_without_tax_sales.id,
-                        'quantity': 1.0,
-                        'price_unit': total_amount_notax_bill,
-                        'name': product_without_tax_sales.name,
-                        'account_id': expense_account_notax.id,
-                        'tax_ids': []
-                    })
-                ]
+                'invoice_line_ids': invoice_line_ids
             }
             settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
+            _logger.info(f"Created new settlement Bill: {settlement_bill.id}")
+            return settlement_bill
+        return None
+    
+    def _create_settlement_adjustment_invoice(self, operating_company, sales_company, settlement_date, diff_amount_tax, diff_amount_notax):
+        """创建结算发票的adjustment（当存在已paid的结算发票时）"""
+        product_with_tax, income_account_tax, taxes = self._get_product_and_accounts(
+            operating_company, 'Daily Settlement Products with TAX', 'income'
+        )
+        product_without_tax, income_account_notax, _ = self._get_product_and_accounts(
+            operating_company, 'Daily Settlement Products without TAX', 'income'
+        )
+        operating_journal = self.env['account.journal'].sudo().search([
+            ('type', '=', 'sale'),
+            ('company_id', '=', operating_company.id)
+        ], limit=1)
+        
+        invoice_line_ids = []
+        # 根据差异的正负决定是增加还是减少
+        if abs(diff_amount_tax) > 0.01:
+            quantity = 1.0 if diff_amount_tax > 0 else -1.0
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_with_tax.id,
+                'quantity': quantity,
+                'price_unit': abs(diff_amount_tax) / (1 + sum(tax.amount/100.0 for tax in taxes)) if taxes else abs(diff_amount_tax),
+                'name': f"Adjustment - {product_with_tax.name}",
+                'account_id': income_account_tax.id,
+                'tax_ids': [(6, 0, taxes.ids)] if taxes else []
+            }))
+        
+        if abs(diff_amount_notax) > 0.01:
+            quantity = 1.0 if diff_amount_notax > 0 else -1.0
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_without_tax.id,
+                'quantity': quantity,
+                'price_unit': abs(diff_amount_notax),
+                'name': f"Adjustment - {product_without_tax.name}",
+                'account_id': income_account_notax.id,
+                'tax_ids': []
+            }))
+        
+        if invoice_line_ids:
+            invoice_vals = {
+                'move_type': 'out_invoice',
+                'partner_id': sales_company.partner_id.id,
+                'company_id': operating_company.id,
+                'journal_id': operating_journal.id,
+                'invoice_date': settlement_date,
+                'invoice_origin': 'Daily Settlement Adjustment',
+                'invoice_line_ids': invoice_line_ids
+            }
+            adjustment_invoice = self.env['account.move'].with_company(operating_company.id).create(invoice_vals)
+            _logger.info(f"Created adjustment Invoice: {adjustment_invoice.id}")
+            return adjustment_invoice
+        return None
+    
+    def _create_settlement_adjustment_bill(self, sales_company, operating_company, settlement_date, diff_amount_tax, diff_amount_notax):
+        """创建结算账单的adjustment（当存在已paid的结算账单时）"""
+        product_with_tax_sales, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
+            sales_company, 'Daily Settlement Products with TAX', 'expense'
+        )
+        product_without_tax_sales, expense_account_notax, _ = self._get_product_and_accounts(
+            sales_company, 'Daily Settlement Products without TAX', 'expense'
+        )
+        sales_journal = self.env['account.journal'].sudo().search([
+            ('type', '=', 'purchase'),
+            ('company_id', '=', sales_company.id)
+        ], limit=1)
+        
+        invoice_line_ids = []
+        # 根据差异的正负决定是增加还是减少
+        if abs(diff_amount_tax) > 0.01:
+            quantity = 1.0 if diff_amount_tax > 0 else -1.0
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_with_tax_sales.id,
+                'quantity': quantity,
+                'price_unit': abs(diff_amount_tax) / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else abs(diff_amount_tax),
+                'name': f"Adjustment - {product_with_tax_sales.name}",
+                'account_id': expense_account_tax.id,
+                'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
+            }))
+        
+        if abs(diff_amount_notax) > 0.01:
+            quantity = 1.0 if diff_amount_notax > 0 else -1.0
+            invoice_line_ids.append((0, 0, {
+                'product_id': product_without_tax_sales.id,
+                'quantity': quantity,
+                'price_unit': abs(diff_amount_notax),
+                'name': f"Adjustment - {product_without_tax_sales.name}",
+                'account_id': expense_account_notax.id,
+                'tax_ids': []
+            }))
+        
+        if invoice_line_ids:
+            bill_vals = {
+                'move_type': 'in_invoice',
+                'partner_id': operating_company.partner_id.id,
+                'company_id': sales_company.id,
+                'journal_id': sales_journal.id,
+                'invoice_date': settlement_date,
+                'invoice_origin': 'Daily Settlement Adjustment',
+                'invoice_line_ids': invoice_line_ids
+            }
+            adjustment_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
+            _logger.info(f"Created adjustment Bill: {adjustment_bill.id}")
+            return adjustment_bill
+        return None
 
     def _handle_invoice_state_change(self, target_date=None):
         """统一处理发票状态变化
