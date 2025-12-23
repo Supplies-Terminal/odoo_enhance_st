@@ -347,6 +347,7 @@ class SaleOrder(models.Model):
                     'product_id': line.product_id.id,
                     'quantity': line.product_uom_qty,
                     'price_unit': line.price_unit,
+                    'discount': line.discount,  # 添加折扣
                     'name': line.name,
                     'account_id': account_id,
                     'tax_ids': [(6, 0, taxes.ids)]  # 添加税务信息
