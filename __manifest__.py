@@ -59,6 +59,7 @@
         'views/rma_views.xml',
         'views/account_move_views.xml',
         'views/customer_billing_mapping_views.xml',
+        'views/stock_quant_views.xml',
     ],
     'assets': {
         'web.assets_backend': [

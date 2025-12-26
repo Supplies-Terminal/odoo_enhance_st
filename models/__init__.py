@@ -21,3 +21,4 @@ from . import res_company
 from . import res_partner
 from . import rma
 from . import customer_billing_mapping
+from . import stock_quant
