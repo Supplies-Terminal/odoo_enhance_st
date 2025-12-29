@@ -473,6 +473,7 @@ class AccountInvoice(models.Model):
                 'invoice_line_ids': invoice_line_ids
             }
             settlement_invoice = self.env['account.move'].with_company(operating_company.id).create(invoice_vals)
+            settlement_invoice.action_post()
             _logger.info(f"Created new settlement Invoice: {settlement_invoice.id}")
             return settlement_invoice
         return None
@@ -524,6 +525,7 @@ class AccountInvoice(models.Model):
                 'invoice_line_ids': invoice_line_ids
             }
             settlement_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
+            settlement_bill.action_post()
             _logger.info(f"Created new settlement Bill: {settlement_bill.id}")
             return settlement_bill
         return None
@@ -576,6 +578,7 @@ class AccountInvoice(models.Model):
                 'invoice_line_ids': invoice_line_ids
             }
             adjustment_invoice = self.env['account.move'].with_company(operating_company.id).create(invoice_vals)
+            adjustment_invoice.action_post()
             _logger.info(f"Created adjustment Invoice: {adjustment_invoice.id}")
             return adjustment_invoice
         return None
@@ -628,6 +631,7 @@ class AccountInvoice(models.Model):
                 'invoice_line_ids': invoice_line_ids
             }
             adjustment_bill = self.env['account.move'].with_company(sales_company.id).create(bill_vals)
+            adjustment_bill.action_post()
             _logger.info(f"Created adjustment Bill: {adjustment_bill.id}")
             return adjustment_bill
         return None
