@@ -112,7 +112,7 @@ class ProductTemplate(models.Model):
     combined_name = fields.Char(string='Full Name', compute='_compute_combined_name', store=True)
 
     def action_view_stock_valuation(self):
-        """打开该产品的 Stock Valuation 页面"""
+        """打开该产品的 Stock Valuation 页面（新窗口）"""
         self.ensure_one()
         # 获取产品变体的 IDs
         product_ids = self.product_variant_ids.ids
@@ -124,7 +124,7 @@ class ProductTemplate(models.Model):
             'view_mode': 'tree,form',
             'domain': [('product_id', 'in', product_ids)],
             'context': {'search_default_product_id': product_ids[0] if product_ids else False},
-            'target': 'current',
+            'target': 'new',
         }
 
     last_vendor_id = fields.Many2one('res.partner', string='Last Vendor', 
