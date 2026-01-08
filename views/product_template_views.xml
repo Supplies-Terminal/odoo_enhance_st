@@ -25,6 +25,12 @@
                 <field name="secondary_uom_desc"/>
                 <field name="pack_supported"/>
             </tree>
+            <!-- 在 Cost 字段后添加查看 Stock Valuation 的按钮 -->
+            <xpath expr="//field[@name='standard_price']" position="after">
+                <button name="action_view_stock_valuation" type="object" 
+                    icon="fa-line-chart" title="View Stock Valuation"
+                    class="btn-link"/>
+            </xpath>
         </field>
     </record>
     <record id="view_product_template_search_inherit" model="ir.ui.view">
