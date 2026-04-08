@@ -3,6 +3,7 @@
 
 from odoo import _, models, fields, api
 from odoo.exceptions import UserError, ValidationError
+from datetime import datetime, timedelta, date
 import logging
 _logger = logging.getLogger(__name__)
 
@@ -12,6 +13,24 @@ class SaleOrder(models.Model):
     date_place = fields.Datetime(string='Place Date', required=False, readonly=True, index=True, copy=False, help="The date customers submit the quotation")
 
     quantity_counts = fields.Char(string='Quantity Counts', compute='_compute_quantity_counts', store=False)
+    estimated_profit = fields.Monetary(
+        string='Estimated Profit',
+        currency_field='currency_id',
+        store=True,
+        readonly=True,
+        copy=False,
+        default=0.0,
+        help='Snapshot at order confirmation: sum of (sale price - latest cost) × qty per line.',
+    )
+    margin = fields.Float(
+        string='Margin',
+        digits=(16, 6),
+        store=True,
+        readonly=True,
+        copy=False,
+        default=0.0,
+        help='Snapshot at order confirmation: estimated profit / sum of (sale price × qty).',
+    )
 
     source_po_id = fields.Many2one('purchase.order', string='Inter-company PO', required=False)
 
@@ -27,7 +46,72 @@ class SaleOrder(models.Model):
         required=True,
         help="Creation date of draft/sent orders,\nConfirmation date of "
              "confirmed orders.")
-    
+
+    def _get_latest_cost_by_date(self, product, company, reference_datetime):
+        """Return latest purchase/vendor bill unit cost up to reference datetime."""
+        if not product or not company:
+            return 0.0
+
+        reference_date = fields.Date.to_date(reference_datetime) or fields.Date.today()
+        reference_datetime_limit = datetime.combine(
+            reference_date + timedelta(days=1), datetime.min.time()
+        )
+
+        pol = self.env['purchase.order.line'].sudo().search([
+            ('product_id', '=', product.id),
+            ('order_id.company_id', '=', company.id),
+            ('order_id.state', 'in', ['purchase', 'done']),
+            ('order_id.date_approve', '<=', reference_datetime_limit),
+        ], order='order_id.date_approve desc', limit=1)
+
+        bill = self.env['account.move.line'].sudo().search([
+            ('product_id', '=', product.id),
+            ('move_id.company_id', '=', company.id),
+            ('move_id.state', '=', 'posted'),
+            ('move_id.move_type', '=', 'in_invoice'),
+            ('move_id.invoice_date', '<=', reference_date),
+        ], order='move_id.invoice_date desc', limit=1)
+
+        pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
+        bill_date = bill.move_id.invoice_date if bill and bill.move_id.invoice_date else datetime.min
+
+        if isinstance(pol_date, date):
+            pol_date = datetime.combine(pol_date, datetime.min.time())
+        if isinstance(bill_date, date):
+            bill_date = datetime.combine(bill_date, datetime.min.time())
+
+        if pol and pol_date >= bill_date:
+            return pol.price_unit
+        if bill:
+            return bill.price_unit
+        return 0.0
+
+    def _apply_estimated_profit_and_margin_at_confirm(self):
+        """Compute and store estimated profit / margin once, at confirmation time."""
+        for order in self:
+            confirm_datetime = order.date_order or fields.Datetime.now()
+            profit_total = 0.0
+            sales_total = 0.0
+
+            for line in order.order_line:
+                if line.display_type or not line.product_id:
+                    continue
+
+                qty = line.product_uom_qty or 0.0
+                sale_price = line.price_unit or 0.0
+                latest_cost = order._get_latest_cost_by_date(
+                    line.product_id, order.company_id, confirm_datetime
+                )
+
+                profit_total += (sale_price - latest_cost) * qty
+                sales_total += sale_price * qty
+
+            margin_val = (profit_total / sales_total) if sales_total else 0.0
+            order.write({
+                'estimated_profit': profit_total,
+                'margin': margin_val,
+            })
+
     def action_confirm(self):
         _logger.info('******** action_confirm *********')
         
@@ -65,6 +149,8 @@ class SaleOrder(models.Model):
         pickings = self.env['stock.picking'].search([('sale_id', '=', self.id)])
         for picking in pickings:
             picking.write({'origin': invoice.name})
+
+        self._apply_estimated_profit_and_margin_at_confirm()
 
         return result
     
