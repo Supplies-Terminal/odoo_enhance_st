@@ -421,7 +421,29 @@ class SaleOrderLine(models.Model):
                 else:
                     rec.secondary_qty = 0.0
                     rec.product_uom_qty = 0.0
-               
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        lines = super(SaleOrderLine, self).create(vals_list)
+        orders = lines.mapped('order_id').filtered(lambda o: o.state in ('sale', 'done'))
+        if orders:
+            orders._recompute_estimated_profit_and_margin()
+        return lines
+
+    def write(self, values):
+        orders_before = self.mapped('order_id')
+        res = super(SaleOrderLine, self).write(values)
+        orders = (orders_before | self.mapped('order_id')).filtered(lambda o: o.state in ('sale', 'done'))
+        if orders:
+            orders._recompute_estimated_profit_and_margin()
+        return res
+
+    def unlink(self):
+        orders = self.mapped('order_id')
+        res = super(SaleOrderLine, self).unlink()
+        orders.filtered(lambda o: o.state in ('sale', 'done'))._recompute_estimated_profit_and_margin()
+        return res
+
     def _prepare_invoice_line(self, **optional_values):
         res = super(SaleOrderLine, self)._prepare_invoice_line(
             **optional_values

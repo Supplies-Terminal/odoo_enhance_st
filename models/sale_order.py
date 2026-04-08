@@ -89,8 +89,8 @@ class SaleOrder(models.Model):
             return bill.price_unit
         return 0.0
 
-    def _apply_estimated_profit_and_margin_at_confirm(self):
-        """Compute and store estimated profit / margin once, at confirmation time."""
+    def _recompute_estimated_profit_and_margin(self):
+        """根据当前订单行与 date_order 写入 stored 的 estimated_profit / margin（用 super().write 避免 write 递归）。"""
         for order in self:
             confirm_datetime = order.date_order or fields.Datetime.now()
             profit_total = 0.0
@@ -110,7 +110,7 @@ class SaleOrder(models.Model):
                 sales_total += sale_price * qty
 
             margin_val = (profit_total / sales_total) if sales_total else 0.0
-            order.write({
+            super(SaleOrder, order).write({
                 'estimated_profit': profit_total,
                 'margin': margin_val,
             })
@@ -144,7 +144,7 @@ class SaleOrder(models.Model):
         invoice._set_next_sequence()
         _logger.info(invoice.name)
         # 根据销售订单的序列生成编号
-        self.write({
+        self.with_context(skip_estimated_profit_recompute=True).write({
             'name': invoice.name
         });
 
@@ -153,7 +153,7 @@ class SaleOrder(models.Model):
         for picking in pickings:
             picking.write({'origin': invoice.name})
 
-        self._apply_estimated_profit_and_margin_at_confirm()
+        self._recompute_estimated_profit_and_margin()
 
         return result
     
@@ -253,13 +253,13 @@ class SaleOrder(models.Model):
                 all_done = all(all_pick.state == 'done' for all_pick in all_picks)
 
                 if all_done:
-                    rec.write({'packing_done': True})
+                    rec.with_context(skip_estimated_profit_recompute=True).write({'packing_done': True})
                 else:
-                    rec.write({'packing_done': False})
+                    rec.with_context(skip_estimated_profit_recompute=True).write({'packing_done': False})
             else:
                 # 如果订单状态不是sale，则重置packing_done标志
                 if rec.packing_done == True:
-                    rec.write({'packing_done': False})
+                    rec.with_context(skip_estimated_profit_recompute=True).write({'packing_done': False})
         
     def write(self, values):
         result = super(SaleOrder, self).write(values)
@@ -285,7 +285,12 @@ class SaleOrder(models.Model):
         # 必须加上这个判断，否则会引起循环更新
         if 'packing_done' not in values:
             self.update_packing_done_flag()
-            
+
+        if not self.env.context.get('skip_estimated_profit_recompute'):
+            confirmed = self.filtered(lambda o: o.state in ('sale', 'done'))
+            if confirmed:
+                confirmed._recompute_estimated_profit_and_margin()
+
         return result
 
     def pricing_with_latest_cost_button_action(self):
