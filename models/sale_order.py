@@ -24,7 +24,7 @@ class SaleOrder(models.Model):
     )
     margin = fields.Float(
         string='Margin',
-        digits=(16, 6),
+        digits=(16, 3),
         store=True,
         readonly=True,
         copy=False,
@@ -109,7 +109,7 @@ class SaleOrder(models.Model):
                 profit_total += (sale_price - latest_cost) * qty
                 sales_total += sale_price * qty
 
-            margin_val = (profit_total / sales_total) if sales_total else 0.0
+            margin_val = round((profit_total / sales_total), 3) if sales_total else 0.0
             super(SaleOrder, order).write({
                 'estimated_profit': profit_total,
                 'margin': margin_val,
