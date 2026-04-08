@@ -115,6 +115,54 @@ class SaleOrder(models.Model):
                 'margin': margin_val,
             })
 
+    @api.model
+    def init_estimated_profit_and_margin(self, company_id, start_date, end_date):
+        """按 company_id 与 date_order 区间批量初始化 estimated_profit / margin。"""
+        if not company_id:
+            raise ValidationError(_("company_id is required."))
+        if not start_date or not end_date:
+            raise ValidationError(_("start_date and end_date are required."))
+
+        company = self.env['res.company'].browse(company_id)
+        if not company.exists():
+            raise ValidationError(_("Company %s does not exist.") % company_id)
+
+        # 兼容 date/datetime/string 输入；end_date 为日期时按当天 23:59:59 处理
+        start_dt = fields.Datetime.to_datetime(start_date)
+        end_dt = fields.Datetime.to_datetime(end_date)
+        if not start_dt or not end_dt:
+            raise ValidationError(_("Invalid start_date or end_date."))
+        if isinstance(end_date, str) and len(end_date) <= 10:
+            end_dt = datetime.combine(fields.Date.to_date(end_date), datetime.max.time())
+        if isinstance(end_date, date) and not isinstance(end_date, datetime):
+            end_dt = datetime.combine(end_date, datetime.max.time())
+        if start_dt > end_dt:
+            raise ValidationError(_("start_date must be earlier than or equal to end_date."))
+
+        domain = [
+            ('company_id', '=', company.id),
+            ('date_order', '>=', start_dt),
+            ('date_order', '<=', end_dt),
+        ]
+        order_ids = self.search(domain, order='date_order asc').ids
+
+        batch_size = 200
+        total = len(order_ids)
+        for idx in range(0, total, batch_size):
+            orders = self.browse(order_ids[idx: idx + batch_size])
+            orders._recompute_estimated_profit_and_margin()
+
+        _logger.info(
+            "init_estimated_profit_and_margin done: company_id=%s, start=%s, end=%s, total=%s",
+            company.id, start_dt, end_dt, total
+        )
+        return {
+            'company_id': company.id,
+            'start_date': fields.Datetime.to_string(start_dt),
+            'end_date': fields.Datetime.to_string(end_dt),
+            'updated_count': total,
+        }
+
     def action_confirm(self):
         _logger.info('******** action_confirm *********')
         
