@@ -57,20 +57,23 @@ class SaleOrder(models.Model):
             reference_date + timedelta(days=1), datetime.min.time()
         )
 
-        pol = self.env['purchase.order.line'].sudo().search([
-            ('product_id', '=', product.id),
-            ('order_id.company_id', '=', company.id),
-            ('order_id.state', 'in', ['purchase', 'done']),
-            ('order_id.date_approve', '<=', reference_datetime_limit),
-        ], order='order_id.date_approve desc', limit=1)
+        # search() 的 order 不能使用 order_id.xxx 等关联字段；先按 PO 的 date_approve 取最新一单再取行
+        po = self.env['purchase.order'].sudo().search([
+            ('company_id', '=', company.id),
+            ('state', 'in', ['purchase', 'done']),
+            ('date_approve', '<=', reference_datetime_limit),
+            ('order_line.product_id', '=', product.id),
+        ], order='date_approve desc', limit=1)
+        pol = po.order_line.filtered(lambda l: l.product_id == product)[:1]
 
-        bill = self.env['account.move.line'].sudo().search([
-            ('product_id', '=', product.id),
-            ('move_id.company_id', '=', company.id),
-            ('move_id.state', '=', 'posted'),
-            ('move_id.move_type', '=', 'in_invoice'),
-            ('move_id.invoice_date', '<=', reference_date),
-        ], order='move_id.invoice_date desc', limit=1)
+        bill_move = self.env['account.move'].sudo().search([
+            ('company_id', '=', company.id),
+            ('state', '=', 'posted'),
+            ('move_type', '=', 'in_invoice'),
+            ('invoice_date', '<=', reference_date),
+            ('invoice_line_ids.product_id', '=', product.id),
+        ], order='invoice_date desc', limit=1)
+        bill = bill_move.invoice_line_ids.filtered(lambda l: l.product_id == product)[:1]
 
         pol_date = pol.order_id.date_approve if pol and pol.order_id.date_approve else datetime.min
         bill_date = bill.move_id.invoice_date if bill and bill.move_id.invoice_date else datetime.min
