@@ -847,6 +847,7 @@ class AccountInvoice(models.Model):
         
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
+        billing_account_id = self._get_mapping_billing_account(mapping, billing_company).id
         
         # 扣减已付款账单的金额
         paid_amount_tax_bill = 0
