@@ -812,7 +812,9 @@ class AccountInvoice(models.Model):
 
     def _get_mapping_billing_account(self, mapping, billing_company):
         """Get billing account from mapping and validate company."""
-        account = mapping.chart_of_account_id
+        mapping = mapping.sudo()
+        billing_company = billing_company.sudo()
+        account = mapping.chart_of_account_id.sudo()
         if not account:
             raise UserError(
                 "Please configure Chart of Account on billing mapping "
