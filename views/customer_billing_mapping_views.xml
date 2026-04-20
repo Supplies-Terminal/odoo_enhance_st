@@ -10,6 +10,7 @@
                 <field name="partner_id"/>
                 <field name="billing_company_id"/>
                 <field name="billing_partner_id"/>
+                <field name="chart_of_account_id"/>
                 <field name="active"/>
             </tree>
         </field>
@@ -31,6 +32,8 @@
                             <field name="billing_company_id"/>
                             <field name="billing_partner_id" 
                                    domain="[('is_company', '=', True), ('company_id', '=', billing_company_id)]"/>
+                            <field name="chart_of_account_id"
+                                   domain="[('company_id', '=', billing_company_id), ('deprecated', '=', False)]"/>
                             <field name="active"/>
                         </group>
                     </group>
@@ -49,6 +52,7 @@
                 <field name="partner_id"/>
                 <field name="billing_company_id"/>
                 <field name="billing_partner_id"/>
+                <field name="chart_of_account_id"/>
                 <filter string="My Company" name="my_company" domain="[('company_id', '=', uid.company_id.id)]"/>
                 <filter string="Active" name="active" domain="[('active', '=', True)]"/>
                 <filter string="Inactive" name="inactive" domain="[('active', '=', False)]"/>

@@ -336,6 +336,7 @@ class PurchaseOrder(models.Model):
 
 class ReportPurchaseOrderAllocation(models.AbstractModel):
     _name = 'report.odoo_enhance_st.report_purchase_order_allocation'
+    _description = 'Purchase Order Allocation Report'
 
     @api.model
     def _get_report_values(self, docids, data=None):

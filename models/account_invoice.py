@@ -105,6 +105,7 @@ class AccountInvoice(models.Model):
         
         # 使用映射中的billing_partner_id作为供应商
         vendor_partner_id = mapping.billing_partner_id.id
+        billing_account_id = self._get_mapping_billing_account(mapping, billing_company).id
         
         # 准备调整账单行
         invoice_line_ids = []
@@ -118,7 +119,7 @@ class AccountInvoice(models.Model):
                     'quantity': 1.0,
                     'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
                     'name': f"Adjustment - {product_with_tax.name}",
-                    'account_id': expense_account_tax.id,
+                    'account_id': billing_account_id,
                     'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
                 }))
             
@@ -128,7 +129,7 @@ class AccountInvoice(models.Model):
                     'quantity': 1.0,
                     'price_unit': total_amount_notax_bill,
                     'name': f"Adjustment - {product_without_tax.name}",
-                    'account_id': expense_account_notax.id,
+                    'account_id': billing_account_id,
                     'tax_ids': []
                 }))
         else:
@@ -140,7 +141,7 @@ class AccountInvoice(models.Model):
                     'quantity': -1.0,  # 负数数量
                     'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
                     'name': f"Adjustment - {product_with_tax.name}",
-                    'account_id': expense_account_tax.id,
+                    'account_id': billing_account_id,
                     'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
                 }))
             
@@ -150,7 +151,7 @@ class AccountInvoice(models.Model):
                     'quantity': -1.0,  # 负数数量
                     'name': f"Adjustment - {product_without_tax.name}",
                     'price_unit': total_amount_notax_bill,
-                    'account_id': expense_account_notax.id,
+                    'account_id': billing_account_id,
                     'tax_ids': []
                 }))
         
@@ -702,6 +703,7 @@ class AccountInvoice(models.Model):
         
         # 使用映射中的billing_partner_id作为供应商ID
         vendor_partner_id = mapping.billing_partner_id.id
+        billing_account_id = self._get_mapping_billing_account(mapping, billing_company).id
         
         # 查找现有的账单
         existing_bills = self.env['account.move'].sudo().search([
@@ -788,14 +790,14 @@ class AccountInvoice(models.Model):
             if abs(expected_total - current_total) > 0.01:  # 允许小数点精度误差
                 _logger.info(f"Amount mismatch for credit note {record.name}, updating refund {existing_credit_bill.id}")
                 # 金额不一致，需要更新
-                self._update_credit_note_refund(existing_credit_bill, record, credit_tax_amount, credit_notax_amount)
+                self._update_credit_note_refund(existing_credit_bill, record, credit_tax_amount, credit_notax_amount, mapping)
             else:
                 _logger.info(f"Credit note {record.name} refund {existing_credit_bill.id} already exists with correct amount")
         else:
             # 不存在对应退款单，创建新的
             _logger.info(f"Creating new refund for credit note {record.name}")
             self._create_credit_note_refund(record, credit_tax_amount, credit_notax_amount, 
-                                        billing_company, vendor_partner_id, invoice_date)
+                                        billing_company, vendor_partner_id, invoice_date, mapping)
 
     def _get_customer_billing_bill(self, company, partner_id, origin, date):
         """查询客户账单"""
@@ -807,6 +809,21 @@ class AccountInvoice(models.Model):
             ('invoice_origin', '=', origin),
             ('state', '=', 'draft'),
         ], limit=1)
+
+    def _get_mapping_billing_account(self, mapping, billing_company):
+        """Get billing account from mapping and validate company."""
+        account = mapping.chart_of_account_id
+        if not account:
+            raise UserError(
+                "Please configure Chart of Account on billing mapping "
+                f"for customer {mapping.partner_id.display_name}."
+            )
+        if account.company_id != billing_company:
+            raise UserError(
+                "Configured Chart of Account does not belong to billing company "
+                f"{billing_company.display_name}."
+            )
+        return account
 
     def _update_customer_billing_bill(self, billing_company, invoice, mapping, existing_bill, paid_bills=None, target_date=None):
         """更新客户账单（仅处理销售发票的合并账单逻辑，不处理贷项通知单）"""
@@ -890,7 +907,7 @@ class AccountInvoice(models.Model):
                         'quantity': 1.0,
                         'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
                         'name': product_with_tax.name,
-                        'account_id': expense_account_tax.id,
+                        'account_id': billing_account_id,
                         'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
                     }))
                     _logger.info(f"Adding tax line with amount: {total_amount_tax_bill}")
@@ -902,7 +919,7 @@ class AccountInvoice(models.Model):
                         'quantity': 1.0,
                         'price_unit': total_amount_notax_bill,
                         'name': product_without_tax.name,
-                        'account_id': expense_account_notax.id,
+                        'account_id': billing_account_id,
                         'tax_ids': []
                     }))
                     _logger.info(f"Adding non-tax line with amount: {total_amount_notax_bill}")
@@ -1012,7 +1029,7 @@ class AccountInvoice(models.Model):
                     'quantity': 1.0,
                     'price_unit': total_amount_tax_bill / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else total_amount_tax_bill,
                     'name': product_with_tax.name,
-                    'account_id': expense_account_tax.id,
+                    'account_id': billing_account_id,
                     'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
                 }))
                 _logger.info(f"Adding tax line with amount: {total_amount_tax_bill}")
@@ -1024,7 +1041,7 @@ class AccountInvoice(models.Model):
                     'quantity': 1.0,
                     'price_unit': total_amount_notax_bill,
                     'name': product_without_tax.name,
-                    'account_id': expense_account_notax.id,
+                    'account_id': billing_account_id,
                     'tax_ids': []
                 }))
                 _logger.info(f"Adding non-tax line with amount: {total_amount_notax_bill}")
@@ -1052,8 +1069,8 @@ class AccountInvoice(models.Model):
                     _logger.error(f"Failed to auto-confirm merged Customer Bill {customer_bill.id}: {str(e)}")
                     # 即使自动确认失败，也不影响账单创建
 
-    def _create_credit_note_refund(self, credit_note, credit_tax_amount, credit_notax_amount, 
-                               billing_company, vendor_partner_id, invoice_date):
+    def _create_credit_note_refund(self, credit_note, credit_tax_amount, credit_notax_amount,
+                               billing_company, vendor_partner_id, invoice_date, mapping):
         """为贷项通知单创建对应的退款单"""
         # 获取产品和账户信息
         product_with_tax, expense_account_tax, supplier_taxes = self._get_product_and_accounts(
@@ -1071,6 +1088,7 @@ class AccountInvoice(models.Model):
         
         # 准备贷项通知单的账单行
         credit_bill_lines = []
+        billing_account_id = self._get_mapping_billing_account(mapping, billing_company).id
         
         if credit_tax_amount > 0:
             credit_bill_lines.append((0, 0, {
@@ -1078,7 +1096,7 @@ class AccountInvoice(models.Model):
                 'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_tax_amount / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else credit_tax_amount,
                 'name': f"Credit Note - {product_with_tax.name}",
-                'account_id': expense_account_tax.id,
+                'account_id': billing_account_id,
                 'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
             }))
         
@@ -1088,7 +1106,7 @@ class AccountInvoice(models.Model):
                 'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_notax_amount,
                 'name': f"Credit Note - {product_without_tax.name}",
-                'account_id': expense_account_notax.id,
+                'account_id': billing_account_id,
                 'tax_ids': []
             }))
         
@@ -1118,7 +1136,7 @@ class AccountInvoice(models.Model):
             
             return credit_refund
 
-    def _update_credit_note_refund(self, existing_bill, credit_note, credit_tax_amount, credit_notax_amount):
+    def _update_credit_note_refund(self, existing_bill, credit_note, credit_tax_amount, credit_notax_amount, mapping):
         """更新贷项通知单对应的退款单（独立于销售发票的合并账单逻辑）"""
         # 获取产品和账户信息
         billing_company = existing_bill.company_id
@@ -1128,6 +1146,7 @@ class AccountInvoice(models.Model):
         product_without_tax, expense_account_notax, _ = self._get_product_and_accounts(
             billing_company, 'Daily Settlement Products without TAX', 'expense'
         )
+        billing_account_id = self._get_mapping_billing_account(mapping, billing_company).id
         
         # 准备新的账单行
         credit_bill_lines = []
@@ -1138,7 +1157,7 @@ class AccountInvoice(models.Model):
                 'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_tax_amount / (1 + sum(tax.amount/100.0 for tax in supplier_taxes)) if supplier_taxes else credit_tax_amount,
                 'name': f"Credit Note - {product_with_tax.name}",
-                'account_id': expense_account_tax.id,
+                'account_id': billing_account_id,
                 'tax_ids': [(6, 0, supplier_taxes.ids)] if supplier_taxes else []
             }))
         
@@ -1148,7 +1167,7 @@ class AccountInvoice(models.Model):
                 'quantity': 1.0,  # 正数数量，表示减少费用
                 'price_unit': credit_notax_amount,
                 'name': f"Credit Note - {product_without_tax.name}",
-                'account_id': expense_account_notax.id,
+                'account_id': billing_account_id,
                 'tax_ids': []
             }))
         

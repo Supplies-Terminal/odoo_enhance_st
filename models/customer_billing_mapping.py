@@ -40,6 +40,13 @@ class CustomerBillingMapping(models.Model):
         domain="[('is_company', '=', True)]",
         help='Vendor partner in the billing company (e.g., "syntac" customer in jo\'s tea company)'
     )
+    chart_of_account_id = fields.Many2one(
+        'account.account',
+        string='Chart of Account',
+        required=True,
+        domain="[('company_id', '=', billing_company_id), ('deprecated', '=', False)]",
+        help='Expense account used when creating billing documents'
+    )
     active = fields.Boolean(default=True, string='Active')
     
     _sql_constraints = [
@@ -60,27 +67,41 @@ class CustomerBillingMapping(models.Model):
                 if record.billing_partner_id.company_id and record.billing_partner_id.company_id != record.billing_company_id:
                     raise ValidationError(_('Billing vendor must belong to the billing company!'))
 
+    @api.constrains('chart_of_account_id', 'billing_company_id')
+    def _check_chart_of_account_company(self):
+        for record in self:
+            if record.chart_of_account_id and record.billing_company_id:
+                if record.chart_of_account_id.company_id != record.billing_company_id:
+                    raise ValidationError(_('Chart of Account must belong to the billing company!'))
+
     @api.onchange('billing_company_id')
     def _onchange_billing_company_id(self):
         """当账单公司改变时，清空并更新供应商选择域"""
         if self.billing_company_id:
             # 清空供应商选择
             self.billing_partner_id = False
+            self.chart_of_account_id = False
             # 返回动态域，使用 sudo() 来跨公司查询
             return {
                 'domain': {
                     'billing_partner_id': [
                         ('is_company', '=', True),
                         ('company_id', '=', self.billing_company_id.id)
-                    ]
+                    ],
+                    'chart_of_account_id': [
+                        ('company_id', '=', self.billing_company_id.id),
+                        ('deprecated', '=', False),
+                    ],
                 }
             }
         else:
             # 如果没有选择账单公司，清空供应商
             self.billing_partner_id = False
+            self.chart_of_account_id = False
             return {
                 'domain': {
-                    'billing_partner_id': [('id', '=', False)]
+                    'billing_partner_id': [('id', '=', False)],
+                    'chart_of_account_id': [('id', '=', False)],
                 }
             }
 
