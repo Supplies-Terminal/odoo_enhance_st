@@ -29,6 +29,13 @@ class ProductProduct(models.Model):
                         quantities.append(f"{company.name.split()[0]}: {round(qty)}")
             product.stock_quantities = ', '.join(quantities)
 
+    def get_product_multiline_description_sale(self):
+        # 订单行描述保持一行：将换行（中英文/销售描述换行）统一替换为 " / "
+        name = super().get_product_multiline_description_sale()
+        if name:
+            name = ' / '.join(part.strip() for part in name.split('\n') if part.strip())
+        return name
+
     def name_get(self):
         def _name_get(d):
             code = self._context.get('display_default_code', True) and d.get('default_code', False) or False
