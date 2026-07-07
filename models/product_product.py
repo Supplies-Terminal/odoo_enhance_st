@@ -29,6 +29,10 @@ class ProductProduct(models.Model):
                         quantities.append(f"{company.name.split()[0]}: {round(qty)}")
             product.stock_quantities = ', '.join(quantities)
 
+    def _get_lines_domain(self, location_ids=False, warehouse_ids=False):
+        """Unconfirmed PO lines must not increase forecasted quantity."""
+        return [('id', '=', False)]
+
     def name_get(self):
         def _name_get(d):
             code = self._context.get('display_default_code', True) and d.get('default_code', False) or False

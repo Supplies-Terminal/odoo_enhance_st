@@ -29,7 +29,8 @@
         'sale',
         'web',
         'rma',
-        'account'
+        'account',
+        'purchase_stock',
     ],
     'data': [
         'security/ir.model.access.csv',
