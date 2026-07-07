@@ -33,6 +33,46 @@ class ProductProduct(models.Model):
         """Unconfirmed PO lines must not increase forecasted quantity."""
         return [('id', '=', False)]
 
+    def _compute_quantities_dict(self, lot_id, owner_id, package_id, from_date=False, to_date=False):
+        res = super()._compute_quantities_dict(
+            lot_id, owner_id, package_id, from_date=from_date, to_date=to_date,
+        )
+        if not self:
+            return res
+
+        domain_quant_loc, domain_move_in_loc, domain_move_out_loc = self._get_domain_locations()
+        unconfirmed_incoming_domain = [
+            ('product_id', 'in', self.ids),
+            ('purchase_line_id', '!=', False),
+            ('purchase_line_id.order_id.state', 'not in', ('purchase', 'done')),
+            ('state', 'in', ('waiting', 'confirmed', 'assigned', 'partially_available', 'draft')),
+        ] + domain_move_in_loc
+        unconfirmed_incoming = {
+            item['product_id'][0]: item['product_qty']
+            for item in self.env['stock.move'].with_context(active_test=False).read_group(
+                unconfirmed_incoming_domain,
+                ['product_id', 'product_qty'],
+                ['product_id'],
+            )
+        }
+        for product in self:
+            product_id = product.id
+            if product_id not in res:
+                continue
+            qty = unconfirmed_incoming.get(product._origin.id, 0.0)
+            if not qty:
+                continue
+            rounding = product.uom_id.rounding
+            res[product_id]['incoming_qty'] = float_round(
+                res[product_id]['incoming_qty'] - qty,
+                precision_rounding=rounding,
+            )
+            res[product_id]['virtual_available'] = float_round(
+                res[product_id]['virtual_available'] - qty,
+                precision_rounding=rounding,
+            )
+        return res
+
     def name_get(self):
         def _name_get(d):
             code = self._context.get('display_default_code', True) and d.get('default_code', False) or False

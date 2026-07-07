@@ -22,3 +22,4 @@ from . import res_partner
 from . import rma
 from . import customer_billing_mapping
 from . import stock_quant
+from . import report_stock_forecasted
