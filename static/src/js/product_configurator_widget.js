@@ -15,7 +15,8 @@ odoo.define("odoo_enhance_st.product_configurator", function (require) {
         var trimmedName = textareaValue
           .split(" >> ")[0]
           .split("*")[0]
-          .trim();
+          .trim()
+          .replace(/ \/ /g, "\n");
         textareaDiv.val(trimmedName);
       }
       return result;
