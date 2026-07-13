@@ -128,6 +128,19 @@ class PurchaseOrder(models.Model):
     def print_allocation_report(self):
         return self.env.ref('odoo_enhance_st.action_report_purchase_order_allocation').report_action(self)
 
+    def pricing_with_latest_cost_button_action(self):
+        _logger.info('- pricing_with_latest_cost_button_action -')
+
+        self.ensure_one()
+
+        for line in self.order_line:
+            line.write({'price_unit': line.latest_cost_value})
+
+        return {
+            'type': 'ir.actions.client',
+            'tag': 'reload',
+        }
+
 
     # def button_confirm(self):
     #     for order in self:

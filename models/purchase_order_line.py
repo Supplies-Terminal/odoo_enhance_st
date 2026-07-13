@@ -2,6 +2,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
 from odoo import models, fields, api
+from datetime import datetime
 import logging
 _logger = logging.getLogger(__name__)
         
@@ -28,25 +29,47 @@ class PurchaseOrderLineMO(models.Model):
 class PurchaseOrderLine(models.Model):
     _inherit = "purchase.order.line"
 
+    latest_cost_value = fields.Float(string='Latest Cost Value', compute='_compute_latest_cost_value', store=False)
     latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=True)
 
-    @api.depends('product_id')
+    def _get_latest_cost_line(self):
+        self.ensure_one()
+
+        PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo()
+        domain = [
+            ('product_id', '=', self.product_id.id),
+            ('order_id.company_id', '=', self.order_id.company_id.id),
+            ('order_id.partner_id', '=', self.order_id.partner_id.id),
+            ('order_id.state', 'in', ['purchase', 'done'])
+        ]
+        if isinstance(self.id, int):
+            domain.append(('id', '!=', self.id))
+
+        pols = PurchaseOrderLineSudo.search(domain)
+        if not pols:
+            return False
+
+        return sorted(
+            pols,
+            key=lambda pol: pol.order_id.date_approve or pol.order_id.date_order or datetime.min,
+            reverse=True
+        )[0]
+
+    @api.depends('product_id', 'order_id.company_id', 'order_id.partner_id')
+    def _compute_latest_cost_value(self):
+        for rec in self:
+            rec.latest_cost_value = 0
+            latest_line = rec._get_latest_cost_line()
+            if latest_line:
+                rec.latest_cost_value = latest_line.price_unit
+
+    @api.depends('product_id', 'order_id.company_id', 'order_id.partner_id')
     def _compute_latest_cost(self):
         for rec in self:
             rec.latest_cost = '-'
-            PurchaseOrderLineSudo = self.env['purchase.order.line'].sudo();
-            pol = PurchaseOrderLineSudo.search([
-                ('product_id', '=', rec.product_id.id), 
-                ('order_id.company_id', '=', rec.order_id.company_id.id), 
-                ('order_id.partner_id', '=', rec.order_id.partner_id.id), 
-                ('order_id.state', 'in', ['purchase', 'done'])
-            ])
-            # 手动排序并取第一条
-            if pol:
-                pol = sorted(pol, key=lambda x: x.order_id.date_approve or datetime.min, reverse=True)
-                pol = pol[0] if pol else None
-                if pol:
-                    rec.latest_cost = "${}/{}".format(pol.price_unit, pol.product_uom.name)
+            latest_line = rec._get_latest_cost_line()
+            if latest_line:
+                rec.latest_cost = "${}/{}".format(latest_line.price_unit, latest_line.product_uom.name)
 
     so_ids = fields.One2many('purchase.order.line.so', 'purchase_order_line_id', string='Sale Order Lines')
     mo_ids = fields.One2many('purchase.order.line.mo', 'purchase_order_line_id', string='Manufacturing Order Lines')
