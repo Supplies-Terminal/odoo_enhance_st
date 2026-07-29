@@ -81,6 +81,9 @@ class StockMove(models.Model):
 
         # 临时修改库存
         for move in self.filtered(lambda m: m.state in ['confirmed', 'waiting', 'partially_available']):
+            if move._should_skip_delivery_location_reservation_filter():
+                super(StockMove, move)._action_assign()
+                continue
             original_quantities = {}
             
             # 获取本公司的is_for_delivery的库存区域
@@ -131,6 +134,16 @@ class StockMove(models.Model):
                 quant.write({'reserved_quantity': original_qty})
 
         return True
+
+    def _should_skip_delivery_location_reservation_filter(self):
+        self.ensure_one()
+        if self.env.context.get('skip_delivery_location_reservation_filter'):
+            return True
+        if self.restrict_partner_id:
+            return True
+        if 'merchant_company_id' in self._fields and self.merchant_company_id:
+            return True
+        return False
 
 # class StockQuant(models.Model):
 #     _inherit = 'stock.quant'
