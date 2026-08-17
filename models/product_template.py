@@ -195,12 +195,15 @@ class ProductTemplate(models.Model):
 
     @api.depends('name')
     def _compute_combined_name(self):
+        installed_langs = self.env["res.lang"].get_installed()
+        # 翻译写入后，各语言 env 可能仍缓存旧 name，重算前先清掉
+        for code, _ in installed_langs:
+            self.with_context(lang=code).invalidate_cache(['name'], self.ids)
         for product in self:
             names = []
-            installed_langs = self.env["res.lang"].get_installed()
             for code, _ in installed_langs:
                 product_lang = product.with_context(lang=code)
-                names.append(product_lang.name)
+                names.append(product_lang.name or '')
             product.combined_name = ' / '.join(names)  # 使用 ' / ' 作为分隔符
 
     @api.model

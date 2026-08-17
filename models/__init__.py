@@ -3,6 +3,7 @@
 
 from . import product_product
 from . import product_template
+from . import ir_translation
 from . import st_preference
 from . import st_purchasecard
 from . import res_user_approval
