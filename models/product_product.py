@@ -18,33 +18,15 @@ class ProductProduct(models.Model):
     stock_quantities = fields.Char(compute='_compute_stock_quantities', store=False)
 
     def _compute_stock_quantities(self):
-        Quant = self.env['stock.quant'].sudo()
-        Warehouse = self.env['stock.warehouse'].sudo()
+        _logger.info('------******************-------')
         for product in self:
             quantities = []
-            for company in self.env['res.company'].sudo().search([]):
-                warehouse = Warehouse.search([('company_id', '=', company.id)], limit=1)
-                if not warehouse or not warehouse.lot_stock_id:
-                    continue
-                groups = Quant.read_group(
-                    [
-                        ('product_id', '=', product.id),
-                        ('location_id', 'child_of', warehouse.lot_stock_id.id),
-                        ('company_id', '=', company.id),
-                    ],
-                    ['quantity', 'reserved_quantity'],
-                    ['owner_id'],
-                    lazy=False,
-                )
-                for group in groups:
-                    qty = group['quantity'] - group['reserved_quantity']
-                    if not qty:
-                        continue
-                    if group['owner_id']:
-                        label = group['owner_id'][1]
-                    else:
-                        label = company.name.split()[0]
-                    quantities.append(f"{label}: {round(qty)}")
+            for company in self.env['res.company'].sudo().search([('id', '!=', 11)]):
+                warehouse = self.env['stock.warehouse'].sudo().search([('company_id', '=', company.id)], limit=1)
+                if warehouse and warehouse.lot_stock_id:
+                    qty = self.env['stock.quant'].sudo()._get_available_quantity(product, warehouse.lot_stock_id)
+                    if qty:
+                        quantities.append(f"{company.name.split()[0]}: {round(qty)}")
             product.stock_quantities = ', '.join(quantities)
 
     def _get_lines_domain(self, location_ids=False, warehouse_ids=False):
