@@ -9,14 +9,22 @@
                <field name="is_sales_company" invisible="1"/>
                <field name="operating_company_id" attrs="{'invisible': [('is_sales_company', '=', False)]}"/>
            </group>
-           <xpath expr="//tree/header/button[@name='action_register_payment']" position="attributes">
-               <attribute name="groups">account.group_account_user,!odoo_enhance_st.group_invoice_no_payment</attribute>
-           </xpath>
            <xpath expr="//button[@id='account_invoice_payment_btn']" position="attributes">
                <attribute name="groups">account.group_account_invoice,!odoo_enhance_st.group_invoice_no_payment</attribute>
            </xpath>
            <xpath expr="//field[@name='invoice_outstanding_credits_debits_widget']" position="attributes">
                <attribute name="groups">account.group_account_invoice,!odoo_enhance_st.group_invoice_no_payment</attribute>
+           </xpath>
+        </field>
+    </record>
+
+    <record id="view_invoice_tree_no_payment" model="ir.ui.view">
+        <field name="name">account.invoice.tree.no.payment</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_invoice_tree"/>
+        <field name="arch" type="xml">
+           <xpath expr="//tree/header/button[@name='action_register_payment']" position="attributes">
+               <attribute name="groups">account.group_account_user,!odoo_enhance_st.group_invoice_no_payment</attribute>
            </xpath>
         </field>
     </record>
