@@ -33,6 +33,7 @@
         'purchase_stock',
     ],
     'data': [
+        'security/security.xml',
         'security/ir.model.access.csv',
         'reports/report_customer_statement.xml',
         'reports/report_purchase_order_allocation.xml',

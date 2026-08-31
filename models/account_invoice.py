@@ -1,8 +1,8 @@
 # -*- coding: UTF-8 -*-
 # Part of Softhealer Technologies.
 
-from odoo import models, fields, api
-from odoo.exceptions import UserError, ValidationError
+from odoo import models, fields, api, _
+from odoo.exceptions import AccessError, UserError, ValidationError
 from pytz import timezone
 from datetime import datetime, time
 import pytz
@@ -13,6 +13,22 @@ _logger = logging.getLogger(__name__)
 
 class AccountInvoice(models.Model):
     _inherit = 'account.move'
+
+    def _check_invoice_no_payment_group(self):
+        if not self.env.su and self.env.user.has_group("odoo_enhance_st.group_invoice_no_payment"):
+            raise AccessError(_("You are not allowed to operate payments."))
+
+    def action_register_payment(self):
+        self._check_invoice_no_payment_group()
+        return super().action_register_payment()
+
+    def js_assign_outstanding_line(self, line_id):
+        self._check_invoice_no_payment_group()
+        return super().js_assign_outstanding_line(line_id)
+
+    def js_remove_outstanding_partial(self, partial_id):
+        self._check_invoice_no_payment_group()
+        return super().js_remove_outstanding_partial(partial_id)
 
     # 类级别的防重复锁
     _billing_update_locks = {}

@@ -9,6 +9,15 @@
                <field name="is_sales_company" invisible="1"/>
                <field name="operating_company_id" attrs="{'invisible': [('is_sales_company', '=', False)]}"/>
            </group>
+           <xpath expr="//tree/header/button[@name='action_register_payment']" position="attributes">
+               <attribute name="groups">account.group_account_user,!odoo_enhance_st.group_invoice_no_payment</attribute>
+           </xpath>
+           <xpath expr="//button[@id='account_invoice_payment_btn']" position="attributes">
+               <attribute name="groups">account.group_account_invoice,!odoo_enhance_st.group_invoice_no_payment</attribute>
+           </xpath>
+           <xpath expr="//field[@name='invoice_outstanding_credits_debits_widget']" position="attributes">
+               <attribute name="groups">account.group_account_invoice,!odoo_enhance_st.group_invoice_no_payment</attribute>
+           </xpath>
         </field>
     </record>
 </odoo>
