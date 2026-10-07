@@ -37,39 +37,42 @@ class ProductTemplate(models.Model):
 
     @api.depends('product_variant_ids')
     def _compute_latest_cost(self):
+        companies = self.env['res.company'].search([('id', '=', 9)])
+        current_date = fields.Date.today()
+        purchase_by_template = {}
+        bill_by_template = {}
+        if companies:
+            purchase_lines = self.env['purchase.order.line'].sudo().search([
+                ('product_id.product_tmpl_id', 'in', self.ids),
+                ('order_id.company_id', 'in', companies.ids),
+                ('order_id.state', 'in', ['purchase', 'done']),
+                ('order_id.date_approve', '<=', current_date),
+            ])
+            bill_lines = self.env['account.move.line'].sudo().search([
+                ('product_id.product_tmpl_id', 'in', self.ids),
+                ('move_id.company_id', 'in', companies.ids),
+                ('move_id.state', '=', 'posted'),
+                ('move_id.move_type', '=', 'in_invoice'),
+                ('move_id.invoice_date', '<=', current_date),
+            ])
+            for line in purchase_lines:
+                purchase_by_template.setdefault(line.product_id.product_tmpl_id.id, []).append(line)
+            for line in bill_lines:
+                bill_by_template.setdefault(line.product_id.product_tmpl_id.id, []).append(line)
         for rec in self:
             cost_info = []
             # 获取所有公司
-            companies = self.env['res.company'].search([('id', '=', 9)])
             
             for company in companies:
-                # 获取该公司的采购订单行
-                PurchaseOrderLine = self.env['purchase.order.line'].sudo()
-                BillLine = self.env['account.move.line'].sudo()
-                
-                # 获取当前日期
-                current_date = fields.Date.today()
-                
                 # 搜索采购订单行
-                pol = PurchaseOrderLine.sudo().search([
-                    ('product_id.product_tmpl_id', '=', rec.id),
-                    ('order_id.company_id', '=', company.id),
-                    ('order_id.state', 'in', ['purchase', 'done']),
-                    ('order_id.date_approve', '<=', current_date)
-                ])
+                pol = purchase_by_template.get(rec.id, [])
                 # 手动排序并取第一条
                 if pol:
                     pol = sorted(pol, key=lambda x: x.order_id.date_approve or datetime.min, reverse=True)
                     pol = pol[0] if pol else None
                 
                 # 搜索供应商账单行
-                bill = BillLine.search([
-                    ('product_id.product_tmpl_id', '=', rec.id),
-                    ('move_id.company_id', '=', company.id),
-                    ('move_id.state', '=', 'posted'),
-                    ('move_id.move_type', '=', 'in_invoice'),
-                    ('move_id.invoice_date', '<=', current_date)
-                ])
+                bill = bill_by_template.get(rec.id, [])
                 # 手动排序并取第一条
                 if bill:
                     bill = sorted(bill, key=lambda x: x.move_id.invoice_date or datetime.min, reverse=True)
@@ -207,12 +210,13 @@ class ProductTemplate(models.Model):
             product.combined_name = ' / '.join(names)  # 使用 ' / ' 作为分隔符
 
     @api.model
-    def search_read(self, domain=None, fields=None, offset=0, limit=None, order=None):
-        domain = domain or []
-        current_company = self.env.company
+    def _private_product_search_domain(self):
+        if self.env.company.private_product_only:
+            return [('company_id', '=', self.env.company.id)]
+        return []
 
-        # 检查当前公司是否设置了只看私有产品
-        if current_company.private_product_only:
-            domain += [('company_id', '=', current_company.id)]
+    @api.model
+    def search_read(self, domain=None, fields=None, offset=0, limit=None, order=None):
+        domain = list(domain or []) + self._private_product_search_domain()
 
         return super(ProductTemplate, self).search_read(domain=domain, fields=fields, offset=offset, limit=limit, order=order)

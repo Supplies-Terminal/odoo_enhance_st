@@ -180,10 +180,7 @@ class ProductProduct(models.Model):
         if not args:
             args = []
 
-        current_company = self.env.company
-        # 根据公司设置调整搜索条件
-        if current_company.private_product_only:
-            args.append(('company_id', '=', current_company.id))
+        args = list(args) + self.env['product.template']._private_product_search_domain()
 
         
         if name:
