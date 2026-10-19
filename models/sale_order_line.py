@@ -24,8 +24,7 @@ class SaleOrderLine(models.Model):
 
     latest_cost_value = fields.Char(string='Latest Cost Value', compute='_compute_latest_cost_value', store=False)
     cost = fields.Float(
-        string='Cost', digits='Product Price', compute='_compute_cost',
-        store=True, readonly=False, copy=True,
+        string='Cost', digits='Product Price', copy=True,
         help='Saved latest cost when the product is selected. Can be edited manually.',
     )
     latest_price_value = fields.Char(string='Latest Price Value', compute='_compute_latest_price_value', store=False)
@@ -35,11 +34,14 @@ class SaleOrderLine(models.Model):
     latest_vendor_id = fields.Integer(string='Latest Vendor', compute='_compute_latest_vendor_id', store=False)
     skip_it = fields.Boolean(string='Skip It', default=False, help='Mark this line to be skipped')
 
-    @api.depends('product_id')
-    def _compute_cost(self):
-        # Snapshot only on product changes; live cost updates must not overwrite it.
+    def _get_cost_snapshot(self):
+        self.ensure_one()
+        return float(self.latest_cost_value or 0.0) if self.product_id else 0.0
+
+    @api.onchange('product_id')
+    def _onchange_cost(self):
         for rec in self:
-            rec.cost = float(rec.latest_cost_value or 0.0) if rec.product_id else 0.0
+            rec.cost = rec._get_cost_snapshot()
 
     @api.depends('order_id')
     def _compute_order_date(self):
@@ -436,6 +438,9 @@ class SaleOrderLine(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         lines = super(SaleOrderLine, self).create(vals_list)
+        for line, vals in zip(lines, vals_list):
+            if 'cost' not in vals:
+                super(SaleOrderLine, line).write({'cost': line._get_cost_snapshot()})
         orders = lines.mapped('order_id').filtered(lambda o: o.state in ('sale', 'done'))
         if orders:
             orders._recompute_estimated_profit_and_margin()
@@ -443,7 +448,12 @@ class SaleOrderLine(models.Model):
 
     def write(self, values):
         orders_before = self.mapped('order_id')
+        cost_lines = self.browse()
+        if 'product_id' in values and 'cost' not in values:
+            cost_lines = self.filtered(lambda line: line.product_id.id != values['product_id'])
         res = super(SaleOrderLine, self).write(values)
+        for line in cost_lines:
+            super(SaleOrderLine, line).write({'cost': line._get_cost_snapshot()})
         orders = (orders_before | self.mapped('order_id')).filtered(lambda o: o.state in ('sale', 'done'))
         if orders:
             orders._recompute_estimated_profit_and_margin()
