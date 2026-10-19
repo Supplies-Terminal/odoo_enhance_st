@@ -23,12 +23,23 @@ class SaleOrderLine(models.Model):
     order_date = fields.Datetime(string='Order Date', compute='_compute_order_date', store=False)
 
     latest_cost_value = fields.Char(string='Latest Cost Value', compute='_compute_latest_cost_value', store=False)
+    cost = fields.Float(
+        string='Cost', digits='Product Price', compute='_compute_cost',
+        store=True, readonly=False, copy=True,
+        help='Saved latest cost when the product is selected. Can be edited manually.',
+    )
     latest_price_value = fields.Char(string='Latest Price Value', compute='_compute_latest_price_value', store=False)
     latest_cost = fields.Char(string='Latest Cost', compute='_compute_latest_cost', store=False)
     latest_price = fields.Char(string='Latest Price', compute='_compute_latest_price', store=False)
     latest_vendor = fields.Char(string='Latest Vendor Name', compute='_compute_latest_vendor', store=False)
     latest_vendor_id = fields.Integer(string='Latest Vendor', compute='_compute_latest_vendor_id', store=False)
     skip_it = fields.Boolean(string='Skip It', default=False, help='Mark this line to be skipped')
+
+    @api.depends('product_id')
+    def _compute_cost(self):
+        # Snapshot only on product changes; live cost updates must not overwrite it.
+        for rec in self:
+            rec.cost = float(rec.latest_cost_value or 0.0) if rec.product_id else 0.0
 
     @api.depends('order_id')
     def _compute_order_date(self):

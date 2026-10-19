@@ -10,6 +10,12 @@
             <xpath expr="//field[@name='order_line']/tree//field[@name='product_uom_qty']" position="after">
                 <field name="skip_it" widget="boolean_toggle"/>
             </xpath>
+            <xpath expr="//field[@name='order_line']/tree//field[@name='price_unit']" position="after">
+                <field name="cost" optional="show"/>
+            </xpath>
+            <xpath expr="//field[@name='order_line']/form//field[@name='price_unit']" position="after">
+                <field name="cost"/>
+            </xpath>
         </field>
     </record>
-</odoo> 
+</odoo>
