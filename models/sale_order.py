@@ -20,7 +20,7 @@ class SaleOrder(models.Model):
         readonly=True,
         copy=False,
         default=0.0,
-        help='Snapshot at order confirmation: sum of (sale price - latest cost) × qty per line.',
+        help='Sum of (sale price - saved line cost) × qty per line. Updated at confirmation and when confirmed order lines change.',
     )
     margin = fields.Float(
         string='Margin',
@@ -90,9 +90,8 @@ class SaleOrder(models.Model):
         return 0.0
 
     def _recompute_estimated_profit_and_margin(self):
-        """根据当前订单行与 date_order 写入 stored 的 estimated_profit / margin（用 super().write 避免 write 递归）。"""
+        """根据订单行保存的 cost 更新利润和利润率，使用 super().write 避免递归。"""
         for order in self:
-            confirm_datetime = order.date_order or fields.Datetime.now()
             profit_total = 0.0
             sales_total = 0.0
 
@@ -102,11 +101,9 @@ class SaleOrder(models.Model):
 
                 qty = line.product_uom_qty or 0.0
                 sale_price = line.price_unit or 0.0
-                latest_cost = order._get_latest_cost_by_date(
-                    line.product_id, order.company_id, confirm_datetime
-                )
+                cost = line.cost or 0.0
 
-                profit_total += (sale_price - latest_cost) * qty
+                profit_total += (sale_price - cost) * qty
                 sales_total += sale_price * qty
 
             margin_val = round((profit_total / sales_total), 3) if sales_total else 0.0
